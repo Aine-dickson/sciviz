@@ -196,7 +196,6 @@ impl SurfaceInspection3 {
     /// Piecewise-linear scalar value represented by the intersected triangle.
     #[must_use] pub const fn scalar_value(&self) -> f64 { self.scalar_value }
 }
-}
 
 #[cfg(test)]
 mod tests {
