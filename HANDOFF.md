@@ -1,6 +1,6 @@
 # Scientific Visualization Framework — Handoff
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 ## Project objective
 
@@ -161,7 +161,7 @@ M3.1 local Windows validation (user-reported): formatting check passed; workspac
 
 #### M3.2 — Indexed triangle meshes
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported local Windows validation completed on 2026-11-08.
 
 Updated file: `crates/svf-core/src/geometry.rs`.
 
@@ -182,7 +182,9 @@ Contract:
 
 Eight M3.2 tests cover empty/vertex-only meshes, index and winding preservation, unused vertices, incomplete groups, out-of-range indices, repeated indices, non-finite positions, and geometrically degenerate triangles.
 
-Next: user pulls and validates M3.2. Do not start renderer integration or broader topology APIs until this core contract passes locally.
+M3.2 local Windows validation (user-reported, 2026-11-08): `cargo check --workspace` passed; `cargo test -p svf-core` passed 32 tests; `cargo test --workspace` passed 34 tests (32 core, 2 renderer), with no failures. The pasted output did not include the formatting-check result, so formatting status is not newly recorded here.
+
+M3.2 is complete. The next increment should add an explicit, graphics-independent mesh-topology query layer (starting with unique undirected edges and face/edge incidence), while keeping the current mesh storage and validation contract stable. Design and test topology semantics before renderer integration; do not imply manifoldness or watertightness from adjacency data alone.
 
 ## Accepted coordinate conventions
 
@@ -226,4 +228,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry passed user-reported Windows validation (24 core tests; 26 workspace tests). M3.2 indexed triangle mesh implementation is committed and awaits local validation. Validate it before extending geometry or connecting it to the renderer.
+M3.2 indexed triangle meshes are implemented and user-validated on Windows: workspace check passed, 32 core tests passed, and the full workspace suite passed 34 tests (32 core, 2 renderer). The next work item is to design M3.3 as a graphics-independent topology query layer, beginning with unique undirected edges and face/edge incidence. Preserve the existing f64 mesh data contract and explicitly distinguish adjacency from stronger properties such as manifoldness and watertightness. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry passed user-reported Windows validation (24 core tests; 26 workspace tests).
