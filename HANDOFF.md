@@ -397,3 +397,58 @@ M5.1 is closed. The next increment is M5.2 — replace the flat integration
 fixture with the adjustable parametric graph surface. Preserve the existing
 renderer/core boundary: sample and generate geometry in svf-core, then pass
 the resulting TriangleMesh3 to the renderer.
+
+
+## M5.2 — Parametric surface and live amplitude adjustment
+
+Implementation committed; awaiting user-reported Windows validation.
+
+Explorer now samples the demonstration function
+
+`f(x, y) = A * sin(x) * cos(y)`
+
+over the square domain [-5, 5] × [-5, 5], with 41 sample points per axis.
+The first domain coordinate maps to world X, the second to world Z, and
+the scalar result maps to world Y. The surface remains an ordinary
+`SampledSurface3` generated through the existing svf-core sampling and
+structured-grid APIs; no special-case parametric mesh representation was
+added to the core.
+
+Interactive controls:
+- Up Arrow increases amplitude A by 0.25.
+- Down Arrow decreases amplitude A by 0.25.
+- A is clamped to [0, 3].
+- The window title displays the current amplitude.
+
+On each adjustment, Explorer reevaluates the function and regenerates the
+CPU-side scientific surface. `SceneRenderer::update_mesh` converts the new
+mesh and writes its vertex/index data into existing GPU buffers. It rejects
+updates that change vertex or index counts, avoiding buffer reallocation for
+this fixed-topology demonstration. Pipelines, camera, reference grid/axes,
+and depth target are retained.
+
+A renderer unit-level test is not yet added for GPU buffer updates because
+that operation requires a live device; the Explorer test verifies that
+amplitude scales all surface heights while preserving topology and produces
+both positive and negative heights.
+
+Files changed:
+- `crates/svf-render/src/lib.rs`
+- `apps/explorer/src/main.rs`
+
+GitHub commits:
+- `36fe2ee` — add fixed-topology scientific mesh buffer updates
+- `6517312` — add adjustable parametric surface demonstration
+- `9cae655` — handle an uninitialized renderer safely during amplitude updates
+
+Next local validation:
+```powershell
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test -p svf-render
+cargo test --workspace
+cargo run -p svf-explorer
+```
+
+Visual verification should confirm a smooth undulating surface and that Up/Down
+changes its height while preserving the reference axes/grid and projection.
