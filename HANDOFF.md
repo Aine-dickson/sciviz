@@ -518,11 +518,16 @@ coordinates are reported explicitly.
 
 The renderer exposes its current `Camera3` by reference so picking uses the
 same camera and projection as rendering. Explorer retains the current
-`SampledSurface3`, tracks the cursor's physical-pixel position, and inspects
-the surface on left mouse press. A hit updates the window title with domain
-coordinates and scalar value, and writes world position, continuous grid
-coordinates, source cell, triangle, and barycentric weights to stderr. A miss
-is reported explicitly. Amplitude changes replace the retained scientific
+`SampledSurface3` and tracks the cursor's physical-pixel position. The
+initial click-only feedback proved too difficult to diagnose in the user's
+visual run: the user could not identify a visible response to clicks or
+hovering. Commit `c06df8c` therefore adds live hover inspection: moving the
+cursor updates the window title with domain coordinates and scalar value, or
+explicitly reports that no surface is under the cursor. Left-click now emits
+the pixel coordinate and viewport dimensions, followed by an explicit HIT,
+MISS, or ray-error diagnostic; successful hits include world position,
+continuous grid coordinates, source cell, triangle, and barycentric weights.
+Hover does not flood stderr. Amplitude changes replace the retained scientific
 surface after updating the renderer buffers.
 
 Camera tests cover centered perspective rays, direction changes across the
@@ -540,7 +545,9 @@ Implementation commits:
 - `f7bb14f` — connect Explorer clicks to scientific surface inspection
 
 Next validation: run formatting, workspace compilation, and tests on Windows.
-Then launch Explorer and click several visible surface regions; compare the
-reported domain/scalar values with the expected graph and test again after
-resizing and changing amplitude. The click integration has not yet been
+Then launch Explorer, move the cursor over the surface and outside it, and
+confirm that the title changes between scientific hover values and "no
+surface". Left-click several visible surface regions and inspect the explicit
+pixel/viewport plus HIT/MISS terminal diagnostics. Repeat after resizing and
+changing amplitude. The hover-feedback and diagnostic update has not yet been
 user-validated.
