@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![doc = "Graphics-independent foundations for the Scientific Visualization Framework."]
 
+pub mod camera;
 pub mod spatial;
 
 /// Human-readable project name.
