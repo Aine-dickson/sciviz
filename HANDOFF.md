@@ -331,13 +331,14 @@ domain on XZ and scalar values on Y. Triangle winding now faces +Y. Source
 sample and source-cell mappings remain unchanged. This is a coordinate
 correction to M4.3, not a change to the mathematical sampling domain.
 
-The correction is committed but still requires user-reported Windows
-formatting, compilation, and test validation before M5.1 proceeds.
+The correction is committed and user-validated on Windows (2026-11-08):
+formatting and workspace check passed; 67 core tests and 69 workspace tests
+(67 core, 2 renderer) passed.
 
 
 ## M5.1 — Indexed triangle rendering and depth testing
 
-Implementation committed; awaiting user-reported Windows validation.
+Implementation committed and user-validated on Windows (2026-11-08).
 
 Changes:
 - `svf-render` accepts a graphics-independent `TriangleMesh3` when
@@ -357,6 +358,20 @@ Changes:
 
 Renderer unit tests cover f64-to-f32 conversion, preservation of indices, and
 rejection of values outside the representable f32 range.
+
+User-reported Windows validation (2026-11-08):
+- `cargo fmt --all -- --check` passed.
+- `cargo check --workspace` passed.
+- `cargo test -p svf-render` passed (4 renderer tests).
+- `cargo test --workspace` passed (67 core tests and 4 renderer tests;
+  71 total, no failures).
+- Explorer displayed a flat blue indexed surface on the XZ plane. The
+  reference grid remained visible across and beyond the surface; red X and
+  blue Z lay along the surface while green Y rose vertically at the origin.
+- Window resize and restore preserved the projection without noticeable
+  distortion.
+- The user reported the expected projection and visible geometry. No separate
+  explicit occlusion/depth-intersection stress test was reported.
 
 Files changed:
 - `crates/svf-render/src/lib.rs`
@@ -378,16 +393,7 @@ fields. The implementation has been corrected to use `Some(...)`. The same
 correction commit also aligns the reported rustfmt differences in the renderer
 tests.
 
-Next local validation (after pulling the correction):
-```powershell
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test -p svf-render
-cargo test --workspace
-cargo run -p svf-explorer
-```
-
-Expected visual check: a flat blue surface should appear over the XZ grid,
-with the colored world axes visible. Resize the window and verify the surface
-remains correctly projected. If any check fails, report the exact output
-before further implementation.
+M5.1 is closed. The next increment is M5.2 — replace the flat integration
+fixture with the adjustable parametric graph surface. Preserve the existing
+renderer/core boundary: sample and generate geometry in svf-core, then pass
+the resulting TriangleMesh3 to the renderer.
