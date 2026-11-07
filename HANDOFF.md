@@ -144,7 +144,7 @@ The user successfully launched the Explorer after the wgpu 30 pipeline-layout co
 
 #### M3.1 — Point and line primitives
 
-Implementation committed; local Windows validation pending.
+Implementation committed; local Windows validation completed by user: formatting check and workspace check passed; `cargo test -p svf-core` passed 24 tests; `cargo test --workspace` passed 26 tests.
 
 New file: `crates/svf-core/src/geometry.rs`, exported through
 `pub mod geometry`.
@@ -157,7 +157,32 @@ Public API:
 
 All geometry remains in f64 world coordinates. No wgpu types or GPU buffers are exposed by svf-core. Tests cover empty point sets, coordinate validation, endpoint semantics, length, minimum polyline size, ordered segment iteration, repeated points, and explicit closure.
 
-Next: validate locally, then design indexed triangle meshes and topology checks. Do not introduce renderer conversion until the core geometry contract is locally verified.
+M3.1 local Windows validation (user-reported): formatting check passed; workspace check passed; 24 core tests passed; 26 workspace tests passed.
+
+#### M3.2 — Indexed triangle meshes
+
+Implementation committed; local Windows validation pending.
+
+Updated file: `crates/svf-core/src/geometry.rs`.
+
+New public API:
+- `TriangleMesh3`: indexed triangle mesh with ordered `WorldPoint3` vertices and flattened `u32` indices (three indices per triangle).
+- `GeometryError` additions: incomplete triangle index group, out-of-range vertex index (with triangle and corner), and repeated vertex index within a triangle.
+
+Contract:
+- Vertex and triangle order, including winding, are preserved.
+- Empty mesh, vertices without triangles, and unreferenced vertices are valid.
+- All vertex coordinates must be finite.
+- Index count must be divisible by three.
+- Every index must reference an existing vertex.
+- A triangle cannot repeat a vertex index.
+- Geometrically degenerate triangles (e.g. collinear vertex positions) are preserved. Geometric quality validation is separate from index-topology validity.
+- No global manifold, watertightness, connected-component, or adjacent-face orientation checks are implemented yet.
+- All data remains CPU-side f64 geometry; no renderer or GPU dependency is introduced.
+
+Eight M3.2 tests cover empty/vertex-only meshes, index and winding preservation, unused vertices, incomplete groups, out-of-range indices, repeated indices, non-finite positions, and geometrically degenerate triangles.
+
+Next: user pulls and validates M3.2. Do not start renderer integration or broader topology APIs until this core contract passes locally.
 
 ## Accepted coordinate conventions
 
@@ -201,4 +226,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry is committed and awaits local validation. Validate M3.1 before extending geometry or connecting it to the renderer.
+Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry passed user-reported Windows validation (24 core tests; 26 workspace tests). M3.2 indexed triangle mesh implementation is committed and awaits local validation. Validate it before extending geometry or connecting it to the renderer.
