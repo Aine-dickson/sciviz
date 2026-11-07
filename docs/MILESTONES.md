@@ -208,7 +208,7 @@ Implementation committed and user-validated on Windows (2026-11-08).
 
 ### M5.2 — Parametric surface
 
-Implementation committed; awaiting user-reported Windows validation.
+Implementation committed and user-validated on Windows (2026-11-08).
 
 - [x] Generate `f(x, y) = A * sin(x) * cos(y)` on world XZ with scalar values on world Y
 - [x] Use the existing svf-core scalar sampling and structured-grid pipeline
@@ -217,8 +217,8 @@ Implementation committed; awaiting user-reported Windows validation.
 - [x] Update existing GPU mesh buffers without recreating pipelines, camera, or reference geometry
 - [x] Reject mesh updates that change the allocated vertex/index counts
 - [x] Test amplitude scaling and preservation of mesh topology
-- [ ] Verify formatting, workspace compilation, and tests on Windows
-- [ ] Visually verify the parametric surface and live amplitude adjustment on Windows
+- [ ] Confirm formatting, workspace compilation, and tests for the M5.2 commit on Windows
+- [x] Visually verify the parametric surface and live amplitude adjustment on Windows, including increasing and decreasing A and returning to A=0.00
 
 ### M5.3 — Scientific inspection
 
