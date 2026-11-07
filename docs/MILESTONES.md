@@ -236,9 +236,14 @@ committed on 2026-11-08; local Windows validation pending.
 - [ ] Verify `cargo check --workspace` on Windows (not yet reported)
 - [x] Verify `cargo test -p svf-core` on Windows (67 passed)
 - [x] Verify `cargo test --workspace` on Windows (72 passed: 67 core, 1 Explorer, 4 renderer)
-- [ ] Convert Explorer cursor pixels to a world ray using the inverse camera view-projection transform
-- [ ] Connect left-click selection and display the recovered scientific inspection
+- [x] Convert physical viewport pixels to world rays using inverse view-projection unprojection and WebGPU NDC depth [0, 1]
+- [x] Support perspective and orthographic ray origins
+- [x] Expose the renderer's active camera to CPU-side picking
+- [x] Connect Explorer cursor tracking and left-click scientific surface inspection
+- [x] Display domain/scalar values in the window title and full hit metadata in the terminal
+- [ ] Verify formatting, workspace compilation, and tests for viewport/Explorer integration on Windows
 - [ ] Visually verify picking at multiple surface locations and after resizing
+- [ ] Verify picking remains correct after changing surface amplitude
 
 ### M3.3 — Mesh topology queries
 
