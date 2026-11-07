@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 #![doc = "Graphics-independent foundations for the Scientific Visualization Framework."]
 
+pub mod spatial;
+
 /// Human-readable project name.
 pub const PROJECT_NAME: &str = "Scientific Visualization Framework";
 
