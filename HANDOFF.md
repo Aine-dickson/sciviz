@@ -348,9 +348,9 @@ Changes:
 - Added a dedicated indexed TriangleList pipeline and WGSL mesh shader.
 - Added a Depth32Float target. It is cleared per frame, recreated on
   non-zero resize, and used by depth-aware line and mesh pipelines.
-- The mesh pipeline currently uses a fixed color and basic directional
-  diffuse term. Normals, material systems, and advanced lighting are outside
-  this milestone.
+- The mesh pipeline currently uses a fixed unlit color. Generic
+  `TriangleMesh3` does not yet carry normals or a surface-shading contract;
+  lighting/material work is intentionally deferred.
 - Explorer generates a small flat sampled graph surface through svf-core and
   passes its mesh to the renderer. This is an integration fixture; M5.2
   replaces it with the adjustable parametric surface.
@@ -367,6 +367,9 @@ GitHub commits:
 - `d8d089c` — indexed triangle mesh pipeline and depth target
 - `4bd5dfd` — mesh WGSL shader
 - `4925824` — sampled flat surface in Explorer
+- `ad73763` — render opaque mesh before depth-tested reference lines
+- `1fc79c5` — renderer documentation and conversion-test cleanup
+- `45d1383` — keep generic mesh shader unlit until normals are defined
 
 Next local validation:
 ```powershell
