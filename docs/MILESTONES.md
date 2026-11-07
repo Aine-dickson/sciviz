@@ -97,11 +97,22 @@ Implementation committed; local Windows validation pending.
 - [x] Add CPU unit tests for construction, validation, ordering, and segment semantics
 - [ ] Verify formatting, core tests, and workspace tests on Windows
 
-### M3.2 — Triangle meshes and topology
+### M3.2 — Indexed triangle meshes
 
-- [ ] Design indexed triangle mesh representation
-- [ ] Validate index ranges and topology invariants
-- [ ] Add CPU-side geometry tests
+Implementation committed; local Windows validation pending.
+
+- [x] Add graphics-independent `TriangleMesh3` with f64 world-space vertices and flattened `u32` triangle indices
+- [x] Preserve vertex order, triangle order, and winding
+- [x] Validate that the index count is divisible by three
+- [x] Validate every index is in range and report triangle/corner on failure
+- [x] Reject repeated vertex indices within a triangle
+- [x] Validate all vertex coordinates are finite
+- [x] Allow empty meshes, vertices without triangles, and unreferenced vertices
+- [x] Preserve geometrically degenerate triangles; geometric quality checks are a separate concern
+- [x] Add CPU tests for valid meshes and each validation rule
+- [ ] Verify formatting, core tests, and workspace tests on Windows
+
+Scope note: this increment validates per-triangle index structure, not global manifoldness, watertightness, connected components, or consistent orientation across adjacent triangles. Those require explicit future topology APIs.
 
 ## M4 — Mathematical sampling
 
