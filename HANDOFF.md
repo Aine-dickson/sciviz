@@ -501,3 +501,46 @@ existing camera's inverse view-projection matrix and WebGPU NDC depth [0, 1],
 then connect left-click inspection in Explorer. Do not move picking logic into
 wgpu or GPU buffers. Keep command/runtime validation status pending until the
 user reports Windows results.
+
+
+### M5.3 — Viewport unprojection and Explorer click integration
+
+Implementation committed on 2026-11-08; Windows validation pending.
+
+The camera now exposes
+`Camera3::ray_from_viewport(pixel_x, pixel_y, width, height)`. It accepts
+physical-pixel coordinates from a top-left-origin viewport, unprojects NDC
+depth 0 and 1 through the inverse view-projection matrix, and returns a
+validated f64 `Ray3`. Perspective rays originate at the camera position;
+orthographic rays originate on the near plane and remain parallel. Invalid
+pixels, zero-sized viewports, singular transforms, and invalid homogeneous
+coordinates are reported explicitly.
+
+The renderer exposes its current `Camera3` by reference so picking uses the
+same camera and projection as rendering. Explorer retains the current
+`SampledSurface3`, tracks the cursor's physical-pixel position, and inspects
+the surface on left mouse press. A hit updates the window title with domain
+coordinates and scalar value, and writes world position, continuous grid
+coordinates, source cell, triangle, and barycentric weights to stderr. A miss
+is reported explicitly. Amplitude changes replace the retained scientific
+surface after updating the renderer buffers.
+
+Camera tests cover centered perspective rays, direction changes across the
+viewport, parallel orthographic rays with distinct origins, and invalid
+viewport/pixel inputs.
+
+Files changed:
+- `crates/svf-core/src/camera.rs`
+- `crates/svf-render/src/lib.rs`
+- `apps/explorer/src/main.rs`
+
+Implementation commits:
+- `70ac2fc` — add viewport pixel to world ray conversion
+- `7ad9063` — expose renderer camera for scientific picking
+- `f7bb14f` — connect Explorer clicks to scientific surface inspection
+
+Next validation: run formatting, workspace compilation, and tests on Windows.
+Then launch Explorer and click several visible surface regions; compare the
+reported domain/scalar values with the expected graph and test again after
+resizing and changing amplitude. The click integration has not yet been
+user-validated.
