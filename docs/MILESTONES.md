@@ -121,9 +121,22 @@ Scope note: this increment validates per-triangle index structure, not global ma
 
 Objective: represent mathematical domains and sampled values explicitly before converting them into renderable geometry.
 
-### M4.1 — Bounded domains and sampling specifications (next)
+### M4.1 — Bounded domains and sampling specifications
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
+
+- [x] Add `Domain1D` with finite, strictly increasing inclusive bounds
+- [x] Add `Domain2D` with independent X and Y ranges
+- [x] Reject non-finite bounds, non-positive extents, and extents that overflow f64
+- [x] Add `SamplingSpec1D` and `SamplingSpec2D` with independent axis counts
+- [x] Define sample counts as points, with interval count equal to points minus one
+- [x] Require at least two points per sampled axis and report the offending axis
+- [x] Keep domain and sampling specifications independent of function evaluation, grid allocation, geometry, and rendering
+- [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, endpoint-capable minimum counts, and invalid sample counts
+- [x] Verify `cargo fmt --all -- --check` on Windows
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (50 passed)
+- [x] Verify `cargo test --workspace` on Windows (52 passed: 50 core, 2 renderer)
 
 - [x] Add `Domain1D` with finite, strictly increasing inclusive bounds
 - [x] Add `Domain2D` with independent X and Y ranges
@@ -135,11 +148,14 @@ Implementation committed; local Windows validation pending.
 - [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, endpoint-capable minimum counts, and invalid sample counts
 - [ ] Verify formatting, core tests, and workspace tests on Windows
 
-### M4.2 — Function sampling
+### M4.2 — Function sampling (next)
 
-- Sample scalar functions over validated domains
-- Define explicit handling for non-finite/undefined function results
-- Preserve mapping between sample indices and source coordinates
+- Define a simple CPU-side API for sampling scalar-valued functions over validated domains and resolutions
+- Preserve deterministic sample ordering and source-coordinate reconstruction
+- Represent non-finite function outputs explicitly without dropping samples or shifting indices
+- Specify row/column ordering for 2D sampling
+- Test endpoint inclusion, coordinate mapping, finite values, and NaN/infinity handling
+- Keep the API independent of geometry and rendering
 
 ### M4.3 — Structured grids and surface generation
 
