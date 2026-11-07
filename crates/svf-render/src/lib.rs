@@ -10,6 +10,7 @@ use std::{error::Error, fmt, mem::size_of, num::NonZeroU64, sync::Arc};
 use bytemuck::{Pod, Zeroable};
 use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
+    geometry::TriangleMesh3,
     spatial::{WorldPoint3, WorldVector3},
 };
 use wgpu::{CurrentSurfaceTexture, Surface, SurfaceConfiguration, util::DeviceExt};
@@ -30,6 +31,7 @@ pub enum RenderError {
     CameraConfiguration(String),
     UnsupportedSurface,
     SurfaceValidation,
+    MeshConversion,
 }
 
 impl fmt::Display for RenderError {
@@ -41,6 +43,7 @@ impl fmt::Display for RenderError {
             Self::CameraConfiguration(message) => write!(f, "could not configure reference camera: {message}"),
             Self::UnsupportedSurface => write!(f, "the selected adapter does not support this window surface"),
             Self::SurfaceValidation => write!(f, "wgpu reported a surface validation failure"),
+            Self::MeshConversion => write!(f, "scientific mesh cannot be represented by the renderer's f32 vertex/index format"),
         }
     }
 }
@@ -50,6 +53,13 @@ impl Error for RenderError {}
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct LineVertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct MeshVertex {
     position: [f32; 3],
     color: [f32; 3],
 }
@@ -82,13 +92,19 @@ pub struct SceneRenderer {
     camera_uniform_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
+    mesh_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     vertex_count: u32,
+    mesh_vertex_buffer: wgpu::Buffer,
+    mesh_index_buffer: wgpu::Buffer,
+    mesh_index_count: u32,
+    _depth_texture: wgpu::Texture,
+    depth_view: wgpu::TextureView,
 }
 
 impl SceneRenderer {
     /// Initialize wgpu and create the reference-scene pipeline.
-    pub async fn new(window: Arc<Window>) -> Result<Self, RenderError> {
+    pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -118,6 +134,7 @@ impl SceneRenderer {
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .ok_or(RenderError::UnsupportedSurface)?;
         surface.configure(&device, &config);
+        let (depth_texture, depth_view) = create_depth_target(&device, config.width, config.height);
 
         let aspect_ratio = config.width as f64 / config.height as f64;
         let camera = reference_camera(aspect_ratio)?;
@@ -191,7 +208,7 @@ impl SceneRenderer {
                 topology: wgpu::PrimitiveTopology::LineList,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(line_depth_state()),
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -211,6 +228,57 @@ impl SceneRenderer {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
+        let mesh_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("svf-indexed-mesh-shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("mesh.wgsl").into()),
+        });
+        const MESH_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+        let mesh_layout = wgpu::VertexBufferLayout {
+            array_stride: size_of::<MeshVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &MESH_ATTRIBUTES,
+        };
+        let mesh_buffers = [Some(mesh_layout)];
+        let mesh_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("svf-indexed-triangle-mesh-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &mesh_shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &mesh_buffers,
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(mesh_depth_state()),
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &mesh_shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &color_targets,
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+
+        let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
+        let mesh_index_count = u32::try_from(mesh_indices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let mesh_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("svf-scientific-mesh-vertex-buffer"),
+            contents: bytemuck::cast_slice(&mesh_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let mesh_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("svf-scientific-mesh-index-buffer"),
+            contents: bytemuck::cast_slice(&mesh_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         tracing_adapter_info(&adapter);
 
         Ok(Self {
@@ -224,8 +292,14 @@ impl SceneRenderer {
             camera_uniform_buffer,
             camera_bind_group,
             pipeline,
+            mesh_pipeline,
             vertex_buffer,
             vertex_count,
+            mesh_vertex_buffer,
+            mesh_index_buffer,
+            mesh_index_count,
+            _depth_texture: depth_texture,
+            depth_view,
         })
     }
 
@@ -254,6 +328,9 @@ impl SceneRenderer {
         self.config.width = size.width;
         self.config.height = size.height;
         self.surface.configure(&self.device, &self.config);
+        let (depth_texture, depth_view) = create_depth_target(&self.device, size.width, size.height);
+        self._depth_texture = depth_texture;
+        self.depth_view = depth_view;
         Ok(())
     }
 
@@ -292,7 +369,14 @@ impl SceneRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
@@ -302,6 +386,11 @@ impl SceneRenderer {
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.draw(0..self.vertex_count, 0..1);
+
+            pass.set_pipeline(&self.mesh_pipeline);
+            pass.set_vertex_buffer(0, self.mesh_vertex_buffer.slice(..));
+            pass.set_index_buffer(self.mesh_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.mesh_index_count, 0, 0..1);
         }
 
         self.queue.submit([encoder.finish()]);
@@ -316,6 +405,60 @@ impl SceneRenderer {
             self.surface.configure(&self.device, &self.config);
         }
     }
+}
+
+
+const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+fn line_depth_state() -> wgpu::DepthStencilState {
+    wgpu::DepthStencilState {
+        format: DEPTH_FORMAT,
+        depth_write_enabled: false,
+        depth_compare: wgpu::CompareFunction::LessEqual,
+        stencil: Default::default(),
+        bias: Default::default(),
+    }
+}
+
+fn mesh_depth_state() -> wgpu::DepthStencilState {
+    wgpu::DepthStencilState {
+        format: DEPTH_FORMAT,
+        depth_write_enabled: true,
+        depth_compare: wgpu::CompareFunction::Less,
+        stencil: Default::default(),
+        bias: Default::default(),
+    }
+}
+
+fn create_depth_target(
+    device: &wgpu::Device,
+    width: u32,
+    height: u32,
+) -> (wgpu::Texture, wgpu::TextureView) {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("svf-scene-depth-target"),
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
+}
+
+fn convert_mesh(mesh: &TriangleMesh3) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
+    let vertices = mesh.vertices().iter().map(|point| {
+        let p = point.to_array();
+        let position = [p[0] as f32, p[1] as f32, p[2] as f32];
+        if !position.iter().all(|v| v.is_finite()) {
+            return Err(RenderError::MeshConversion);
+        }
+        Ok(MeshVertex { position, color: [0.18, 0.62, 0.88] })
+    }).collect::<Result<Vec<_>, _>>()?;
+    Ok((vertices, mesh.indices().to_vec()))
 }
 
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
@@ -392,6 +535,35 @@ fn tracing_adapter_info(adapter: &wgpu::Adapter) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn mesh_conversion_preserves_indices_and_converts_positions() {
+        let mesh = TriangleMesh3::new(
+            vec![
+                WorldPoint3::new(0.0, 1.0, 2.0),
+                WorldPoint3::new(1.0, 1.0, 2.0),
+                WorldPoint3::new(0.0, 1.0, 3.0),
+            ],
+            vec![0, 1, 2],
+        ).unwrap();
+        let (vertices, indices) = convert_mesh(&mesh).unwrap();
+        assert_eq!(vertices[1].position, [1.0, 1.0, 2.0]);
+        assert_eq!(indices, [0, 1, 2]);
+    }
+
+    #[test]
+    fn mesh_conversion_rejects_f64_values_outside_f32_range() {
+        let mesh = TriangleMesh3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0e100, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+            ],
+            vec![0, 1, 2],
+        ).unwrap();
+        assert!(matches!(convert_mesh(&mesh), Err(RenderError::MeshConversion)));
+    }
 
     #[test]
     fn reference_geometry_contains_grid_and_three_axes() {
