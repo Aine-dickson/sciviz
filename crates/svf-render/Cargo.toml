@@ -1,0 +1,11 @@
+[package]
+name = "svf-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wgpu-based rendering infrastructure for SVF"
+
+[dependencies]
+wgpu.workspace = true
+winit.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "svf-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Graphics-independent scientific data and mathematical foundations"
+
+[lib]
+path = "src/lib.rs"

@@ -1,0 +1,13 @@
+[package]
+name = "svf-explorer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+pollster.workspace = true
+svf-core = { path = "../../crates/svf-core" }
+svf-render = { path = "../../crates/svf-render" }
+winit.workspace = true
