@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+use svf_core::sampling::{
+    sample_scalar_2d, Domain1D, Domain2D, SamplingSpec2D, StructuredGrid2D,
+};
 use svf_render::SceneRenderer;
 use winit::{
     application::ApplicationHandler,
@@ -34,7 +37,16 @@ impl ApplicationHandler for Explorer {
             }
         };
 
-        match pollster::block_on(SceneRenderer::new(window.clone())) {
+        let surface = match demo_surface() {
+            Ok(surface) => surface,
+            Err(error) => {
+                eprintln!("Failed to generate demonstration surface: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        match pollster::block_on(SceneRenderer::new(window.clone(), surface.mesh())) {
             Ok(renderer) => {
                 self.renderer = Some(renderer);
                 self.window = Some(window.clone());
@@ -105,4 +117,15 @@ fn main() {
     if let Err(error) = event_loop.run_app(&mut app) {
         eprintln!("SVF Explorer terminated with an event-loop error: {error}");
     }
+}
+
+/// Creates a small flat graph surface to exercise indexed triangle rendering.
+/// M5.2 will replace this fixture with the adjustable parametric function.
+fn demo_surface() -> Result<svf_core::sampling::SampledSurface3, Box<dyn std::error::Error>> {
+    let domain = Domain2D::new(
+        Domain1D::new(-5.0, 5.0)?,
+        Domain1D::new(-5.0, 5.0)?,
+    );
+    let samples = sample_scalar_2d(domain, SamplingSpec2D::new(21, 21)?, |_, _| 0.0)?;
+    Ok(StructuredGrid2D::from_samples(samples).to_surface_mesh()?)
 }
