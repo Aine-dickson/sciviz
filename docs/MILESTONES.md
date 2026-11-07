@@ -280,3 +280,36 @@ Scope note: edge incidence is descriptive topology data. It does not certify con
 - [x] Verify formatting and workspace compilation on Windows
 - [x] Verify core tests on Windows (67 passed)
 - [x] Verify workspace tests on Windows (69 passed: 67 core, 2 renderer)
+
+
+## M6 — Scientific datasets and field semantics
+
+Objective: introduce a reusable, graphics-independent representation of
+scientific quantities and their relationships to dataset geometry/topology.
+Scientific data remains authoritative on the CPU; rendering consumes derived
+representations.
+
+### M6.1 — Field types and association semantics
+
+Implementation is committed to `svf-core`; local Windows validation is
+pending.
+
+- [x] Add explicit point, cell, and dataset field associations
+- [x] Add field metadata with a non-empty name and optional descriptive units
+- [x] Add scalar fields retaining finite and non-finite `SampleValue` entries
+- [x] Add three-component vector fields with independently classified components
+- [x] Declare vector coordinate basis explicitly (world basis in this increment)
+- [x] Enforce exactly one value for dataset-associated fields
+- [x] Provide point/cell cardinality validation against supplied dataset counts
+- [x] Preserve field value order and avoid implicit association conversion
+- [x] Add unit tests for metadata, values, non-finite handling, basis, and cardinality
+- [ ] Verify `cargo fmt --all -- --check` on Windows
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Record user-reported local results in the handoff
+
+Design details: `docs/fields.md`.
+
+M6.1 intentionally does not add a dataset container or geometry attachment.
+M6.2 will define those contracts against actual dataset topology, including
+the distinction between logical source cells and generated render triangles.
