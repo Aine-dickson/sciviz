@@ -7,5 +7,7 @@ license.workspace = true
 description = "wgpu-based rendering infrastructure for SVF"
 
 [dependencies]
+bytemuck.workspace = true
+svf-core = { path = "../svf-core" }
 wgpu.workspace = true
 winit.workspace = true
