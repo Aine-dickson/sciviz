@@ -533,18 +533,29 @@ User-reported Windows runtime validation (2026-11-08):
 - The observed interaction confirms the complete physical-pixel -> camera
   ray -> mesh intersection -> sampled scientific data -> UI/diagnostic path.
 
-User-reported automated validation after syncing to `87f1d59`:
+User-reported automated validation on Windows (2026-11-08):
+- `cargo fmt --all -- --check`: passed after running `cargo fmt --all`.
+- `cargo check --workspace`: passed.
 - `cargo test --workspace`: 84 passed, 0 failed (79 core, 1 Explorer,
   4 renderer).
-- `cargo fmt --all -- --check`: not yet reported.
-- `cargo check --workspace`: not yet reported.
 
-Remaining validation:
-1. Run formatting and workspace compilation checks on Windows.
-2. Picking after amplitude changes is now user-validated on Windows:
-   non-flat values were reported at higher amplitude, and zero scalar values
-   were reported after returning to the flat A=0.00 surface. Resize,
-   minimize, and maximize behavior was also validated.
-3. Run the remaining formatting and workspace compilation checks. Then inspect
-   and deliberately recover any local changes preserved in the pre-sync Git
-   stash. Do not blindly apply the stash.
+Additional user-reported runtime validation:
+- Picking remained correct after changing amplitude, including returning to
+  the flat A=0.00 surface; hits then reported scalar values of zero.
+- Picking remained correct after resizing, minimizing, and maximizing the
+  Explorer window.
+
+The formatter changed ten tracked Rust files. Copilot inspected the complete
+working-tree diff and reported formatting-only changes: no changes to
+calculations, conditions, public API behavior, coordinate conventions,
+error handling, or tests. `git diff --check` reported no whitespace errors.
+The user committed this cleanup locally as `d545466`
+(`style: format workspace`), leaving the working tree clean. This local
+commit was one commit ahead of `origin/main` at the time of reporting.
+
+The pre-sync stash `stash@{0}` remains untouched. Inspection found it to be
+an older pre-picking snapshot; it omits `crates/svf-core/src/ray.rs`, has an
+older Explorer without picking integration, and contains stale milestone
+documentation. No stash content should be restored over the validated M5.3
+implementation. Keep the stash until its eventual disposal is an explicit,
+separate decision.
