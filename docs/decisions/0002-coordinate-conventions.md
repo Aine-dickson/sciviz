@@ -1,6 +1,6 @@
 # 0002 — Coordinate conventions and camera mathematics
 
-- Status: Proposed for M2; confirm before implementation
+- Status: Accepted for M2
 - Date: 2026-11-07
 
 ## Context
@@ -9,7 +9,7 @@ SVF needs stable spatial semantics before it introduces scientific geometry.
 The conventions must be understandable independently of wgpu and must not
 couple scientific coordinates to screen pixels or a particular renderer.
 
-## Proposed conventions
+## Accepted conventions
 
 ### World coordinates
 
@@ -33,16 +33,18 @@ couple scientific coordinates to screen pixels or a particular renderer.
 - Use column vectors.
 - A point is transformed by `p_clip = P * V * M * p_local`.
 - The rightmost transform is applied first.
-- Matrix storage layout must be specified separately from mathematical
-  multiplication convention; do not infer one from the other.
+- Matrices are stored column-major. Storage layout and multiplication
+  convention are documented separately.
+- Angles are expressed in radians at the mathematical API boundary.
 
 ### Projection and clip space
 
-- Use the WebGPU clip-space depth range [0, 1].
+- Use the WebGPU/DirectX NDC depth range [0, 1].
+- View space is right-handed, Y-up, with -Z forward.
 - Keep perspective and orthographic projection as distinct camera projection
   modes.
-- Validate projection parameters (for example, positive aspect ratio,
-  near > 0, far > near, and valid field of view) before producing a matrix.
+- Validate projection parameters before producing a matrix; do not rely on
+  optional glam assertions for user-input validation.
 - Keep clip/NDC coordinates separate from viewport/pixel coordinates. The
   renderer owns the final mapping to the surface, including its pixel-space
   Y direction.
@@ -53,17 +55,30 @@ couple scientific coordinates to screen pixels or a particular renderer.
 - Conversion to f32 is explicit at the renderer boundary.
 - No wgpu types appear in `svf-core` public APIs.
 
-## Open decisions before implementation
+## Math dependency
 
-1. Whether to implement minimal in-house f64 vector/matrix primitives or adopt
-   a focused math crate. Decide based on required operations, correctness,
-   testability, and maintenance—not convenience alone.
-2. Exact matrix storage/API representation.
-3. Camera API shape: look-at target/up representation versus orientation
-   representation, and how orbit controls will build on it.
-4. Exact NDC-to-viewport mapping and depth handling at the renderer boundary.
-5. Whether 2D coordinates use a separate explicit coordinate type or share
+Use `glam` as the underlying linear algebra implementation. Pin the initial
+workspace dependency to `=0.34.2` while the library is pre-1.0. Enable only
+`std` and `float-types`; SVF needs f64 vectors, matrices, and quaternions.
+
+SVF's public domain API should add semantic types where they prevent mistakes
+(for example, distinguishing a world point from a displacement vector).
+Do not blindly expose every glam type as an SVF domain concept. Glam remains
+the mathematical implementation dependency and can be wrapped where stable
+domain semantics require it.
+
+Glam uses column vectors and column-major matrix storage. For WebGPU, select
+right-handed projection functions that produce NDC depth [0, 1].
+
+## Open decisions before camera implementation
+
+1. Camera state representation: look-at target/up versus orientation/quaternion.
+2. Exact projection parameter types and error model.
+3. Exact NDC-to-viewport mapping and depth handling at the renderer boundary.
+4. Whether 2D coordinates use a separate explicit coordinate type or share
    spatial primitives with a constrained dimensional model.
+5. Whether world points/vectors should later carry coordinate-frame identity
+   for multi-frame scientific datasets.
 
 ## Initial M2 validation expectations
 
