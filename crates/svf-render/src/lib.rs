@@ -32,6 +32,7 @@ pub enum RenderError {
     UnsupportedSurface,
     SurfaceValidation,
     MeshConversion,
+    MeshBufferSizeChanged,
 }
 
 impl fmt::Display for RenderError {
@@ -44,6 +45,7 @@ impl fmt::Display for RenderError {
             Self::UnsupportedSurface => write!(f, "the selected adapter does not support this window surface"),
             Self::SurfaceValidation => write!(f, "wgpu reported a surface validation failure"),
             Self::MeshConversion => write!(f, "scientific mesh cannot be represented by the renderer's f32 vertex/index format"),
+            Self::MeshBufferSizeChanged => write!(f, "updated scientific mesh must preserve the existing vertex and index counts"),
         }
     }
 }
@@ -97,6 +99,7 @@ pub struct SceneRenderer {
     vertex_count: u32,
     mesh_vertex_buffer: wgpu::Buffer,
     mesh_index_buffer: wgpu::Buffer,
+    mesh_vertex_count: u32,
     mesh_index_count: u32,
     _depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
@@ -267,16 +270,17 @@ impl SceneRenderer {
         });
 
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
+        let mesh_vertex_count = u32::try_from(mesh_vertices.len()).map_err(|_| RenderError::MeshConversion)?;
         let mesh_index_count = u32::try_from(mesh_indices.len()).map_err(|_| RenderError::MeshConversion)?;
         let mesh_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("svf-scientific-mesh-vertex-buffer"),
             contents: bytemuck::cast_slice(&mesh_vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let mesh_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("svf-scientific-mesh-index-buffer"),
             contents: bytemuck::cast_slice(&mesh_indices),
-            usage: wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
 
         tracing_adapter_info(&adapter);
@@ -297,10 +301,31 @@ impl SceneRenderer {
             vertex_count,
             mesh_vertex_buffer,
             mesh_index_buffer,
+            mesh_vertex_count,
             mesh_index_count,
             _depth_texture: depth_texture,
             depth_view,
         })
+    }
+
+    /// Update scientific mesh buffers without recreating the renderer.
+    ///
+    /// The replacement mesh must preserve the existing vertex and index
+    /// counts so the allocated GPU buffers remain large enough. Both vertex
+    /// positions and indices are updated; pipelines, camera, reference
+    /// geometry, and depth resources remain untouched.
+    pub fn update_mesh(&mut self, mesh: &TriangleMesh3) -> Result<(), RenderError> {
+        let (vertices, indices) = convert_mesh(mesh)?;
+        let vertex_count = u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let index_count = u32::try_from(indices.len()).map_err(|_| RenderError::MeshConversion)?;
+
+        if vertex_count != self.mesh_vertex_count || index_count != self.mesh_index_count {
+            return Err(RenderError::MeshBufferSizeChanged);
+        }
+
+        self.queue.write_buffer(&self.mesh_vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        self.queue.write_buffer(&self.mesh_index_buffer, 0, bytemuck::cast_slice(&indices));
+        Ok(())
     }
 
     /// Reconfigure the surface and camera projection after a non-zero resize.
