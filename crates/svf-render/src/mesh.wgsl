@@ -25,9 +25,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let light = normalize(vec3<f32>(-0.35, 0.85, 0.4));
-    let normal = vec3<f32>(0.0, 1.0, 0.0);
-    let diffuse = max(dot(normal, light), 0.0);
-    let illumination = 0.35 + 0.65 * diffuse;
-    return vec4<f32>(input.color * illumination, 1.0);
+    // Keep this first mesh pass unlit: generic TriangleMesh3 data does not
+    // yet carry normals or a surface-shading contract.
+    return vec4<f32>(input.color, 1.0);
 }
