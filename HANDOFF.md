@@ -541,7 +541,10 @@ User-reported automated validation after syncing to `87f1d59`:
 
 Remaining validation:
 1. Run formatting and workspace compilation checks on Windows.
-2. Verify picking after changing surface amplitude; resize/minimize/maximize
-   behavior has now been user-validated on Windows.
-3. Only after those checks, inspect and deliberately recover any local changes
-   preserved in the pre-sync Git stash. Do not blindly apply the stash.
+2. Picking after amplitude changes is now user-validated on Windows:
+   non-flat values were reported at higher amplitude, and zero scalar values
+   were reported after returning to the flat A=0.00 surface. Resize,
+   minimize, and maximize behavior was also validated.
+3. Run the remaining formatting and workspace compilation checks. Then inspect
+   and deliberately recover any local changes preserved in the pre-sync Git
+   stash. Do not blindly apply the stash.
