@@ -281,37 +281,32 @@ cargo test --workspace
 
 ### M4.3 — Structured grids and surface generation
 
-Implementation committed; local Windows validation pending.
+Implementation committed and user-validated on Windows (2026-11-08).
 
 Public API is exposed from `svf_core::sampling`:
 - `StructuredGrid2D::from_samples(ScalarSamples2D)` owns the original
   row-major scalar sample collection without duplicating coordinates/values.
-- Grid dimensions and indexed sample access preserve the original sample
-  coordinate and finite/non-finite value classification.
+- Grid dimensions and indexed sample access preserve original coordinates
+  and finite/non-finite value classification.
 - `to_surface_mesh()` creates a CPU-side `TriangleMesh3` height field with
   vertices at `(x, y, scalar_value)`.
-- Each finite sample becomes one mesh vertex, including finite vertices that
-  remain unreferenced because neighboring cells contain invalid samples.
+- Each finite sample becomes one mesh vertex, including finite vertices
+  unreferenced because neighboring cells contain invalid samples.
 - A cell emits both triangles only when all four corner samples are finite;
-  otherwise the whole cell is omitted. No hole is silently bridged.
-- Each cell uses the lower-left to upper-right diagonal and +Z-facing winding
-  for the framework's +X-right, +Y-up convention.
+  otherwise the entire cell is omitted. No hole is silently bridged.
+- The lower-left to upper-right diagonal gives +Z-facing winding.
 - `SampledSurface3` maps each mesh vertex to its source grid sample and each
-  triangle to its source grid cell, supporting later inspection/picking.
-- Output allocations are reserved fallibly and mesh vertex indexing is
-  checked against the u32 index format.
-- Nine tests cover dimensions/access, mesh generation, winding, invalid-cell
-  omission, source identity, all-invalid grids, and f64 preservation.
+  triangle to its source grid cell for later inspection and picking.
+- Output allocations are reserved fallibly and vertex indices are checked
+  against the u32 mesh index format.
+- Nine focused tests cover dimensions/access, mesh generation, winding,
+  invalid-cell omission, source identity, all-invalid grids, and f64 values.
 
-User validation commands:
-```powershell
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test -p svf-core
-cargo test --workspace
-```
-
-Expected after M4.3: 67 core tests and 69 workspace tests (67 core, 2 renderer).
+User-reported Windows validation completed on 2026-11-08:
+- `cargo fmt --all -- --check` passed.
+- `cargo check --workspace` passed.
+- `cargo test -p svf-core` passed (67 tests).
+- `cargo test --workspace` passed (69 tests: 67 core, 2 renderer).
 
 ### M4.4 — Sampling quality (planned)
 
