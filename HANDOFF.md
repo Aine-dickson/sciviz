@@ -442,3 +442,54 @@ GitHub commits:
 - `9cae655` — handle an uninitialized renderer safely during amplitude updates
 
 User-reported Windows validation (2026-11-08): the surface changed from flat at A=0.00 to increasingly pronounced peaks and troughs across A=0.25–3.00 as Up Arrow increased amplitude. Decreasing amplitude back to zero returned it to a flat surface. The reference grid, colored axes, and camera view remained in place throughout. This confirms both directions of interactive adjustment and the zero-amplitude boundary. The user had already reported the 67 core and 4 renderer tests passing for the preceding M5.1 validation; no new M5.2 command output was included in this visual report, so M5.2's latest compile/test status remains tied to the previous validation run unless separately confirmed.
+
+
+## M5.3 — Scientific inspection (core intersection layer)
+
+Initial core implementation committed on 2026-11-08; Windows validation is
+pending.
+
+New file: `crates/svf-core/src/ray.rs`, exposed as `svf_core::ray`.
+
+Public API:
+- `Ray3::new(origin, direction)` validates finite inputs and a non-zero,
+  finite direction length, then normalizes the direction. Ray distances are
+  consequently measured in world units.
+- `Ray3::point_at(distance)` evaluates a point along the half-line.
+- `intersect_mesh(&ray, &TriangleMesh3)` performs two-sided Möller–Trumbore
+  intersection and returns the nearest non-negative hit.
+- `RayHit3` retains distance, world hit position, source triangle index, and
+  barycentric weights in the triangle's stored index order.
+- Degenerate and near-parallel triangles are skipped. A hit at the ray origin
+  is valid.
+
+`SampledSurface3::inspect_ray` now maps a hit back to
+`SurfaceInspection3`, including triangle index, source grid cell, barycentric
+weights, world position, continuous domain coordinates (X/Y), continuous
+grid-sample coordinates, and the piecewise-linear scalar value (world Y).
+The result is interpolated over the generated triangle; it is not a fresh
+evaluation of the original function. The existing mesh vertex/triangle source
+mappings remain the authoritative source identity.
+
+Tests added for ray validation/normalization, two-sided intersection,
+barycentric weights, nearest-hit selection, behind-ray rejection, misses,
+parallel/degenerate triangles, origin hits, scientific coordinate/value
+recovery, and inspection misses.
+
+Files changed:
+- `crates/svf-core/src/ray.rs` (new)
+- `crates/svf-core/src/lib.rs`
+- `crates/svf-core/src/sampling.rs`
+- `crates/svf-core/src/sampling/grid.rs`
+
+Implementation commits:
+- `3d6970f` — add graphics-independent ray and mesh intersection
+- `db0afc3` — expose ray intersection foundations
+- `10109bd` — map sampled surface ray hits to scientific source data
+- `cc3aecf` — export sampled surface inspection results
+
+Next: implement and test screen-pixel-to-world-ray conversion using the
+existing camera's inverse view-projection matrix and WebGPU NDC depth [0, 1],
+then connect left-click inspection in Explorer. Do not move picking logic into
+wgpu or GPU buffers. Keep command/runtime validation status pending until the
+user reports Windows results.
