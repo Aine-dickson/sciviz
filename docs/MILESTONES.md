@@ -303,21 +303,21 @@ validation completed (94 tests passed: 89 core, 1 Explorer, 4 renderer).
 - [x] Provide point/cell cardinality validation against supplied dataset counts
 - [x] Preserve field value order and avoid implicit association conversion
 - [x] Add unit tests for metadata, values, non-finite handling, basis, and cardinality
-- [ ] Verify `cargo fmt --all -- --check` on Windows
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
-- [ ] Record user-reported local results in the handoff
+- [ ] Verify `cargo fmt --all -- --check` on Windows (not run for this increment)
+- [x] Verify `cargo check --workspace` on Windows (user-reported)
+- [x] Verify `cargo test --workspace` on Windows (94 passed: 89 core, 1 Explorer, 4 renderer)
+- [x] Record user-reported local results in the handoff
 
 Design details: `docs/fields.md`.
 
-M6.1 intentionally does not add a dataset container or geometry attachment.
-M6.2 will define those contracts against actual dataset topology, including
-the distinction between logical source cells and generated render triangles.
+M6.1 established field semantics independently; M6.2 subsequently added
+dataset ownership and geometry-aware attachment, including the distinction
+between logical source cells and generated render triangles.
 
 
 ### M6.2 — Dataset containers and attribute attachment
 
-<badge>Implementation merged and user-validated on Windows (2026-11-08)</badge>
+Implementation merged and user-validated on Windows (2026-11-08).
 
 Merged to `main` through PR #1:
 https://github.com/Aine-dickson/sciviz/pull/1
