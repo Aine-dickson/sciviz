@@ -106,6 +106,10 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
+    /// The f64 camera state used for both rendering and CPU-side picking.
+    #[must_use]
+    pub const fn camera(&self) -> &Camera3 { &self.camera }
+
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
