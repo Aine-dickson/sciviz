@@ -243,7 +243,8 @@ Windows (2026-11-08).
 - [x] Add live hover feedback in the window title for surface hits and misses
 - [x] Add explicit click diagnostics with pixel/viewport coordinates and HIT/MISS/ray-error status
 - [x] Visually verify hover feedback and picking at multiple surface locations and outside the surface on Windows
-- [ ] Verify picking remains correct after resizing and changing surface amplitude
+- [x] Verify picking remains correct after resizing, minimizing, and maximizing the window on Windows
+- [ ] Verify picking remains correct after changing surface amplitude
 
 ### M3.3 — Mesh topology queries
 
