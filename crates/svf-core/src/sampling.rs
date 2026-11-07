@@ -1,9 +1,10 @@
 //! Mathematical domains and sampling-resolution specifications.
 //!
-//! This module defines where sampling may occur and how many points are
-//! requested. It does not evaluate functions, allocate sampled grids, or
-//! create geometry. Sample counts always mean points, so N points span
-//! N - 1 intervals.
+//! This module defines bounded domains, sampling resolutions, and CPU-side
+//! scalar function evaluation. Domain and resolution types are independent
+//! of evaluation; function results preserve every requested sample. This
+//! module does not create renderable geometry. Sample counts always mean
+//! points, so N points span N - 1 intervals.
 
 use std::{error::Error, fmt};
 
