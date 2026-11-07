@@ -35,28 +35,38 @@ reproduced in this repository environment.
 Objective: establish a graphics-independent mathematical model for spatial
 coordinates and camera transforms before introducing scientific geometry.
 
-Initial design direction:
-- use a right-handed world coordinate system with +Y up
-- define camera forward as local -Z
-- use column vectors and explicit transform composition
-- preserve f64 in the scientific/core layer
-- make conversion to renderer-friendly f32 an explicit boundary
-- use WebGPU clip-space depth range [0, 1]
-- keep viewport/pixel coordinates distinct from world and clip coordinates
+Accepted conventions are recorded in
+`docs/decisions/0002-coordinate-conventions.md`.
 
-Planned acceptance criteria:
-- document coordinate spaces and transformation direction
-- implement tested vector/matrix or equivalent transform primitives in
-  `svf-core`, without exposing wgpu types
-- implement camera view transformation
-- implement perspective and orthographic projection with validated parameters
-- define aspect-ratio and viewport mapping behavior
-- add unit tests for camera transforms, projection, and edge cases
-- integrate camera matrices into `svf-render` only after core math is tested
-- render reference axes/grid as the first spatial integration test
+### M2.1 — Coordinate semantics and math foundation
 
-M2 has started with coordinate-convention design. No camera or transform
-implementation is claimed yet.
+- [x] Select glam for f64 vector/matrix/quaternion primitives
+- [x] Define right-handed world axes (+Y up)
+- [x] Distinguish world points from displacement vectors
+- [ ] Verify implementation with local Windows cargo checks and tests
+
+### M2.2 — Transform semantics
+
+- [x] Document column-vector multiplication and column-major storage
+- [x] Add a composition-order unit test
+- [ ] Add validated world/view transform APIs and tests
+
+### M2.3 — Camera and projection
+
+- [ ] Define camera state and view transformation
+- [ ] Implement validated perspective projection
+- [ ] Implement validated orthographic projection
+- [ ] Define aspect-ratio and viewport mapping behavior
+- [ ] Test camera and projection edge cases
+
+### M2.4 — Renderer integration
+
+- [ ] Convert camera matrices to renderer representation explicitly
+- [ ] Render reference axes and a grid
+- [ ] Verify resize updates projection without mutating world data
+
+M2.1/M2.2 source implementation has been added but is not considered locally
+verified until the user runs the workspace checks and tests.
 
 ## M3 — Scientific geometry
 
