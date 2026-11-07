@@ -16,10 +16,10 @@ pub enum CellType3 {
     Triangle3,
     /// Four vertices in cyclic perimeter order; dimension 2.
     Quad4,
-    /// Four vertices forming a linear tetrahedron; dimension 3.
+    /// Four vertices in caller-supplied simplex order; dimension 3.
     Tetrahedron4,
-    /// Eight vertices: four around one face, then corresponding four around
-    /// the opposite face; dimension 3.
+    /// Eight vertices: cyclic order around one face, then corresponding
+    /// cyclic order around the opposite face; dimension 3.
     Hexahedron8,
 }
 
