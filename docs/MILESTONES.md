@@ -187,7 +187,7 @@ Documentation committed in `docs/sampling-quality.md`.
 
 ## M5 — Interactive surface demonstrator
 
-- render `z = A * sin(x) * cos(y)`
+- render the graph `f(x, y) = A * sin(x) * cos(y)` with the domain on world XZ and scalar values on world Y
 - adjust A and regenerate only affected geometry
 - inspect a selected point and recover its source coordinates/value
 
