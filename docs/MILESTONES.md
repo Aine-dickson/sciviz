@@ -52,7 +52,13 @@ User-reported Windows validation:
 
 ### M2.3 — Camera and projection
 
-Implementation added; local verification pending.
+- [x] Camera and projection implementation
+- [x] Glam 0.34 camera API compatibility
+- [x] Local Windows `cargo test -p svf-core`: 14 passed, 0 failed (user-reported)
+- [x] Local Windows `cargo check --workspace`: passed (user-reported)
+- [x] Local Windows `cargo test --workspace`: passed (user-reported)
+
+The combined camera test expects NDC depth 0.88 for its chosen world target at view distance 5 with near=1 and far=11. Camera constructors use `glam::dcamera::rh` APIs.
 
 - [x] Define validated look-at camera pose
 - [x] Derive right-handed world-to-view matrix
@@ -62,13 +68,17 @@ Implementation added; local verification pending.
 - [x] Combine view and projection matrices in documented order
 - [x] Add tests for degenerate camera configurations
 - [x] Add tests for projection bounds and invalid parameters
-- [ ] Verify implementation with local Windows workspace checks and tests
+- [x] Verify implementation with local Windows workspace checks and tests (user-reported)
 
 ### M2.4 — Renderer integration
 
-- [ ] Convert camera matrices to renderer representation explicitly
-- [ ] Render reference axes and a grid
-- [ ] Verify resize updates projection without mutating world data
+Implementation committed; local validation pending.
+
+- [x] Convert camera matrices to renderer representation explicitly (f64 to f32 at GPU uniform boundary)
+- [x] Render reference axes and an XZ-plane world grid with a minimal line pipeline
+- [x] Update perspective aspect ratio and camera uniform on non-zero resize without changing world geometry
+- [ ] Verify workspace compilation and tests on Windows
+- [ ] Verify visible axes/grid and resize behavior on real hardware
 
 ## M3 — Scientific geometry
 
