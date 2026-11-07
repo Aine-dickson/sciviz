@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use svf_core::sampling::SampledSurface3;
 
-use svf_core::sampling::{
-    sample_scalar_2d, Domain1D, Domain2D, SamplingSpec2D, StructuredGrid2D,
-};
+use svf_core::sampling::{Domain1D, Domain2D, SamplingSpec2D, StructuredGrid2D, sample_scalar_2d};
 use svf_render::SceneRenderer;
 use winit::{
     application::ApplicationHandler,
@@ -62,7 +60,10 @@ impl Explorer {
             );
         }
 
-        let ray = match renderer.camera().ray_from_viewport(x, y, size.width, size.height) {
+        let ray = match renderer
+            .camera()
+            .ray_from_viewport(x, y, size.width, size.height)
+        {
             Ok(ray) => ray,
             Err(error) => {
                 window.set_title(&format!(
@@ -280,15 +281,10 @@ fn window_title(amplitude: f64) -> String {
 fn demo_surface(
     amplitude: f64,
 ) -> Result<svf_core::sampling::SampledSurface3, Box<dyn std::error::Error>> {
-    let domain = Domain2D::new(
-        Domain1D::new(-5.0, 5.0)?,
-        Domain1D::new(-5.0, 5.0)?,
-    );
-    let samples = sample_scalar_2d(
-        domain,
-        SamplingSpec2D::new(41, 41)?,
-        |x, y| amplitude * x.sin() * y.cos(),
-    )?;
+    let domain = Domain2D::new(Domain1D::new(-5.0, 5.0)?, Domain1D::new(-5.0, 5.0)?);
+    let samples = sample_scalar_2d(domain, SamplingSpec2D::new(41, 41)?, |x, y| {
+        amplitude * x.sin() * y.cos()
+    })?;
     Ok(StructuredGrid2D::from_samples(samples).to_surface_mesh()?)
 }
 
@@ -305,10 +301,7 @@ mod tests {
             half_amplitude.mesh().indices(),
             full_amplitude.mesh().indices()
         );
-        assert_eq!(
-            half_amplitude.vertex_count(),
-            full_amplitude.vertex_count()
-        );
+        assert_eq!(half_amplitude.vertex_count(), full_amplitude.vertex_count());
 
         for (half, full) in half_amplitude
             .mesh()
@@ -319,15 +312,19 @@ mod tests {
             assert!((full.to_array()[1] - 2.0 * half.to_array()[1]).abs() < 1.0e-12);
         }
 
-        assert!(full_amplitude
-            .mesh()
-            .vertices()
-            .iter()
-            .any(|point| point.to_array()[1] > 0.5));
-        assert!(full_amplitude
-            .mesh()
-            .vertices()
-            .iter()
-            .any(|point| point.to_array()[1] < -0.5));
+        assert!(
+            full_amplitude
+                .mesh()
+                .vertices()
+                .iter()
+                .any(|point| point.to_array()[1] > 0.5)
+        );
+        assert!(
+            full_amplitude
+                .mesh()
+                .vertices()
+                .iter()
+                .any(|point| point.to_array()[1] < -0.5)
+        );
     }
 }

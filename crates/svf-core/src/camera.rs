@@ -39,7 +39,9 @@ impl fmt::Display for CameraError {
             Self::InvalidVerticalFieldOfView => "vertical field of view must be between 0 and pi",
             Self::InvalidAspectRatio => "aspect ratio must be finite and greater than zero",
             Self::InvalidNearFarPlanes => "near and far must be finite, with 0 < near < far",
-            Self::InvalidOrthographicBounds => "orthographic bounds must be finite with positive extents",
+            Self::InvalidOrthographicBounds => {
+                "orthographic bounds must be finite with positive extents"
+            }
         };
         f.write_str(message)
     }
@@ -91,17 +93,27 @@ impl LookAtCamera {
             return Err(CameraError::UpDirectionParallelToViewDirection);
         }
 
-        Ok(Self { position, target, up })
+        Ok(Self {
+            position,
+            target,
+            up,
+        })
     }
 
     #[must_use]
-    pub const fn position(&self) -> WorldPoint3 { self.position }
+    pub const fn position(&self) -> WorldPoint3 {
+        self.position
+    }
 
     #[must_use]
-    pub const fn target(&self) -> WorldPoint3 { self.target }
+    pub const fn target(&self) -> WorldPoint3 {
+        self.target
+    }
 
     #[must_use]
-    pub const fn up(&self) -> WorldVector3 { self.up }
+    pub const fn up(&self) -> WorldVector3 {
+        self.up
+    }
 
     /// Derives the world-to-view transformation.
     #[must_use]
@@ -141,20 +153,33 @@ impl PerspectiveProjection {
             return Err(CameraError::InvalidAspectRatio);
         }
         validate_near_far(near, far)?;
-        Ok(Self { vertical_fov_radians, aspect_ratio, near, far })
+        Ok(Self {
+            vertical_fov_radians,
+            aspect_ratio,
+            near,
+            far,
+        })
     }
 
     #[must_use]
-    pub const fn vertical_fov_radians(&self) -> f64 { self.vertical_fov_radians }
+    pub const fn vertical_fov_radians(&self) -> f64 {
+        self.vertical_fov_radians
+    }
 
     #[must_use]
-    pub const fn aspect_ratio(&self) -> f64 { self.aspect_ratio }
+    pub const fn aspect_ratio(&self) -> f64 {
+        self.aspect_ratio
+    }
 
     #[must_use]
-    pub const fn near(&self) -> f64 { self.near }
+    pub const fn near(&self) -> f64 {
+        self.near
+    }
 
     #[must_use]
-    pub const fn far(&self) -> f64 { self.far }
+    pub const fn far(&self) -> f64 {
+        self.far
+    }
 
     /// Returns a copy with a newly validated aspect ratio.
     pub fn with_aspect_ratio(self, aspect_ratio: f64) -> Result<Self, CameraError> {
@@ -204,14 +229,26 @@ impl OrthographicProjection {
             return Err(CameraError::InvalidOrthographicBounds);
         }
         validate_near_far(near, far)?;
-        Ok(Self { left, right, bottom, top, near, far })
+        Ok(Self {
+            left,
+            right,
+            bottom,
+            top,
+            near,
+            far,
+        })
     }
 
     /// Builds a right-handed orthographic matrix with [0, 1] NDC depth.
     #[must_use]
     pub fn matrix(&self) -> DMat4 {
         directx::orthographic(
-            self.left, self.right, self.bottom, self.top, self.near, self.far,
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
         )
     }
 }
@@ -235,9 +272,9 @@ impl Projection3 {
     /// Updates perspective aspect ratio. Orthographic bounds remain explicit.
     pub fn with_aspect_ratio(self, aspect_ratio: f64) -> Result<Self, CameraError> {
         match self {
-            Self::Perspective(projection) => {
-                Ok(Self::Perspective(projection.with_aspect_ratio(aspect_ratio)?))
-            }
+            Self::Perspective(projection) => Ok(Self::Perspective(
+                projection.with_aspect_ratio(aspect_ratio)?,
+            )),
             Self::Orthographic(_) => Err(CameraError::InvalidAspectRatio),
         }
     }
@@ -253,20 +290,31 @@ pub struct Camera3 {
 impl Camera3 {
     #[must_use]
     pub const fn new(look_at: LookAtCamera, projection: Projection3) -> Self {
-        Self { look_at, projection }
+        Self {
+            look_at,
+            projection,
+        }
     }
 
     #[must_use]
-    pub const fn look_at(&self) -> &LookAtCamera { &self.look_at }
+    pub const fn look_at(&self) -> &LookAtCamera {
+        &self.look_at
+    }
 
     #[must_use]
-    pub const fn projection(&self) -> &Projection3 { &self.projection }
+    pub const fn projection(&self) -> &Projection3 {
+        &self.projection
+    }
 
     #[must_use]
-    pub fn view_matrix(&self) -> DMat4 { self.look_at.view_matrix() }
+    pub fn view_matrix(&self) -> DMat4 {
+        self.look_at.view_matrix()
+    }
 
     #[must_use]
-    pub fn projection_matrix(&self) -> DMat4 { self.projection.matrix() }
+    pub fn projection_matrix(&self) -> DMat4 {
+        self.projection.matrix()
+    }
 
     /// Returns the world-to-clip transform: projection multiplied by view.
     #[must_use]
@@ -294,7 +342,8 @@ impl Camera3 {
         if viewport_width == 0 || viewport_height == 0 {
             return Err(ViewportRayError::InvalidViewport);
         }
-        if pixel_x < 0.0 || pixel_y < 0.0
+        if pixel_x < 0.0
+            || pixel_y < 0.0
             || pixel_x >= viewport_width as f64
             || pixel_y >= viewport_height as f64
         {
@@ -309,7 +358,11 @@ impl Camera3 {
             return Err(ViewportRayError::SingularViewProjection);
         }
         let inverse = view_projection.inverse();
-        if !inverse.to_cols_array().iter().all(|value| value.is_finite()) {
+        if !inverse
+            .to_cols_array()
+            .iter()
+            .all(|value| value.is_finite())
+        {
             return Err(ViewportRayError::SingularViewProjection);
         }
 
@@ -341,7 +394,9 @@ impl fmt::Display for ViewportRayError {
             Self::InvalidViewport => "viewport dimensions must be non-zero",
             Self::PixelOutsideViewport => "pixel lies outside the viewport",
             Self::SingularViewProjection => "camera view-projection matrix is singular",
-            Self::InvalidHomogeneousCoordinate => "unprojected point has an invalid homogeneous coordinate",
+            Self::InvalidHomogeneousCoordinate => {
+                "unprojected point has an invalid homogeneous coordinate"
+            }
             Self::InvalidRay(error) => return write!(f, "could not construct world ray: {error}"),
         };
         f.write_str(message)
@@ -382,11 +437,18 @@ mod tests {
     const EPSILON: f64 = 1.0e-10;
 
     fn approx_eq(actual: f64, expected: f64) {
-        assert!((actual - expected).abs() <= EPSILON, "expected {expected}, got {actual}");
+        assert!(
+            (actual - expected).abs() <= EPSILON,
+            "expected {expected}, got {actual}"
+        );
     }
 
-    fn point(x: f64, y: f64, z: f64) -> WorldPoint3 { WorldPoint3::new(x, y, z) }
-    fn vector(x: f64, y: f64, z: f64) -> WorldVector3 { WorldVector3::new(x, y, z) }
+    fn point(x: f64, y: f64, z: f64) -> WorldPoint3 {
+        WorldPoint3::new(x, y, z)
+    }
+    fn vector(x: f64, y: f64, z: f64) -> WorldVector3 {
+        WorldVector3::new(x, y, z)
+    }
 
     fn ndc(matrix: DMat4, point: DVec3) -> DVec3 {
         let clip = matrix * point.extend(1.0);
@@ -398,30 +460,47 @@ mod tests {
             point(0.0, 0.0, 5.0),
             point(0.0, 0.0, 0.0),
             vector(0.0, 1.0, 0.0),
-        ).expect("valid test camera")
+        )
+        .expect("valid test camera")
     }
 
     #[test]
     fn look_at_maps_eye_to_origin_and_target_to_negative_z() {
         let view = test_camera().view_matrix();
-        assert!(view.transform_point3(DVec3::new(0.0, 0.0, 5.0))
-            .abs_diff_eq(DVec3::ZERO, EPSILON));
-        assert!(view.transform_point3(DVec3::ZERO)
-            .abs_diff_eq(DVec3::new(0.0, 0.0, -5.0), EPSILON));
+        assert!(
+            view.transform_point3(DVec3::new(0.0, 0.0, 5.0))
+                .abs_diff_eq(DVec3::ZERO, EPSILON)
+        );
+        assert!(
+            view.transform_point3(DVec3::ZERO)
+                .abs_diff_eq(DVec3::new(0.0, 0.0, -5.0), EPSILON)
+        );
     }
 
     #[test]
     fn rejects_degenerate_camera_configurations() {
         assert_eq!(
-            LookAtCamera::new(point(0.0, 0.0, 0.0), point(0.0, 0.0, 0.0), vector(0.0, 1.0, 0.0)),
+            LookAtCamera::new(
+                point(0.0, 0.0, 0.0),
+                point(0.0, 0.0, 0.0),
+                vector(0.0, 1.0, 0.0)
+            ),
             Err(CameraError::CameraTargetCoincidentWithPosition)
         );
         assert_eq!(
-            LookAtCamera::new(point(0.0, 0.0, 1.0), point(0.0, 0.0, 0.0), WorldVector3::ZERO),
+            LookAtCamera::new(
+                point(0.0, 0.0, 1.0),
+                point(0.0, 0.0, 0.0),
+                WorldVector3::ZERO
+            ),
             Err(CameraError::ZeroLengthUpDirection)
         );
         assert_eq!(
-            LookAtCamera::new(point(0.0, 0.0, 1.0), point(0.0, 0.0, 0.0), vector(0.0, 0.0, 2.0)),
+            LookAtCamera::new(
+                point(0.0, 0.0, 1.0),
+                point(0.0, 0.0, 0.0),
+                vector(0.0, 0.0, 2.0)
+            ),
             Err(CameraError::UpDirectionParallelToViewDirection)
         );
     }
@@ -429,7 +508,11 @@ mod tests {
     #[test]
     fn rejects_non_finite_camera_inputs() {
         assert_eq!(
-            LookAtCamera::new(point(f64::NAN, 0.0, 1.0), point(0.0, 0.0, 0.0), vector(0.0, 1.0, 0.0)),
+            LookAtCamera::new(
+                point(f64::NAN, 0.0, 1.0),
+                point(0.0, 0.0, 0.0),
+                vector(0.0, 1.0, 0.0)
+            ),
             Err(CameraError::NonFiniteCameraInput)
         );
     }
@@ -449,18 +532,36 @@ mod tests {
         let projection = PerspectiveProjection::new(1.0, 1.0, 0.1, 100.0).unwrap();
         let resized = projection.with_aspect_ratio(2.0).unwrap();
         assert_eq!(resized.aspect_ratio(), 2.0);
-        assert_eq!(resized.vertical_fov_radians(), projection.vertical_fov_radians());
+        assert_eq!(
+            resized.vertical_fov_radians(),
+            projection.vertical_fov_radians()
+        );
         assert_eq!(resized.near(), projection.near());
         assert_eq!(resized.far(), projection.far());
     }
 
     #[test]
     fn rejects_invalid_perspective_parameters() {
-        assert_eq!(PerspectiveProjection::new(0.0, 1.0, 0.1, 100.0), Err(CameraError::InvalidVerticalFieldOfView));
-        assert_eq!(PerspectiveProjection::new(std::f64::consts::PI, 1.0, 0.1, 100.0), Err(CameraError::InvalidVerticalFieldOfView));
-        assert_eq!(PerspectiveProjection::new(1.0, 0.0, 0.1, 100.0), Err(CameraError::InvalidAspectRatio));
-        assert_eq!(PerspectiveProjection::new(1.0, 1.0, 0.0, 100.0), Err(CameraError::InvalidNearFarPlanes));
-        assert_eq!(PerspectiveProjection::new(1.0, 1.0, 10.0, 1.0), Err(CameraError::InvalidNearFarPlanes));
+        assert_eq!(
+            PerspectiveProjection::new(0.0, 1.0, 0.1, 100.0),
+            Err(CameraError::InvalidVerticalFieldOfView)
+        );
+        assert_eq!(
+            PerspectiveProjection::new(std::f64::consts::PI, 1.0, 0.1, 100.0),
+            Err(CameraError::InvalidVerticalFieldOfView)
+        );
+        assert_eq!(
+            PerspectiveProjection::new(1.0, 0.0, 0.1, 100.0),
+            Err(CameraError::InvalidAspectRatio)
+        );
+        assert_eq!(
+            PerspectiveProjection::new(1.0, 1.0, 0.0, 100.0),
+            Err(CameraError::InvalidNearFarPlanes)
+        );
+        assert_eq!(
+            PerspectiveProjection::new(1.0, 1.0, 10.0, 1.0),
+            Err(CameraError::InvalidNearFarPlanes)
+        );
     }
 
     #[test]
@@ -468,39 +569,56 @@ mod tests {
         let projection = OrthographicProjection::new(-2.0, 2.0, -1.0, 1.0, 1.0, 11.0)
             .expect("valid orthographic");
         let matrix = projection.matrix();
-        assert!(ndc(matrix, DVec3::new(2.0, 1.0, -1.0))
-            .abs_diff_eq(DVec3::new(1.0, 1.0, 0.0), EPSILON));
-        assert!(ndc(matrix, DVec3::new(-2.0, -1.0, -11.0))
-            .abs_diff_eq(DVec3::new(-1.0, -1.0, 1.0), EPSILON));
+        assert!(
+            ndc(matrix, DVec3::new(2.0, 1.0, -1.0)).abs_diff_eq(DVec3::new(1.0, 1.0, 0.0), EPSILON)
+        );
+        assert!(
+            ndc(matrix, DVec3::new(-2.0, -1.0, -11.0))
+                .abs_diff_eq(DVec3::new(-1.0, -1.0, 1.0), EPSILON)
+        );
     }
 
     #[test]
     fn rejects_invalid_orthographic_parameters() {
-        assert_eq!(OrthographicProjection::new(1.0, 1.0, -1.0, 1.0, 0.1, 10.0), Err(CameraError::InvalidOrthographicBounds));
-        assert_eq!(OrthographicProjection::new(-1.0, 1.0, 2.0, -2.0, 0.1, 10.0), Err(CameraError::InvalidOrthographicBounds));
-        assert_eq!(OrthographicProjection::new(-1.0, 1.0, -1.0, 1.0, 10.0, 10.0), Err(CameraError::InvalidNearFarPlanes));
+        assert_eq!(
+            OrthographicProjection::new(1.0, 1.0, -1.0, 1.0, 0.1, 10.0),
+            Err(CameraError::InvalidOrthographicBounds)
+        );
+        assert_eq!(
+            OrthographicProjection::new(-1.0, 1.0, 2.0, -2.0, 0.1, 10.0),
+            Err(CameraError::InvalidOrthographicBounds)
+        );
+        assert_eq!(
+            OrthographicProjection::new(-1.0, 1.0, -1.0, 1.0, 10.0, 10.0),
+            Err(CameraError::InvalidNearFarPlanes)
+        );
     }
 
     #[test]
     fn viewport_center_produces_centered_perspective_ray() {
         let pose = LookAtCamera::new(
-            point(0.0, 0.0, 5.0), point(0.0, 0.0, 0.0), vector(0.0, 1.0, 0.0),
-        ).unwrap();
-        let projection = PerspectiveProjection::new(
-            std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0,
-        ).unwrap();
+            point(0.0, 0.0, 5.0),
+            point(0.0, 0.0, 0.0),
+            vector(0.0, 1.0, 0.0),
+        )
+        .unwrap();
+        let projection =
+            PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0).unwrap();
         let camera = Camera3::new(pose, Projection3::Perspective(projection));
         let ray = camera.ray_from_viewport(50.0, 50.0, 100, 100).unwrap();
         assert_eq!(ray.origin(), point(0.0, 0.0, 5.0));
-        assert!(ray.direction().to_vector().abs_diff_eq(DVec3::NEG_Z, EPSILON));
+        assert!(
+            ray.direction()
+                .to_vector()
+                .abs_diff_eq(DVec3::NEG_Z, EPSILON)
+        );
     }
 
     #[test]
     fn viewport_corner_changes_perspective_ray_direction() {
         let pose = test_camera();
-        let projection = PerspectiveProjection::new(
-            std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0,
-        ).unwrap();
+        let projection =
+            PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0).unwrap();
         let camera = Camera3::new(pose, Projection3::Perspective(projection));
         let center = camera.ray_from_viewport(50.0, 50.0, 100, 100).unwrap();
         let top_right = camera.ray_from_viewport(99.0, 0.0, 100, 100).unwrap();
@@ -515,7 +633,11 @@ mod tests {
         let camera = Camera3::new(pose, Projection3::Orthographic(projection));
         let left = camera.ray_from_viewport(0.0, 50.0, 100, 100).unwrap();
         let right = camera.ray_from_viewport(99.0, 50.0, 100, 100).unwrap();
-        assert!(left.direction().to_vector().abs_diff_eq(right.direction().to_vector(), EPSILON));
+        assert!(
+            left.direction()
+                .to_vector()
+                .abs_diff_eq(right.direction().to_vector(), EPSILON)
+        );
         assert_ne!(left.origin(), right.origin());
     }
 
@@ -525,16 +647,29 @@ mod tests {
             test_camera(),
             Projection3::Perspective(PerspectiveProjection::new(1.0, 1.0, 0.1, 100.0).unwrap()),
         );
-        assert_eq!(camera.ray_from_viewport(0.0, 0.0, 0, 100), Err(ViewportRayError::InvalidViewport));
-        assert_eq!(camera.ray_from_viewport(-1.0, 0.0, 100, 100), Err(ViewportRayError::PixelOutsideViewport));
-        assert_eq!(camera.ray_from_viewport(100.0, 0.0, 100, 100), Err(ViewportRayError::PixelOutsideViewport));
-        assert_eq!(camera.ray_from_viewport(f64::NAN, 0.0, 100, 100), Err(ViewportRayError::NonFinitePixel));
+        assert_eq!(
+            camera.ray_from_viewport(0.0, 0.0, 0, 100),
+            Err(ViewportRayError::InvalidViewport)
+        );
+        assert_eq!(
+            camera.ray_from_viewport(-1.0, 0.0, 100, 100),
+            Err(ViewportRayError::PixelOutsideViewport)
+        );
+        assert_eq!(
+            camera.ray_from_viewport(100.0, 0.0, 100, 100),
+            Err(ViewportRayError::PixelOutsideViewport)
+        );
+        assert_eq!(
+            camera.ray_from_viewport(f64::NAN, 0.0, 100, 100),
+            Err(ViewportRayError::NonFinitePixel)
+        );
     }
 
     #[test]
     fn combined_matrix_applies_view_then_projection() {
         let pose = test_camera();
-        let projection = PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0).unwrap();
+        let projection =
+            PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0).unwrap();
         let camera = Camera3::new(pose, Projection3::Perspective(projection));
         approx_eq(ndc(camera.view_projection_matrix(), DVec3::ZERO).z, 0.88);
     }

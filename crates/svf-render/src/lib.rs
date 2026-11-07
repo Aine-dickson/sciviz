@@ -39,13 +39,26 @@ impl fmt::Display for RenderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SurfaceCreation(message) => write!(f, "could not create GPU surface: {message}"),
-            Self::AdapterRequest(message) => write!(f, "could not find a compatible GPU adapter: {message}"),
+            Self::AdapterRequest(message) => {
+                write!(f, "could not find a compatible GPU adapter: {message}")
+            }
             Self::DeviceRequest(message) => write!(f, "could not create GPU device: {message}"),
-            Self::CameraConfiguration(message) => write!(f, "could not configure reference camera: {message}"),
-            Self::UnsupportedSurface => write!(f, "the selected adapter does not support this window surface"),
+            Self::CameraConfiguration(message) => {
+                write!(f, "could not configure reference camera: {message}")
+            }
+            Self::UnsupportedSurface => write!(
+                f,
+                "the selected adapter does not support this window surface"
+            ),
             Self::SurfaceValidation => write!(f, "wgpu reported a surface validation failure"),
-            Self::MeshConversion => write!(f, "scientific mesh cannot be represented by the renderer's f32 vertex/index format"),
-            Self::MeshBufferSizeChanged => write!(f, "updated scientific mesh must preserve the existing vertex and index counts"),
+            Self::MeshConversion => write!(
+                f,
+                "scientific mesh cannot be represented by the renderer's f32 vertex/index format"
+            ),
+            Self::MeshBufferSizeChanged => write!(
+                f,
+                "updated scientific mesh must preserve the existing vertex and index counts"
+            ),
         }
     }
 }
@@ -108,7 +121,9 @@ pub struct SceneRenderer {
 impl SceneRenderer {
     /// The f64 camera state used for both rendering and CPU-side picking.
     #[must_use]
-    pub const fn camera(&self) -> &Camera3 { &self.camera }
+    pub const fn camera(&self) -> &Camera3 {
+        &self.camera
+    }
 
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
@@ -274,8 +289,10 @@ impl SceneRenderer {
         });
 
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
-        let mesh_vertex_count = u32::try_from(mesh_vertices.len()).map_err(|_| RenderError::MeshConversion)?;
-        let mesh_index_count = u32::try_from(mesh_indices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let mesh_vertex_count =
+            u32::try_from(mesh_vertices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let mesh_index_count =
+            u32::try_from(mesh_indices.len()).map_err(|_| RenderError::MeshConversion)?;
         let mesh_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("svf-scientific-mesh-vertex-buffer"),
             contents: bytemuck::cast_slice(&mesh_vertices),
@@ -320,15 +337,18 @@ impl SceneRenderer {
     /// geometry, and depth resources remain untouched.
     pub fn update_mesh(&mut self, mesh: &TriangleMesh3) -> Result<(), RenderError> {
         let (vertices, indices) = convert_mesh(mesh)?;
-        let vertex_count = u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let vertex_count =
+            u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
         let index_count = u32::try_from(indices.len()).map_err(|_| RenderError::MeshConversion)?;
 
         if vertex_count != self.mesh_vertex_count || index_count != self.mesh_index_count {
             return Err(RenderError::MeshBufferSizeChanged);
         }
 
-        self.queue.write_buffer(&self.mesh_vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        self.queue.write_buffer(&self.mesh_index_buffer, 0, bytemuck::cast_slice(&indices));
+        self.queue
+            .write_buffer(&self.mesh_vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        self.queue
+            .write_buffer(&self.mesh_index_buffer, 0, bytemuck::cast_slice(&indices));
         Ok(())
     }
 
@@ -357,7 +377,8 @@ impl SceneRenderer {
         self.config.width = size.width;
         self.config.height = size.height;
         self.surface.configure(&self.device, &self.config);
-        let (depth_texture, depth_view) = create_depth_target(&self.device, size.width, size.height);
+        let (depth_texture, depth_view) =
+            create_depth_target(&self.device, size.width, size.height);
         self._depth_texture = depth_texture;
         self.depth_view = depth_view;
         Ok(())
@@ -366,8 +387,9 @@ impl SceneRenderer {
     /// Draw the reference grid and axes, then present the frame.
     pub fn render(&mut self) -> Result<(), RenderError> {
         let frame = match self.surface.get_current_texture() {
-            CurrentSurfaceTexture::Success(frame)
-            | CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
+                frame
+            }
             CurrentSurfaceTexture::Occluded | CurrentSurfaceTexture::Timeout => return Ok(()),
             CurrentSurfaceTexture::Outdated | CurrentSurfaceTexture::Lost => {
                 self.reconfigure_surface();
@@ -376,10 +398,14 @@ impl SceneRenderer {
             CurrentSurfaceTexture::Validation => return Err(RenderError::SurfaceValidation),
         };
 
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("svf-reference-frame-encoder"),
-        });
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("svf-reference-frame-encoder"),
+            });
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -439,7 +465,6 @@ impl SceneRenderer {
     }
 }
 
-
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 fn line_depth_state() -> wgpu::DepthStencilState {
@@ -469,7 +494,11 @@ fn create_depth_target(
 ) -> (wgpu::Texture, wgpu::TextureView) {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("svf-scene-depth-target"),
-        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -482,14 +511,21 @@ fn create_depth_target(
 }
 
 fn convert_mesh(mesh: &TriangleMesh3) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
-    let vertices = mesh.vertices().iter().map(|point| {
-        let p = point.to_array();
-        let position = [p[0] as f32, p[1] as f32, p[2] as f32];
-        if !position.iter().all(|v| v.is_finite()) {
-            return Err(RenderError::MeshConversion);
-        }
-        Ok(MeshVertex { position, color: [0.18, 0.62, 0.88] })
-    }).collect::<Result<Vec<_>, _>>()?;
+    let vertices = mesh
+        .vertices()
+        .iter()
+        .map(|point| {
+            let p = point.to_array();
+            let position = [p[0] as f32, p[1] as f32, p[2] as f32];
+            if !position.iter().all(|v| v.is_finite()) {
+                return Err(RenderError::MeshConversion);
+            }
+            Ok(MeshVertex {
+                position,
+                color: [0.18, 0.62, 0.88],
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok((vertices, mesh.indices().to_vec()))
 }
 
@@ -501,13 +537,8 @@ fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
     )
     .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
 
-    let projection = PerspectiveProjection::new(
-        45.0_f64.to_radians(),
-        aspect_ratio,
-        0.1,
-        100.0,
-    )
-    .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
+    let projection = PerspectiveProjection::new(45.0_f64.to_radians(), aspect_ratio, 0.1, 100.0)
+        .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
 
     Ok(Camera3::new(pose, Projection3::Perspective(projection)))
 }
@@ -539,21 +570,37 @@ fn reference_geometry() -> Vec<LineVertex> {
     }
 
     // Draw the three world axes last so they remain visually distinct.
-    push_line(&mut vertices, [-extent, 0.0, 0.0], [extent, 0.0, 0.0], X_AXIS_COLOR);
-    push_line(&mut vertices, [0.0, -extent, 0.0], [0.0, extent, 0.0], Y_AXIS_COLOR);
-    push_line(&mut vertices, [0.0, 0.0, -extent], [0.0, 0.0, extent], Z_AXIS_COLOR);
+    push_line(
+        &mut vertices,
+        [-extent, 0.0, 0.0],
+        [extent, 0.0, 0.0],
+        X_AXIS_COLOR,
+    );
+    push_line(
+        &mut vertices,
+        [0.0, -extent, 0.0],
+        [0.0, extent, 0.0],
+        Y_AXIS_COLOR,
+    );
+    push_line(
+        &mut vertices,
+        [0.0, 0.0, -extent],
+        [0.0, 0.0, extent],
+        Z_AXIS_COLOR,
+    );
 
     vertices
 }
 
-fn push_line(
-    vertices: &mut Vec<LineVertex>,
-    start: [f32; 3],
-    end: [f32; 3],
-    color: [f32; 3],
-) {
-    vertices.push(LineVertex { position: start, color });
-    vertices.push(LineVertex { position: end, color });
+fn push_line(vertices: &mut Vec<LineVertex>, start: [f32; 3], end: [f32; 3], color: [f32; 3]) {
+    vertices.push(LineVertex {
+        position: start,
+        color,
+    });
+    vertices.push(LineVertex {
+        position: end,
+        color,
+    });
 }
 
 fn tracing_adapter_info(adapter: &wgpu::Adapter) {
@@ -567,7 +614,6 @@ fn tracing_adapter_info(adapter: &wgpu::Adapter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn mesh_conversion_preserves_indices_and_converts_positions() {

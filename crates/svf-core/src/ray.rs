@@ -41,18 +41,32 @@ impl Ray3 {
     pub fn new(origin: WorldPoint3, direction: WorldVector3) -> Result<Self, RayError> {
         let origin_vector = origin.to_vector();
         let direction_vector = direction.to_vector();
-        if !origin_vector.is_finite() { return Err(RayError::NonFiniteOrigin); }
-        if !direction_vector.is_finite() { return Err(RayError::NonFiniteDirection); }
+        if !origin_vector.is_finite() {
+            return Err(RayError::NonFiniteOrigin);
+        }
+        if !direction_vector.is_finite() {
+            return Err(RayError::NonFiniteDirection);
+        }
         let length = direction_vector.length();
-        if length == 0.0 { return Err(RayError::ZeroDirection); }
-        if !length.is_finite() { return Err(RayError::NonFiniteDirectionLength); }
+        if length == 0.0 {
+            return Err(RayError::ZeroDirection);
+        }
+        if !length.is_finite() {
+            return Err(RayError::NonFiniteDirectionLength);
+        }
         Ok(Self {
             origin,
             direction: WorldVector3::from_vector(direction_vector / length),
         })
     }
-    #[must_use] pub const fn origin(&self) -> WorldPoint3 { self.origin }
-    #[must_use] pub const fn direction(&self) -> WorldVector3 { self.direction }
+    #[must_use]
+    pub const fn origin(&self) -> WorldPoint3 {
+        self.origin
+    }
+    #[must_use]
+    pub const fn direction(&self) -> WorldVector3 {
+        self.direction
+    }
     #[must_use]
     pub fn point_at(&self, distance: f64) -> WorldPoint3 {
         self.origin + self.direction * distance
@@ -68,11 +82,23 @@ pub struct RayHit3 {
     barycentric: [f64; 3],
 }
 impl RayHit3 {
-    #[must_use] pub const fn distance(&self) -> f64 { self.distance }
-    #[must_use] pub const fn position(&self) -> WorldPoint3 { self.position }
-    #[must_use] pub const fn triangle_index(&self) -> usize { self.triangle_index }
+    #[must_use]
+    pub const fn distance(&self) -> f64 {
+        self.distance
+    }
+    #[must_use]
+    pub const fn position(&self) -> WorldPoint3 {
+        self.position
+    }
+    #[must_use]
+    pub const fn triangle_index(&self) -> usize {
+        self.triangle_index
+    }
     /// Weights correspond to the triangle's stored index order and sum to one.
-    #[must_use] pub const fn barycentric(&self) -> [f64; 3] { self.barycentric }
+    #[must_use]
+    pub const fn barycentric(&self) -> [f64; 3] {
+        self.barycentric
+    }
 }
 
 /// Finds the nearest two-sided ray/triangle intersection in a mesh.
@@ -95,8 +121,10 @@ pub fn intersect_mesh(ray: &Ray3, mesh: &TriangleMesh3) -> Option<RayHit3> {
         let p = direction.cross(edge2);
         let determinant = edge1.dot(p);
         let scale = edge1.length() * edge2.length();
-        if !determinant.is_finite() || !scale.is_finite()
-            || scale == 0.0 || determinant.abs() <= PARALLEL_EPSILON * scale
+        if !determinant.is_finite()
+            || !scale.is_finite()
+            || scale == 0.0
+            || determinant.abs() <= PARALLEL_EPSILON * scale
         {
             continue;
         }
@@ -110,21 +138,22 @@ pub fn intersect_mesh(ray: &Ray3, mesh: &TriangleMesh3) -> Option<RayHit3> {
 
         let q = from_a.cross(edge1);
         let v = direction.dot(q) * inverse_determinant;
-        if !v.is_finite() || v < -BARYCENTRIC_EPSILON
-            || u + v > 1.0 + BARYCENTRIC_EPSILON
-        {
+        if !v.is_finite() || v < -BARYCENTRIC_EPSILON || u + v > 1.0 + BARYCENTRIC_EPSILON {
             continue;
         }
 
         let distance = edge2.dot(q) * inverse_determinant;
-        if !distance.is_finite() || distance < 0.0
+        if !distance.is_finite()
+            || distance < 0.0
             || nearest.is_some_and(|hit| distance >= hit.distance)
         {
             continue;
         }
 
         let position = ray.point_at(distance);
-        if !position.to_vector().is_finite() { continue; }
+        if !position.to_vector().is_finite() {
+            continue;
+        }
         let weights = [1.0 - u - v, u, v];
         nearest = Some(RayHit3 {
             distance,
@@ -140,8 +169,12 @@ pub fn intersect_mesh(ray: &Ray3, mesh: &TriangleMesh3) -> Option<RayHit3> {
 mod tests {
     use super::*;
 
-    fn p(x: f64, y: f64, z: f64) -> WorldPoint3 { WorldPoint3::new(x, y, z) }
-    fn v(x: f64, y: f64, z: f64) -> WorldVector3 { WorldVector3::new(x, y, z) }
+    fn p(x: f64, y: f64, z: f64) -> WorldPoint3 {
+        WorldPoint3::new(x, y, z)
+    }
+    fn v(x: f64, y: f64, z: f64) -> WorldVector3 {
+        WorldVector3::new(x, y, z)
+    }
     fn ray(origin: WorldPoint3, direction: WorldVector3) -> Ray3 {
         Ray3::new(origin, direction).unwrap()
     }
@@ -155,19 +188,37 @@ mod tests {
 
     #[test]
     fn ray_rejects_invalid_origin_and_direction() {
-        assert_eq!(Ray3::new(p(f64::NAN, 0.0, 0.0), v(1.0, 0.0, 0.0)), Err(RayError::NonFiniteOrigin));
-        assert_eq!(Ray3::new(p(0.0, 0.0, 0.0), v(f64::INFINITY, 0.0, 0.0)), Err(RayError::NonFiniteDirection));
-        assert_eq!(Ray3::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 0.0)), Err(RayError::ZeroDirection));
-        assert_eq!(Ray3::new(p(0.0, 0.0, 0.0), v(f64::MAX, f64::MAX, 0.0)), Err(RayError::NonFiniteDirectionLength));
+        assert_eq!(
+            Ray3::new(p(f64::NAN, 0.0, 0.0), v(1.0, 0.0, 0.0)),
+            Err(RayError::NonFiniteOrigin)
+        );
+        assert_eq!(
+            Ray3::new(p(0.0, 0.0, 0.0), v(f64::INFINITY, 0.0, 0.0)),
+            Err(RayError::NonFiniteDirection)
+        );
+        assert_eq!(
+            Ray3::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 0.0)),
+            Err(RayError::ZeroDirection)
+        );
+        assert_eq!(
+            Ray3::new(p(0.0, 0.0, 0.0), v(f64::MAX, f64::MAX, 0.0)),
+            Err(RayError::NonFiniteDirectionLength)
+        );
     }
 
     #[test]
     fn intersects_triangle_from_both_sides_and_returns_barycentric_weights() {
-        let mesh = TriangleMesh3::new(vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 0.0, 1.0)], vec![0, 1, 2]).unwrap();
+        let mesh = TriangleMesh3::new(
+            vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 0.0, 1.0)],
+            vec![0, 1, 2],
+        )
+        .unwrap();
         let hit = intersect_mesh(&ray(p(0.25, 2.0, 0.25), v(0.0, -1.0, 0.0)), &mesh).unwrap();
         assert_eq!(hit.triangle_index(), 0);
         assert!((hit.distance() - 2.0).abs() < 1.0e-12);
-        assert!((hit.position().to_vector() - glam::DVec3::new(0.25, 0.0, 0.25)).length() < 1.0e-12);
+        assert!(
+            (hit.position().to_vector() - glam::DVec3::new(0.25, 0.0, 0.25)).length() < 1.0e-12
+        );
         let weights = hit.barycentric();
         assert!((weights[0] - 0.5).abs() < 1.0e-12);
         assert!((weights[1] - 0.25).abs() < 1.0e-12);
@@ -180,10 +231,17 @@ mod tests {
     #[test]
     fn returns_nearest_hit_and_ignores_triangles_behind_ray() {
         let mesh = TriangleMesh3::new(
-            vec![p(0.0, 1.0, 0.0), p(1.0, 1.0, 0.0), p(0.0, 1.0, 1.0),
-                 p(0.0, 3.0, 0.0), p(1.0, 3.0, 0.0), p(0.0, 3.0, 1.0)],
+            vec![
+                p(0.0, 1.0, 0.0),
+                p(1.0, 1.0, 0.0),
+                p(0.0, 1.0, 1.0),
+                p(0.0, 3.0, 0.0),
+                p(1.0, 3.0, 0.0),
+                p(0.0, 3.0, 1.0),
+            ],
             vec![0, 1, 2, 3, 4, 5],
-        ).unwrap();
+        )
+        .unwrap();
         let hit = intersect_mesh(&ray(p(0.2, 0.0, 0.2), v(0.0, 1.0, 0.0)), &mesh).unwrap();
         assert_eq!(hit.triangle_index(), 0);
         assert_eq!(hit.distance(), 1.0);
@@ -195,14 +253,19 @@ mod tests {
         let mesh = TriangleMesh3::new(
             vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(2.0, 0.0, 0.0)],
             vec![0, 1, 2],
-        ).unwrap();
+        )
+        .unwrap();
         assert!(intersect_mesh(&ray(p(0.2, 1.0, 0.2), v(0.0, -1.0, 0.0)), &mesh).is_none());
         assert!(intersect_mesh(&ray(p(0.2, 1.0, 0.0), v(1.0, 0.0, 0.0)), &mesh).is_none());
     }
 
     #[test]
     fn accepts_a_hit_at_the_ray_origin() {
-        let mesh = TriangleMesh3::new(vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 0.0, 1.0)], vec![0, 1, 2]).unwrap();
+        let mesh = TriangleMesh3::new(
+            vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0), p(0.0, 0.0, 1.0)],
+            vec![0, 1, 2],
+        )
+        .unwrap();
         let hit = intersect_mesh(&ray(p(0.25, 0.0, 0.25), v(0.0, 1.0, 0.0)), &mesh).unwrap();
         assert_eq!(hit.distance(), 0.0);
     }

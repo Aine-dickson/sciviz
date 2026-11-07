@@ -68,15 +68,21 @@ pub struct ScalarSample1D {
 impl ScalarSample1D {
     /// Returns this sample's zero-based position in the requested sequence.
     #[must_use]
-    pub const fn index(&self) -> usize { self.index }
+    pub const fn index(&self) -> usize {
+        self.index
+    }
 
     /// Returns the coordinate at which the function was evaluated.
     #[must_use]
-    pub const fn coordinate(&self) -> f64 { self.coordinate }
+    pub const fn coordinate(&self) -> f64 {
+        self.coordinate
+    }
 
     /// Returns the function result, including its finite/non-finite status.
     #[must_use]
-    pub const fn value(&self) -> SampleValue { self.value }
+    pub const fn value(&self) -> SampleValue {
+        self.value
+    }
 }
 
 /// The complete ordered result of a one-dimensional scalar sampling run.
@@ -88,17 +94,23 @@ pub struct ScalarSamples1D {
 impl ScalarSamples1D {
     /// Returns the number of requested samples.
     #[must_use]
-    pub fn len(&self) -> usize { self.samples.len() }
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
 
     /// Returns whether the result contains no samples.
     ///
     /// A valid sampling specification always requests at least two samples.
     #[must_use]
-    pub fn is_empty(&self) -> bool { self.samples.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
 
     /// Returns all samples in increasing coordinate order.
     #[must_use]
-    pub fn as_slice(&self) -> &[ScalarSample1D] { &self.samples }
+    pub fn as_slice(&self) -> &[ScalarSample1D] {
+        &self.samples
+    }
 
     /// Returns a sample by its zero-based sequence index.
     #[must_use]
@@ -120,23 +132,33 @@ pub struct ScalarSample2D {
 impl ScalarSample2D {
     /// Returns this sample's zero-based column index.
     #[must_use]
-    pub const fn x_index(&self) -> usize { self.x_index }
+    pub const fn x_index(&self) -> usize {
+        self.x_index
+    }
 
     /// Returns this sample's zero-based row index.
     #[must_use]
-    pub const fn y_index(&self) -> usize { self.y_index }
+    pub const fn y_index(&self) -> usize {
+        self.y_index
+    }
 
     /// Returns the X coordinate at which the function was evaluated.
     #[must_use]
-    pub const fn x(&self) -> f64 { self.x }
+    pub const fn x(&self) -> f64 {
+        self.x
+    }
 
     /// Returns the Y coordinate at which the function was evaluated.
     #[must_use]
-    pub const fn y(&self) -> f64 { self.y }
+    pub const fn y(&self) -> f64 {
+        self.y
+    }
 
     /// Returns the function result, including its finite/non-finite status.
     #[must_use]
-    pub const fn value(&self) -> SampleValue { self.value }
+    pub const fn value(&self) -> SampleValue {
+        self.value
+    }
 }
 
 /// The complete result of a two-dimensional scalar sampling run.
@@ -153,26 +175,36 @@ pub struct ScalarSamples2D {
 impl ScalarSamples2D {
     /// Returns the number of sample columns along X.
     #[must_use]
-    pub const fn x_sample_count(&self) -> usize { self.x_sample_count }
+    pub const fn x_sample_count(&self) -> usize {
+        self.x_sample_count
+    }
 
     /// Returns the number of sample rows along Y.
     #[must_use]
-    pub const fn y_sample_count(&self) -> usize { self.y_sample_count }
+    pub const fn y_sample_count(&self) -> usize {
+        self.y_sample_count
+    }
 
     /// Returns the total number of evaluated samples.
     #[must_use]
-    pub fn len(&self) -> usize { self.samples.len() }
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
 
     /// Returns whether the result contains no samples.
     ///
     /// A valid two-dimensional sampling specification always requests at
     /// least two samples on each axis.
     #[must_use]
-    pub fn is_empty(&self) -> bool { self.samples.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
 
     /// Returns all samples in row-major order.
     #[must_use]
-    pub fn as_slice(&self) -> &[ScalarSample2D] { &self.samples }
+    pub fn as_slice(&self) -> &[ScalarSample2D] {
+        &self.samples
+    }
 
     /// Returns the sample at a zero-based column and row, if in bounds.
     #[must_use]
@@ -199,13 +231,20 @@ where
 {
     let sample_count = spec.sample_count();
     let mut samples = Vec::new();
-    samples.try_reserve_exact(sample_count)
-        .map_err(|_| SamplingError::AllocationFailed { requested_samples: sample_count })?;
+    samples
+        .try_reserve_exact(sample_count)
+        .map_err(|_| SamplingError::AllocationFailed {
+            requested_samples: sample_count,
+        })?;
 
     for index in 0..sample_count {
         let coordinate = coordinate_at(domain, index, sample_count);
         let value = SampleValue::from_f64(function(coordinate));
-        samples.push(ScalarSample1D { index, coordinate, value });
+        samples.push(ScalarSample1D {
+            index,
+            coordinate,
+            value,
+        });
     }
 
     Ok(ScalarSamples1D { samples })
@@ -227,28 +266,50 @@ where
 {
     let x_sample_count = spec.x_sample_count();
     let y_sample_count = spec.y_sample_count();
-    let total_samples = x_sample_count.checked_mul(y_sample_count)
-        .ok_or(SamplingError::SampleCountOverflow { x_sample_count, y_sample_count })?;
+    let total_samples =
+        x_sample_count
+            .checked_mul(y_sample_count)
+            .ok_or(SamplingError::SampleCountOverflow {
+                x_sample_count,
+                y_sample_count,
+            })?;
 
     let mut samples = Vec::new();
-    samples.try_reserve_exact(total_samples)
-        .map_err(|_| SamplingError::AllocationFailed { requested_samples: total_samples })?;
+    samples
+        .try_reserve_exact(total_samples)
+        .map_err(|_| SamplingError::AllocationFailed {
+            requested_samples: total_samples,
+        })?;
 
     for y_index in 0..y_sample_count {
         let y = coordinate_at(domain.y(), y_index, y_sample_count);
         for x_index in 0..x_sample_count {
             let x = coordinate_at(domain.x(), x_index, x_sample_count);
             let value = SampleValue::from_f64(function(x, y));
-            samples.push(ScalarSample2D { x_index, y_index, x, y, value });
+            samples.push(ScalarSample2D {
+                x_index,
+                y_index,
+                x,
+                y,
+                value,
+            });
         }
     }
 
-    Ok(ScalarSamples2D { x_sample_count, y_sample_count, samples })
+    Ok(ScalarSamples2D {
+        x_sample_count,
+        y_sample_count,
+        samples,
+    })
 }
 
 fn coordinate_at(domain: Domain1D, index: usize, sample_count: usize) -> f64 {
-    if index == 0 { return domain.start(); }
-    if index + 1 == sample_count { return domain.end(); }
+    if index == 0 {
+        return domain.start();
+    }
+    if index + 1 == sample_count {
+        return domain.end();
+    }
 
     let interval_count = sample_count - 1;
     let fraction = index as f64 / interval_count as f64;
@@ -259,7 +320,9 @@ fn coordinate_at(domain: Domain1D, index: usize, sample_count: usize) -> f64 {
 mod tests {
     use super::*;
 
-    fn domain_1d() -> Domain1D { Domain1D::new(-1.0, 1.0).unwrap() }
+    fn domain_1d() -> Domain1D {
+        Domain1D::new(-1.0, 1.0).unwrap()
+    }
 
     fn domain_2d() -> Domain2D {
         Domain2D::new(
@@ -270,7 +333,8 @@ mod tests {
 
     #[test]
     fn samples_1d_include_exact_endpoints_and_ordered_coordinates() {
-        let samples = sample_scalar_1d(domain_1d(), SamplingSpec1D::new(5).unwrap(), |x| x).unwrap();
+        let samples =
+            sample_scalar_1d(domain_1d(), SamplingSpec1D::new(5).unwrap(), |x| x).unwrap();
         assert_eq!(samples.len(), 5);
         assert_eq!(samples.get(0).unwrap().coordinate(), -1.0);
         assert_eq!(samples.get(1).unwrap().coordinate(), -0.5);
@@ -282,7 +346,10 @@ mod tests {
 
     #[test]
     fn samples_1d_preserve_finite_function_values() {
-        let samples = sample_scalar_1d(domain_1d(), SamplingSpec1D::new(3).unwrap(), |x| x * x + 2.0).unwrap();
+        let samples = sample_scalar_1d(domain_1d(), SamplingSpec1D::new(3).unwrap(), |x| {
+            x * x + 2.0
+        })
+        .unwrap();
         assert_eq!(samples.as_slice()[0].value(), SampleValue::Finite(3.0));
         assert_eq!(samples.as_slice()[1].value(), SampleValue::Finite(2.0));
         assert_eq!(samples.as_slice()[2].value(), SampleValue::Finite(3.0));
@@ -291,31 +358,68 @@ mod tests {
     #[test]
     fn samples_1d_retain_and_classify_non_finite_results() {
         let samples = sample_scalar_1d(domain_1d(), SamplingSpec1D::new(3).unwrap(), |x| {
-            if x < 0.0 { f64::NAN } else if x == 0.0 { f64::INFINITY } else { f64::NEG_INFINITY }
-        }).unwrap();
+            if x < 0.0 {
+                f64::NAN
+            } else if x == 0.0 {
+                f64::INFINITY
+            } else {
+                f64::NEG_INFINITY
+            }
+        })
+        .unwrap();
         assert_eq!(samples.len(), 3);
-        assert_eq!(samples.as_slice()[0].value(), SampleValue::NonFinite(NonFiniteValue::NaN));
-        assert_eq!(samples.as_slice()[1].value(), SampleValue::NonFinite(NonFiniteValue::PositiveInfinity));
-        assert_eq!(samples.as_slice()[2].value(), SampleValue::NonFinite(NonFiniteValue::NegativeInfinity));
-        assert!(samples.as_slice().iter().all(|sample| !sample.value().is_finite()));
+        assert_eq!(
+            samples.as_slice()[0].value(),
+            SampleValue::NonFinite(NonFiniteValue::NaN)
+        );
+        assert_eq!(
+            samples.as_slice()[1].value(),
+            SampleValue::NonFinite(NonFiniteValue::PositiveInfinity)
+        );
+        assert_eq!(
+            samples.as_slice()[2].value(),
+            SampleValue::NonFinite(NonFiniteValue::NegativeInfinity)
+        );
+        assert!(
+            samples
+                .as_slice()
+                .iter()
+                .all(|sample| !sample.value().is_finite())
+        );
     }
 
     #[test]
     fn samples_2d_are_row_major_with_x_varying_fastest() {
-        let samples = sample_scalar_2d(domain_2d(), SamplingSpec2D::new(3, 2).unwrap(), |x, y| x + y).unwrap();
+        let samples = sample_scalar_2d(domain_2d(), SamplingSpec2D::new(3, 2).unwrap(), |x, y| {
+            x + y
+        })
+        .unwrap();
         assert_eq!(samples.len(), 6);
         assert_eq!((samples.x_sample_count(), samples.y_sample_count()), (3, 2));
-        let ordered: Vec<_> = samples.as_slice().iter()
-            .map(|s| (s.x_index(), s.y_index(), s.x(), s.y())).collect();
-        assert_eq!(ordered, vec![
-            (0, 0, -1.0, 10.0), (1, 0, 0.0, 10.0), (2, 0, 1.0, 10.0),
-            (0, 1, -1.0, 20.0), (1, 1, 0.0, 20.0), (2, 1, 1.0, 20.0),
-        ]);
+        let ordered: Vec<_> = samples
+            .as_slice()
+            .iter()
+            .map(|s| (s.x_index(), s.y_index(), s.x(), s.y()))
+            .collect();
+        assert_eq!(
+            ordered,
+            vec![
+                (0, 0, -1.0, 10.0),
+                (1, 0, 0.0, 10.0),
+                (2, 0, 1.0, 10.0),
+                (0, 1, -1.0, 20.0),
+                (1, 1, 0.0, 20.0),
+                (2, 1, 1.0, 20.0),
+            ]
+        );
     }
 
     #[test]
     fn samples_2d_allow_random_access_by_grid_indices() {
-        let samples = sample_scalar_2d(domain_2d(), SamplingSpec2D::new(3, 2).unwrap(), |x, y| x * y).unwrap();
+        let samples = sample_scalar_2d(domain_2d(), SamplingSpec2D::new(3, 2).unwrap(), |x, y| {
+            x * y
+        })
+        .unwrap();
         let sample = samples.get(2, 1).unwrap();
         assert_eq!(sample.x(), 1.0);
         assert_eq!(sample.y(), 20.0);
@@ -327,17 +431,31 @@ mod tests {
     #[test]
     fn samples_2d_retain_non_finite_results_without_shifting_indices() {
         let samples = sample_scalar_2d(domain_2d(), SamplingSpec2D::new(2, 2).unwrap(), |x, y| {
-            if x == 1.0 && y == 20.0 { f64::NAN } else { x + y }
-        }).unwrap();
+            if x == 1.0 && y == 20.0 {
+                f64::NAN
+            } else {
+                x + y
+            }
+        })
+        .unwrap();
         assert_eq!(samples.len(), 4);
-        assert_eq!(samples.get(1, 1).unwrap().value(), SampleValue::NonFinite(NonFiniteValue::NaN));
-        assert_eq!(samples.get(0, 1).unwrap().value(), SampleValue::Finite(19.0));
+        assert_eq!(
+            samples.get(1, 1).unwrap().value(),
+            SampleValue::NonFinite(NonFiniteValue::NaN)
+        );
+        assert_eq!(
+            samples.get(0, 1).unwrap().value(),
+            SampleValue::Finite(19.0)
+        );
     }
 
     #[test]
     fn sample_value_exposes_finite_values_without_coercing_non_finite_results() {
         assert_eq!(SampleValue::Finite(4.5).as_finite(), Some(4.5));
-        assert_eq!(SampleValue::NonFinite(NonFiniteValue::PositiveInfinity).as_finite(), None);
+        assert_eq!(
+            SampleValue::NonFinite(NonFiniteValue::PositiveInfinity).as_finite(),
+            None
+        );
         assert!(SampleValue::Finite(0.0).is_finite());
         assert!(!SampleValue::NonFinite(NonFiniteValue::NaN).is_finite());
     }
@@ -346,9 +464,12 @@ mod tests {
     fn two_dimensional_sample_count_overflow_is_reported() {
         let spec = SamplingSpec2D::new(usize::MAX, 2).unwrap();
         let result = sample_scalar_2d(domain_2d(), spec, |x, y| x + y);
-        assert_eq!(result, Err(SamplingError::SampleCountOverflow {
-            x_sample_count: usize::MAX,
-            y_sample_count: 2,
-        }));
+        assert_eq!(
+            result,
+            Err(SamplingError::SampleCountOverflow {
+                x_sample_count: usize::MAX,
+                y_sample_count: 2,
+            })
+        );
     }
 }

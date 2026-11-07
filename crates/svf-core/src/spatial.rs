@@ -35,15 +35,21 @@ impl WorldPoint3 {
 
     /// Creates a world-space point from a glam vector.
     #[must_use]
-    pub const fn from_vector(value: DVec3) -> Self { Self(value) }
+    pub const fn from_vector(value: DVec3) -> Self {
+        Self(value)
+    }
 
     /// Returns the underlying f64 coordinates.
     #[must_use]
-    pub const fn to_vector(self) -> DVec3 { self.0 }
+    pub const fn to_vector(self) -> DVec3 {
+        self.0
+    }
 
     /// Returns the coordinates as [x, y, z].
     #[must_use]
-    pub const fn to_array(self) -> [f64; 3] { self.0.to_array() }
+    pub const fn to_array(self) -> [f64; 3] {
+        self.0.to_array()
+    }
 }
 
 /// A displacement or free vector expressed in world coordinates.
@@ -56,62 +62,88 @@ impl WorldVector3 {
 
     /// Creates a world-space vector from Cartesian components.
     #[must_use]
-    pub const fn new(x: f64, y: f64, z: f64) -> Self { Self(DVec3::new(x, y, z)) }
+    pub const fn new(x: f64, y: f64, z: f64) -> Self {
+        Self(DVec3::new(x, y, z))
+    }
 
     /// Creates a world-space vector from a glam vector.
     #[must_use]
-    pub const fn from_vector(value: DVec3) -> Self { Self(value) }
+    pub const fn from_vector(value: DVec3) -> Self {
+        Self(value)
+    }
 
     /// Returns the underlying f64 components.
     #[must_use]
-    pub const fn to_vector(self) -> DVec3 { self.0 }
+    pub const fn to_vector(self) -> DVec3 {
+        self.0
+    }
 
     /// Returns the vector magnitude.
     #[must_use]
-    pub fn length(self) -> f64 { self.0.length() }
+    pub fn length(self) -> f64 {
+        self.0.length()
+    }
 
     /// Returns the dot product with another world-space vector.
     #[must_use]
-    pub fn dot(self, rhs: Self) -> f64 { self.0.dot(rhs.0) }
+    pub fn dot(self, rhs: Self) -> f64 {
+        self.0.dot(rhs.0)
+    }
 
     /// Returns the cross product with another world-space vector.
     #[must_use]
-    pub fn cross(self, rhs: Self) -> Self { Self(self.0.cross(rhs.0)) }
+    pub fn cross(self, rhs: Self) -> Self {
+        Self(self.0.cross(rhs.0))
+    }
 }
 
 impl std::ops::Add<WorldVector3> for WorldPoint3 {
     type Output = Self;
-    fn add(self, rhs: WorldVector3) -> Self::Output { Self(self.0 + rhs.0) }
+    fn add(self, rhs: WorldVector3) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl std::ops::Sub<WorldVector3> for WorldPoint3 {
     type Output = Self;
-    fn sub(self, rhs: WorldVector3) -> Self::Output { Self(self.0 - rhs.0) }
+    fn sub(self, rhs: WorldVector3) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
 }
 
 impl std::ops::Sub<WorldPoint3> for WorldPoint3 {
     type Output = WorldVector3;
-    fn sub(self, rhs: WorldPoint3) -> Self::Output { WorldVector3(self.0 - rhs.0) }
+    fn sub(self, rhs: WorldPoint3) -> Self::Output {
+        WorldVector3(self.0 - rhs.0)
+    }
 }
 
 impl std::ops::Add for WorldVector3 {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output { Self(self.0 + rhs.0) }
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
 }
 
 impl std::ops::Sub for WorldVector3 {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output { Self(self.0 - rhs.0) }
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
 }
 
 impl std::ops::Neg for WorldVector3 {
     type Output = Self;
-    fn neg(self) -> Self::Output { Self(-self.0) }
+    fn neg(self) -> Self::Output {
+        Self(-self.0)
+    }
 }
 
 impl std::ops::Mul<f64> for WorldVector3 {
     type Output = Self;
-    fn mul(self, rhs: f64) -> Self::Output { Self(self.0 * rhs) }
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
 }
 
 #[cfg(test)]

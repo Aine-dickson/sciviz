@@ -4,8 +4,8 @@
 pub mod camera;
 pub mod geometry;
 pub mod ray;
-pub mod spatial;
 pub mod sampling;
+pub mod spatial;
 
 /// Human-readable project name.
 pub const PROJECT_NAME: &str = "Scientific Visualization Framework";

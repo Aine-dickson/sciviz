@@ -10,13 +10,13 @@ use std::{error::Error, fmt};
 
 pub mod function;
 pub mod grid;
-pub use grid::{
-    GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D,
-    SurfaceGenerationError, SurfaceInspection3,
-};
 pub use function::{
-    sample_scalar_1d, sample_scalar_2d, NonFiniteValue, SampleValue, ScalarSample1D,
-    ScalarSample2D, ScalarSamples1D, ScalarSamples2D,
+    NonFiniteValue, SampleValue, ScalarSample1D, ScalarSample2D, ScalarSamples1D, ScalarSamples2D,
+    sample_scalar_1d, sample_scalar_2d,
+};
+pub use grid::{
+    GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D, SurfaceGenerationError,
+    SurfaceInspection3,
 };
 
 /// Identifies an axis when reporting an invalid sampling count.
@@ -77,11 +77,18 @@ pub enum SamplingError {
 impl fmt::Display for SamplingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::TooFewSamples { axis, actual, minimum } => write!(
+            Self::TooFewSamples {
+                axis,
+                actual,
+                minimum,
+            } => write!(
                 f,
                 "sampling along {axis:?} requires at least {minimum} points; received {actual}"
             ),
-            Self::SampleCountOverflow { x_sample_count, y_sample_count } => write!(
+            Self::SampleCountOverflow {
+                x_sample_count,
+                y_sample_count,
+            } => write!(
                 f,
                 "two-dimensional sample count overflows usize ({x_sample_count} × {y_sample_count})"
             ),
@@ -292,10 +299,7 @@ mod tests {
 
     #[test]
     fn domain_1d_rejects_non_finite_end() {
-        assert_eq!(
-            Domain1D::new(0.0, f64::NAN),
-            Err(DomainError::NonFiniteEnd)
-        );
+        assert_eq!(Domain1D::new(0.0, f64::NAN), Err(DomainError::NonFiniteEnd));
         assert_eq!(
             Domain1D::new(0.0, f64::INFINITY),
             Err(DomainError::NonFiniteEnd)
@@ -304,14 +308,8 @@ mod tests {
 
     #[test]
     fn domain_1d_rejects_equal_or_reversed_bounds() {
-        assert_eq!(
-            Domain1D::new(2.0, 2.0),
-            Err(DomainError::NonPositiveExtent)
-        );
-        assert_eq!(
-            Domain1D::new(3.0, 2.0),
-            Err(DomainError::NonPositiveExtent)
-        );
+        assert_eq!(Domain1D::new(2.0, 2.0), Err(DomainError::NonPositiveExtent));
+        assert_eq!(Domain1D::new(3.0, 2.0), Err(DomainError::NonPositiveExtent));
     }
 
     #[test]

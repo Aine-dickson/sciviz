@@ -4,7 +4,11 @@
 //! retain f64 coordinates and can be validated and inspected without a
 //! renderer. Conversion to renderer-specific formats belongs downstream.
 
-use std::{collections::{BTreeMap, BTreeSet}, error::Error, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    error::Error,
+    fmt,
+};
 
 use crate::spatial::WorldPoint3;
 
@@ -35,10 +39,16 @@ impl fmt::Display for GeometryError {
                 write!(f, "point at index {index} contains a non-finite coordinate")
             }
             Self::PolylineRequiresTwoPoints { actual } => {
-                write!(f, "a polyline requires at least two points; received {actual}")
+                write!(
+                    f,
+                    "a polyline requires at least two points; received {actual}"
+                )
             }
             Self::TriangleIndexCountNotMultipleOfThree { actual } => {
-                write!(f, "triangle index count must be divisible by three; received {actual}")
+                write!(
+                    f,
+                    "triangle index count must be divisible by three; received {actual}"
+                )
             }
             Self::TriangleIndexOutOfBounds {
                 triangle_index,
@@ -49,7 +59,10 @@ impl fmt::Display for GeometryError {
                 f,
                 "triangle {triangle_index} corner {corner} references vertex {index}, but only {vertex_count} vertices exist"
             ),
-            Self::RepeatedTriangleVertexIndex { triangle_index, index } => write!(
+            Self::RepeatedTriangleVertexIndex {
+                triangle_index,
+                index,
+            } => write!(
                 f,
                 "triangle {triangle_index} references vertex {index} more than once"
             ),
@@ -215,10 +228,7 @@ pub struct TriangleMesh3 {
 impl TriangleMesh3 {
     /// Creates an indexed triangle mesh after validating coordinates and
     /// triangle index topology.
-    pub fn new(
-        vertices: Vec<WorldPoint3>,
-        indices: Vec<u32>,
-    ) -> Result<Self, GeometryError> {
+    pub fn new(vertices: Vec<WorldPoint3>, indices: Vec<u32>) -> Result<Self, GeometryError> {
         validate_points(&vertices)?;
 
         if indices.len() % 3 != 0 {
@@ -327,7 +337,9 @@ pub struct MeshEdge {
 
 impl MeshEdge {
     fn new(a: u32, b: u32) -> Self {
-        Self { vertices: if a < b { [a, b] } else { [b, a] } }
+        Self {
+            vertices: if a < b { [a, b] } else { [b, a] },
+        }
     }
 
     /// Returns the canonical endpoint vertex indices in ascending order.
@@ -359,25 +371,42 @@ impl MeshTopology3 {
             unique_edges.insert(MeshEdge::new(c, a).vertices);
         }
 
-        let edges: Vec<_> = unique_edges.into_iter()
-            .map(|vertices| MeshEdge { vertices }).collect();
-        let edge_lookup: BTreeMap<_, _> = edges.iter().enumerate()
-            .map(|(edge_id, edge)| (edge.vertices, edge_id)).collect();
+        let edges: Vec<_> = unique_edges
+            .into_iter()
+            .map(|vertices| MeshEdge { vertices })
+            .collect();
+        let edge_lookup: BTreeMap<_, _> = edges
+            .iter()
+            .enumerate()
+            .map(|(edge_id, edge)| (edge.vertices, edge_id))
+            .collect();
         let mut face_edges = Vec::with_capacity(mesh.triangle_count());
         let mut edge_faces = vec![Vec::new(); edges.len()];
 
         for (face_index, [a, b, c]) in mesh.triangles().enumerate() {
-            let keys = [MeshEdge::new(a, b).vertices, MeshEdge::new(b, c).vertices, MeshEdge::new(c, a).vertices];
+            let keys = [
+                MeshEdge::new(a, b).vertices,
+                MeshEdge::new(b, c).vertices,
+                MeshEdge::new(c, a).vertices,
+            ];
             let edge_ids = keys.map(|key| edge_lookup[&key]);
-            for edge_id in edge_ids { edge_faces[edge_id].push(face_index); }
+            for edge_id in edge_ids {
+                edge_faces[edge_id].push(face_index);
+            }
             face_edges.push(edge_ids);
         }
-        Self { edges, face_edges, edge_faces }
+        Self {
+            edges,
+            face_edges,
+            edge_faces,
+        }
     }
 
     /// Returns all unique undirected edges in deterministic order.
     #[must_use]
-    pub fn edges(&self) -> &[MeshEdge] { &self.edges }
+    pub fn edges(&self) -> &[MeshEdge] {
+        &self.edges
+    }
 
     /// Returns the three edge IDs for a face in local (v0-v1, v1-v2, v2-v0)
     /// order, or None when the face index is out of range.
@@ -396,24 +425,32 @@ impl MeshTopology3 {
     /// Iterates over edges incident to exactly one face.
     /// This local incidence query does not validate the complete surface.
     pub fn boundary_edges(&self) -> impl Iterator<Item = (usize, &MeshEdge)> {
-        self.edges.iter().enumerate()
+        self.edges
+            .iter()
+            .enumerate()
             .filter(|(edge_id, _)| self.edge_faces[*edge_id].len() == 1)
     }
 
     /// Iterates over edges incident to more than two faces. This makes no
     /// global manifoldness assertion.
     pub fn edges_with_more_than_two_faces(&self) -> impl Iterator<Item = (usize, &MeshEdge)> {
-        self.edges.iter().enumerate()
+        self.edges
+            .iter()
+            .enumerate()
             .filter(|(edge_id, _)| self.edge_faces[*edge_id].len() > 2)
     }
 
     /// Returns the number of unique undirected edges.
     #[must_use]
-    pub fn edge_count(&self) -> usize { self.edges.len() }
+    pub fn edge_count(&self) -> usize {
+        self.edges.len()
+    }
 
     /// Returns the number of source faces represented by this topology.
     #[must_use]
-    pub fn face_count(&self) -> usize { self.face_edges.len() }
+    pub fn face_count(&self) -> usize {
+        self.face_edges.len()
+    }
 }
 fn validate_points(points: &[WorldPoint3]) -> Result<(), GeometryError> {
     for (index, point) in points.iter().enumerate() {
@@ -461,7 +498,10 @@ mod tests {
         assert_eq!(mesh.indices(), indices);
         assert_eq!(mesh.vertex_count(), 4);
         assert_eq!(mesh.triangle_count(), 2);
-        assert_eq!(mesh.triangles().collect::<Vec<_>>(), vec![[0, 1, 2], [2, 1, 3]]);
+        assert_eq!(
+            mesh.triangles().collect::<Vec<_>>(),
+            vec![[0, 1, 2], [2, 1, 3]]
+        );
         assert_eq!(mesh.into_parts(), (vertices, indices));
     }
 
@@ -481,10 +521,7 @@ mod tests {
     #[test]
     fn triangle_mesh_rejects_incomplete_index_groups() {
         assert_eq!(
-            TriangleMesh3::new(
-                vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)],
-                vec![0, 1]
-            ),
+            TriangleMesh3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)], vec![0, 1]),
             Err(GeometryError::TriangleIndexCountNotMultipleOfThree { actual: 2 })
         );
     }
@@ -492,7 +529,11 @@ mod tests {
     #[test]
     fn triangle_mesh_rejects_out_of_range_indices_with_location() {
         let result = TriangleMesh3::new(
-            vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0)],
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+            ],
             vec![0, 1, 3],
         );
         assert_eq!(
@@ -516,7 +557,10 @@ mod tests {
         for indices in [vec![0, 0, 1], vec![0, 1, 0], vec![1, 0, 1]] {
             assert!(matches!(
                 TriangleMesh3::new(vertices.clone(), indices),
-                Err(GeometryError::RepeatedTriangleVertexIndex { triangle_index: 0, .. })
+                Err(GeometryError::RepeatedTriangleVertexIndex {
+                    triangle_index: 0,
+                    ..
+                })
             ));
         }
     }
@@ -551,25 +595,51 @@ mod tests {
     #[test]
     fn topology_extracts_unique_edges_and_face_incidence() {
         let mesh = TriangleMesh3::new(
-            vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0), point(1.0, 1.0, 0.0)],
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+                point(1.0, 1.0, 0.0),
+            ],
             vec![0, 1, 2, 2, 1, 3],
-        ).unwrap();
+        )
+        .unwrap();
         let topology = mesh.topology();
         assert_eq!(topology.edge_count(), 5);
         assert_eq!(topology.face_count(), 2);
-        assert_eq!(topology.edges().iter().map(MeshEdge::vertices).collect::<Vec<_>>(),
-            vec![[0, 1], [0, 2], [1, 2], [1, 3], [2, 3]]);
+        assert_eq!(
+            topology
+                .edges()
+                .iter()
+                .map(MeshEdge::vertices)
+                .collect::<Vec<_>>(),
+            vec![[0, 1], [0, 2], [1, 2], [1, 3], [2, 3]]
+        );
         let first = topology.face_edges(0).unwrap();
         let second = topology.face_edges(1).unwrap();
-        assert_eq!(first.map(|id| topology.edges()[id].vertices()), [[0, 1], [1, 2], [0, 2]]);
-        assert_eq!(second.map(|id| topology.edges()[id].vertices()), [[1, 2], [1, 3], [2, 3]]);
+        assert_eq!(
+            first.map(|id| topology.edges()[id].vertices()),
+            [[0, 1], [1, 2], [0, 2]]
+        );
+        assert_eq!(
+            second.map(|id| topology.edges()[id].vertices()),
+            [[1, 2], [1, 3], [2, 3]]
+        );
         assert_eq!(topology.edge_faces(first[1]), Some(&[0, 1][..]));
         assert_eq!(topology.edge_faces(first[0]), Some(&[0][..]));
     }
 
     #[test]
     fn topology_identifies_boundary_edges_by_incidence() {
-        let mesh = TriangleMesh3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0)], vec![0, 1, 2]).unwrap();
+        let mesh = TriangleMesh3::new(
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+            ],
+            vec![0, 1, 2],
+        )
+        .unwrap();
         let topology = mesh.topology();
         assert_eq!(topology.boundary_edges().count(), 3);
         assert_eq!(topology.edges_with_more_than_two_faces().count(), 0);
@@ -580,22 +650,50 @@ mod tests {
     #[test]
     fn topology_handles_disconnected_components_and_unreferenced_vertices() {
         let mesh = TriangleMesh3::new(
-            vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0), point(3.0, 0.0, 0.0), point(4.0, 0.0, 0.0), point(3.0, 1.0, 0.0), point(9.0, 9.0, 9.0)],
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+                point(3.0, 0.0, 0.0),
+                point(4.0, 0.0, 0.0),
+                point(3.0, 1.0, 0.0),
+                point(9.0, 9.0, 9.0),
+            ],
             vec![0, 1, 2, 3, 4, 5],
-        ).unwrap();
+        )
+        .unwrap();
         let topology = mesh.topology();
         assert_eq!(topology.edge_count(), 6);
         assert_eq!(topology.face_count(), 2);
-        assert!(topology.edge_faces(0).unwrap().iter().all(|&face| face == 0));
-        assert!(topology.edge_faces(5).unwrap().iter().all(|&face| face == 1));
+        assert!(
+            topology
+                .edge_faces(0)
+                .unwrap()
+                .iter()
+                .all(|&face| face == 0)
+        );
+        assert!(
+            topology
+                .edge_faces(5)
+                .unwrap()
+                .iter()
+                .all(|&face| face == 1)
+        );
     }
 
     #[test]
     fn topology_reports_edges_incident_to_more_than_two_faces() {
         let mesh = TriangleMesh3::new(
-            vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0), point(0.0, -1.0, 0.0), point(0.0, 0.0, 1.0)],
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+                point(0.0, -1.0, 0.0),
+                point(0.0, 0.0, 1.0),
+            ],
             vec![0, 1, 2, 1, 0, 3, 0, 1, 4],
-        ).unwrap();
+        )
+        .unwrap();
         let topology = mesh.topology();
         let over_shared_edge: Vec<_> = topology.edges_with_more_than_two_faces().collect();
         assert_eq!(over_shared_edge.len(), 1);
@@ -606,18 +704,37 @@ mod tests {
 
     #[test]
     fn topology_edge_ids_are_deterministic_and_face_order_is_preserved() {
-        let mesh = TriangleMesh3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0), point(1.0, 1.0, 0.0)], vec![2, 1, 3, 0, 2, 1]).unwrap();
+        let mesh = TriangleMesh3::new(
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, 1.0, 0.0),
+                point(1.0, 1.0, 0.0),
+            ],
+            vec![2, 1, 3, 0, 2, 1],
+        )
+        .unwrap();
         let first = mesh.topology();
         let second = mesh.topology();
         assert_eq!(first, second);
-        assert_eq!(first.face_edges(0).unwrap().map(|id| first.edges()[id].vertices()), [[1, 2], [1, 3], [2, 3]]);
-        assert_eq!(first.edge_faces(first.face_edges(0).unwrap()[0]), Some(&[0, 1][..]));
+        assert_eq!(
+            first
+                .face_edges(0)
+                .unwrap()
+                .map(|id| first.edges()[id].vertices()),
+            [[1, 2], [1, 3], [2, 3]]
+        );
+        assert_eq!(
+            first.edge_faces(first.face_edges(0).unwrap()[0]),
+            Some(&[0, 1][..])
+        );
         assert!(first.face_edges(2).is_none());
     }
 
     #[test]
     fn topology_of_mesh_without_faces_has_no_edges_or_incidence() {
-        let mesh = TriangleMesh3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)], Vec::new()).unwrap();
+        let mesh = TriangleMesh3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)], Vec::new())
+            .unwrap();
         let topology = mesh.topology();
         assert_eq!(topology.edge_count(), 0);
         assert_eq!(topology.face_count(), 0);
@@ -648,7 +765,10 @@ mod tests {
         let segment = LineSegment3::new(point(1.0, 2.0, 3.0), point(4.0, 6.0, 3.0)).unwrap();
         assert_eq!(segment.start(), point(1.0, 2.0, 3.0));
         assert_eq!(segment.end(), point(4.0, 6.0, 3.0));
-        assert_eq!(segment.displacement().to_vector().to_array(), [3.0, 4.0, 0.0]);
+        assert_eq!(
+            segment.displacement().to_vector().to_array(),
+            [3.0, 4.0, 0.0]
+        );
         assert_eq!(segment.length(), 5.0);
     }
 
@@ -707,7 +827,10 @@ mod tests {
 
     #[test]
     fn polyline_rejects_non_finite_coordinates_with_index() {
-        let result = Polyline3::new(vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, f64::NEG_INFINITY)]);
+        let result = Polyline3::new(vec![
+            point(0.0, 0.0, 0.0),
+            point(1.0, 0.0, f64::NEG_INFINITY),
+        ]);
         assert_eq!(result, Err(GeometryError::NonFinitePoint { index: 1 }));
     }
 
