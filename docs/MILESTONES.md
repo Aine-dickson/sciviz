@@ -233,8 +233,8 @@ Windows (2026-11-08).
 - [x] Map sampled-surface hits to their source grid cell
 - [x] Recover continuous domain coordinates, continuous grid coordinates, and piecewise-linear scalar value
 - [x] Test intersection edge cases and source-data recovery
-- [ ] Verify `cargo fmt --all -- --check` on Windows (not yet reported)
-- [ ] Verify `cargo check --workspace` on Windows (not yet reported)
+- [x] Verify `cargo fmt --all -- --check` on Windows (passed after `cargo fmt --all`)
+- [x] Verify `cargo check --workspace` on Windows (passed)
 - [x] Verify `cargo test --workspace` on Windows (84 passed: 79 core, 1 Explorer, 4 renderer)
 - [x] Convert physical viewport pixels to world rays using inverse view-projection unprojection and WebGPU NDC depth [0, 1]
 - [x] Support perspective and orthographic ray origins
@@ -245,6 +245,13 @@ Windows (2026-11-08).
 - [x] Visually verify hover feedback and picking at multiple surface locations and outside the surface on Windows
 - [x] Verify picking remains correct after resizing, minimizing, and maximizing the window on Windows
 - [x] Verify picking remains correct after changing amplitude, including returning to the flat A=0.00 surface, on Windows
+
+User-reported Windows validation is complete. The user ran `cargo fmt --all`,
+then confirmed formatting check, workspace compilation, and all 84 workspace
+tests passed. The formatting-only cleanup was committed locally as
+`d545466` (`style: format workspace`). Copilot's read-only diff inspection
+found no semantic changes. The pre-sync stash remains untouched and must not
+be blindly restored; it is an older pre-picking snapshot.
 
 ### M3.3 — Mesh topology queries
 
