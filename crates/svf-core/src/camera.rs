@@ -9,7 +9,10 @@ use std::{error::Error, fmt};
 use glam::DMat4;
 use glam::dcamera::rh::{proj::directx, view};
 
-use crate::spatial::{WorldPoint3, WorldVector3};
+use crate::{
+    ray::{Ray3, RayError},
+    spatial::{WorldPoint3, WorldVector3},
+};
 
 const PARALLEL_EPSILON_SQUARED: f64 = 1.0e-24;
 
@@ -270,6 +273,98 @@ impl Camera3 {
     pub fn view_projection_matrix(&self) -> DMat4 {
         self.projection_matrix() * self.view_matrix()
     }
+
+    /// Constructs a world-space ray through a physical-pixel position in a
+    /// top-left-origin viewport. Pixel coordinates are measured in the same
+    /// physical pixels as the viewport dimensions (not logical DPI units).
+    ///
+    /// Unprojection uses the framework's WebGPU NDC depth interval [0, 1].
+    /// Perspective rays originate at the camera position; orthographic rays
+    /// originate on the near plane and remain parallel.
+    pub fn ray_from_viewport(
+        &self,
+        pixel_x: f64,
+        pixel_y: f64,
+        viewport_width: u32,
+        viewport_height: u32,
+    ) -> Result<Ray3, ViewportRayError> {
+        if !pixel_x.is_finite() || !pixel_y.is_finite() {
+            return Err(ViewportRayError::NonFinitePixel);
+        }
+        if viewport_width == 0 || viewport_height == 0 {
+            return Err(ViewportRayError::InvalidViewport);
+        }
+        if pixel_x < 0.0 || pixel_y < 0.0
+            || pixel_x >= viewport_width as f64
+            || pixel_y >= viewport_height as f64
+        {
+            return Err(ViewportRayError::PixelOutsideViewport);
+        }
+
+        let ndc_x = 2.0 * pixel_x / viewport_width as f64 - 1.0;
+        let ndc_y = 1.0 - 2.0 * pixel_y / viewport_height as f64;
+        let view_projection = self.view_projection_matrix();
+        let determinant = view_projection.determinant();
+        if !determinant.is_finite() || determinant == 0.0 {
+            return Err(ViewportRayError::SingularViewProjection);
+        }
+        let inverse = view_projection.inverse();
+        if !inverse.to_cols_array().iter().all(|value| value.is_finite()) {
+            return Err(ViewportRayError::SingularViewProjection);
+        }
+
+        let near = unproject_viewport_point(inverse, ndc_x, ndc_y, 0.0)?;
+        let far = unproject_viewport_point(inverse, ndc_x, ndc_y, 1.0)?;
+        let origin = match self.projection {
+            Projection3::Perspective(_) => self.look_at.position(),
+            Projection3::Orthographic(_) => near,
+        };
+        Ray3::new(origin, far - near).map_err(ViewportRayError::InvalidRay)
+    }
+}
+
+/// Errors converting a viewport pixel into a world-space ray.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewportRayError {
+    NonFinitePixel,
+    InvalidViewport,
+    PixelOutsideViewport,
+    SingularViewProjection,
+    InvalidHomogeneousCoordinate,
+    InvalidRay(RayError),
+}
+
+impl fmt::Display for ViewportRayError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::NonFinitePixel => "viewport pixel coordinates must be finite",
+            Self::InvalidViewport => "viewport dimensions must be non-zero",
+            Self::PixelOutsideViewport => "pixel lies outside the viewport",
+            Self::SingularViewProjection => "camera view-projection matrix is singular",
+            Self::InvalidHomogeneousCoordinate => "unprojected point has an invalid homogeneous coordinate",
+            Self::InvalidRay(error) => return write!(f, "could not construct world ray: {error}"),
+        };
+        f.write_str(message)
+    }
+}
+
+impl Error for ViewportRayError {}
+
+fn unproject_viewport_point(
+    inverse_view_projection: DMat4,
+    ndc_x: f64,
+    ndc_y: f64,
+    ndc_depth: f64,
+) -> Result<WorldPoint3, ViewportRayError> {
+    let homogeneous = inverse_view_projection * glam::DVec4::new(ndc_x, ndc_y, ndc_depth, 1.0);
+    if !homogeneous.is_finite() || homogeneous.w == 0.0 {
+        return Err(ViewportRayError::InvalidHomogeneousCoordinate);
+    }
+    let point = homogeneous.truncate() / homogeneous.w;
+    if !point.is_finite() {
+        return Err(ViewportRayError::InvalidHomogeneousCoordinate);
+    }
+    Ok(WorldPoint3::from_vector(point))
 }
 
 fn validate_near_far(near: f64, far: f64) -> Result<(), CameraError> {
@@ -384,6 +479,56 @@ mod tests {
         assert_eq!(OrthographicProjection::new(1.0, 1.0, -1.0, 1.0, 0.1, 10.0), Err(CameraError::InvalidOrthographicBounds));
         assert_eq!(OrthographicProjection::new(-1.0, 1.0, 2.0, -2.0, 0.1, 10.0), Err(CameraError::InvalidOrthographicBounds));
         assert_eq!(OrthographicProjection::new(-1.0, 1.0, -1.0, 1.0, 10.0, 10.0), Err(CameraError::InvalidNearFarPlanes));
+    }
+
+    #[test]
+    fn viewport_center_produces_centered_perspective_ray() {
+        let pose = LookAtCamera::new(
+            point(0.0, 0.0, 5.0), point(0.0, 0.0, 0.0), vector(0.0, 1.0, 0.0),
+        ).unwrap();
+        let projection = PerspectiveProjection::new(
+            std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0,
+        ).unwrap();
+        let camera = Camera3::new(pose, Projection3::Perspective(projection));
+        let ray = camera.ray_from_viewport(50.0, 50.0, 100, 100).unwrap();
+        assert_eq!(ray.origin(), point(0.0, 0.0, 5.0));
+        assert!(ray.direction().to_vector().abs_diff_eq(DVec3::NEG_Z, EPSILON));
+    }
+
+    #[test]
+    fn viewport_corner_changes_perspective_ray_direction() {
+        let pose = test_camera();
+        let projection = PerspectiveProjection::new(
+            std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0,
+        ).unwrap();
+        let camera = Camera3::new(pose, Projection3::Perspective(projection));
+        let center = camera.ray_from_viewport(50.0, 50.0, 100, 100).unwrap();
+        let top_right = camera.ray_from_viewport(99.0, 0.0, 100, 100).unwrap();
+        assert!(top_right.direction().to_vector().x > center.direction().to_vector().x);
+        assert!(top_right.direction().to_vector().y > center.direction().to_vector().y);
+    }
+
+    #[test]
+    fn orthographic_viewport_rays_are_parallel_and_have_distinct_origins() {
+        let pose = test_camera();
+        let projection = OrthographicProjection::new(-2.0, 2.0, -2.0, 2.0, 1.0, 11.0).unwrap();
+        let camera = Camera3::new(pose, Projection3::Orthographic(projection));
+        let left = camera.ray_from_viewport(0.0, 50.0, 100, 100).unwrap();
+        let right = camera.ray_from_viewport(99.0, 50.0, 100, 100).unwrap();
+        assert!(left.direction().to_vector().abs_diff_eq(right.direction().to_vector(), EPSILON));
+        assert_ne!(left.origin(), right.origin());
+    }
+
+    #[test]
+    fn viewport_ray_rejects_invalid_dimensions_and_pixel_positions() {
+        let camera = Camera3::new(
+            test_camera(),
+            Projection3::Perspective(PerspectiveProjection::new(1.0, 1.0, 0.1, 100.0).unwrap()),
+        );
+        assert_eq!(camera.ray_from_viewport(0.0, 0.0, 0, 100), Err(ViewportRayError::InvalidViewport));
+        assert_eq!(camera.ray_from_viewport(-1.0, 0.0, 100, 100), Err(ViewportRayError::PixelOutsideViewport));
+        assert_eq!(camera.ray_from_viewport(100.0, 0.0, 100, 100), Err(ViewportRayError::PixelOutsideViewport));
+        assert_eq!(camera.ray_from_viewport(f64::NAN, 0.0, 100, 100), Err(ViewportRayError::NonFinitePixel));
     }
 
     #[test]
