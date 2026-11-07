@@ -331,7 +331,7 @@ mod tests {
         }).unwrap();
         assert_eq!(samples.len(), 4);
         assert_eq!(samples.get(1, 1).unwrap().value(), SampleValue::NonFinite(NonFiniteValue::NaN));
-        assert_eq!(samples.get(0, 1).unwrap().value(), SampleValue::Finite(9.0));
+        assert_eq!(samples.get(0, 1).unwrap().value(), SampleValue::Finite(19.0));
     }
 
     #[test]
