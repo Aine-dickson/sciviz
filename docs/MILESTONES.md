@@ -131,42 +131,37 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 - [x] Add `SamplingSpec1D` and `SamplingSpec2D` with independent axis counts
 - [x] Define sample counts as points, with interval count equal to points minus one
 - [x] Require at least two points per sampled axis and report the offending axis
-- [x] Keep domain and sampling specifications independent of function evaluation, grid allocation, geometry, and rendering
-- [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, endpoint-capable minimum counts, and invalid sample counts
-- [x] Verify `cargo fmt --all -- --check` on Windows
-- [x] Verify `cargo check --workspace` on Windows
-- [x] Verify `cargo test -p svf-core` on Windows (50 passed)
-- [x] Verify `cargo test --workspace` on Windows (52 passed: 50 core, 2 renderer)
+- [x] Keep domain and sampling-specification types independent of function evaluation and rendering
+- [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, and invalid sample counts
+- [x] Verify formatting and workspace check on Windows
+- [x] Verify core tests on Windows (50 passed)
+- [x] Verify workspace tests on Windows (52 passed: 50 core, 2 renderer)
 
-- [x] Add `Domain1D` with finite, strictly increasing inclusive bounds
-- [x] Add `Domain2D` with independent X and Y ranges
-- [x] Reject non-finite bounds, non-positive extents, and extents that overflow f64
-- [x] Add `SamplingSpec1D` and `SamplingSpec2D` with independent axis counts
-- [x] Define sample counts as points, with interval count equal to points minus one
-- [x] Require at least two points per sampled axis and report the offending axis
-- [x] Keep domain and sampling specifications independent of function evaluation, grid allocation, geometry, and rendering
-- [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, endpoint-capable minimum counts, and invalid sample counts
+### M4.2 — Scalar function sampling
+
+Implementation committed; local Windows validation pending.
+
+- [x] Add 1D scalar sampling using caller-supplied `FnMut(f64) -> f64`
+- [x] Add 2D scalar sampling using caller-supplied `FnMut(f64, f64) -> f64`
+- [x] Preserve exact domain endpoints in 1D and along both 2D axes
+- [x] Preserve source coordinates and sample indices in every record
+- [x] Define deterministic row-major 2D order with X varying fastest
+- [x] Represent finite, NaN, positive-infinity, and negative-infinity results explicitly
+- [x] Retain non-finite results without dropping samples or shifting indices
+- [x] Add checked 2D sample-count multiplication and fallible result allocation
+- [x] Test endpoint inclusion, coordinate mapping, finite values, non-finite classification, random access, and overflow
 - [ ] Verify formatting, core tests, and workspace tests on Windows
-
-### M4.2 — Function sampling (next)
-
-- Define a simple CPU-side API for sampling scalar-valued functions over validated domains and resolutions
-- Preserve deterministic sample ordering and source-coordinate reconstruction
-- Represent non-finite function outputs explicitly without dropping samples or shifting indices
-- Specify row/column ordering for 2D sampling
-- Test endpoint inclusion, coordinate mapping, finite values, and NaN/infinity handling
-- Keep the API independent of geometry and rendering
 
 ### M4.3 — Structured grids and surface generation
 
-- Represent structured sampled grids with explicit dimensions and coordinate semantics
-- Generate surface geometry from sampled scalar fields where appropriate
-- Preserve source sample identity for inspection and picking
+- [ ] Represent structured sampled grids with explicit dimensions and coordinate semantics
+- [ ] Generate surface geometry from sampled scalar fields where appropriate
+- [ ] Preserve source sample identity for inspection and picking
 
 ### M4.4 — Sampling quality
 
-- Document resolution, density, and numerical error considerations
-- Avoid implying that denser uniform sampling guarantees accuracy for arbitrary functions
+- [ ] Document resolution, density, and numerical error considerations
+- [ ] Avoid implying that denser uniform sampling guarantees accuracy for arbitrary functions
 
 ## M5 — Interactive surface demonstrator
 
