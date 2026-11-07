@@ -149,12 +149,23 @@ impl Error for UnstructuredGridError {}
 ///
 /// Mixed cell types and topological dimensions are allowed. Structural
 /// connectivity is validated, while geometric degeneracy is retained.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UnstructuredGrid3 {
     points: Vec<WorldPoint3>,
     cell_types: Vec<CellType3>,
     cell_offsets: Vec<usize>,
     connectivity: Vec<u32>,
+}
+
+impl Default for UnstructuredGrid3 {
+    fn default() -> Self {
+        Self {
+            points: Vec::new(),
+            cell_types: Vec::new(),
+            cell_offsets: vec![0],
+            connectivity: Vec::new(),
+        }
+    }
 }
 
 impl UnstructuredGrid3 {
