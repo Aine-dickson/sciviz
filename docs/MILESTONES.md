@@ -84,10 +84,24 @@ Implementation committed; Windows runtime behavior visually validated by the use
 
 ## M3 — Scientific geometry
 
-- points, line segments, polylines
-- indexed triangle meshes
-- explicit topology validation
-- CPU-side geometry tests
+### M3.1 — Point and line primitives
+
+Implementation committed; local Windows validation pending.
+
+- [x] Add graphics-independent `PointSet3` with ordered f64 world points
+- [x] Add validated `LineSegment3` with endpoint, displacement, and length accessors
+- [x] Add validated open `Polyline3` with consecutive segment iteration
+- [x] Reject non-finite coordinates with the offending point index
+- [x] Preserve repeated points and zero-length segments explicitly
+- [x] Require at least two points for a polyline; closed paths repeat the first point explicitly
+- [x] Add CPU unit tests for construction, validation, ordering, and segment semantics
+- [ ] Verify formatting, core tests, and workspace tests on Windows
+
+### M3.2 — Triangle meshes and topology
+
+- [ ] Design indexed triangle mesh representation
+- [ ] Validate index ranges and topology invariants
+- [ ] Add CPU-side geometry tests
 
 ## M4 — Mathematical sampling
 
