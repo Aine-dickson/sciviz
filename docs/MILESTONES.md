@@ -160,10 +160,11 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 
 - [x] Wrap existing 2D scalar samples in `StructuredGrid2D` without duplicating sample data
 - [x] Preserve dimensions, row-major ordering, source coordinates, and finite/non-finite values
-- [x] Generate a CPU-side `TriangleMesh3` height field from finite samples
+- [x] Generate a CPU-side `TriangleMesh3` graph surface from finite samples
+- [x] Map the 2D domain to world XZ and scalar values to world Y (+Y up)
 - [x] Retain finite vertices even when adjacent cells are omitted
 - [x] Omit both triangles of any cell containing a non-finite corner; do not bridge holes
-- [x] Define deterministic cell diagonal and +Z-facing triangle winding
+- [x] Define deterministic cell diagonal and +Y-facing triangle winding
 - [x] Map generated mesh vertices to source grid samples and triangles to source cells
 - [x] Check u32 vertex-index capacity and reserve output allocations fallibly
 - [x] Test dimensions/access, triangulation, winding, invalid cells, source mapping, and f64 values
@@ -208,3 +209,10 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 - [x] Verify `cargo test --workspace` on Windows (40 passed: 38 core, 2 renderer)
 
 Scope note: edge incidence is descriptive topology data. It does not certify consistent adjacent-face orientation, manifold vertices, watertightness, or global surface validity.
+
+### M5 prerequisite — sampled-surface coordinate correction
+
+- [x] Correct graph-surface vertices to `(x, scalar_value, y)` in world space
+- [x] Correct triangle winding to face +Y
+- [x] Preserve source sample and source-cell mappings
+- [ ] Verify formatting, workspace compilation, and all tests on Windows
