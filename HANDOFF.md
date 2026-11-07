@@ -228,10 +228,64 @@ cargo test -p svf-core
 cargo test --workspace
 ```
 
-## M4 — Mathematical sampling (next)
+## M4 — Mathematical sampling
 
-M4.1 bounded domains and sampling specifications are implemented, committed, and user-validated on Windows (2026-11-08). `cargo fmt --all -- --check` and `cargo check --workspace` passed; `cargo test -p svf-core` passed 50 tests; `cargo test --workspace` passed 52 tests (50 core, 2 renderer). Public API is in `crates/svf-core/src/sampling.rs`, exported as `svf_core::sampling`. It defines `Domain1D`, `Domain2D`, `SamplingSpec1D`, `SamplingSpec2D`, `DomainError`, `SamplingError`, and `SamplingAxis`. Bounds are finite and strictly increasing; representable extent must remain finite. Sampling counts mean points, require at least two per axis, and expose interval counts as points minus one. No function evaluation, grid allocation, or geometry generation is included. M3.3 is complete and user-validated on Windows (38 core tests; 40 workspace tests).
+### M4.1 — Bounded domains and sampling specifications
 
-### M4.2 — Function sampling (next)
+Implemented, committed, and user-validated on Windows (2026-11-08):
+- `Domain1D`: finite, strictly increasing inclusive bounds; rejects a
+  non-finite representable extent.
+- `Domain2D`: independent validated X and Y ranges.
+- `SamplingSpec1D` and `SamplingSpec2D`: point counts, not interval counts;
+  at least two points per axis. Interval count is point count minus one.
+- `DomainError`, `SamplingError`, and `SamplingAxis` expose validation
+  failures.
 
-Design the scalar sampling API before implementation. It should sample a scalar-valued function over validated 1D/2D domains and resolutions, preserve deterministic row/column coordinate mapping, and represent non-finite function outputs explicitly without removing samples or shifting indices. Decide whether function evaluation accepts borrowed closures or a trait abstraction; prefer the simplest ergonomic API unless stateful/reusable evaluators require a trait. Keep evaluation CPU-side and independent of geometry/rendering. Define behavior for finite inputs producing NaN or infinities, and ensure the sample output retains enough information to reconstruct each source coordinate.
+User-reported validation: formatting check and workspace check passed;
+50 core tests and 52 workspace tests (50 core, 2 renderer) passed.
+
+### M4.2 — Scalar function sampling
+
+Implementation committed; local Windows validation pending.
+
+Public API is exposed from `svf_core::sampling`:
+- `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided
+  `FnMut(f64) -> f64`.
+- `sample_scalar_2d(domain, spec, function)` evaluates a caller-provided
+  `FnMut(f64, f64) -> f64`.
+- `ScalarSample1D` and `ScalarSample2D` retain sample indices, source
+  coordinates, and values.
+- `ScalarSamples1D` and `ScalarSamples2D` retain every requested sample;
+  the 2D collection supports row/column lookup.
+- `SampleValue` distinguishes finite results from `NonFiniteValue::NaN`,
+  `PositiveInfinity`, and `NegativeInfinity`.
+- 1D endpoints are evaluated at the exact domain bounds. 2D samples are
+  stored row-major, with X varying fastest and Y selecting rows.
+- 2D sample-count multiplication is checked for overflow. Result storage is
+  reserved fallibly before invoking the function, reporting allocation failure
+  through `SamplingError`.
+- Function evaluation is CPU-side and independent of geometry/rendering.
+- Eight tests cover endpoints, finite values, non-finite classification,
+  deterministic 2D ordering, coordinate/index lookup, retained invalid
+  samples, and sample-count overflow.
+
+User validation commands:
+```powershell
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test -p svf-core
+cargo test --workspace
+```
+
+Expected after M4.2: 58 core tests and 60 workspace tests (58 core, 2 renderer).
+
+### M4.3 — Structured grids and surface generation (planned)
+
+Represent structured sampled grids explicitly, then generate geometry from
+sampled scalar fields while preserving source sample identity.
+
+### M4.4 — Sampling quality (planned)
+
+Document resolution, density, and numerical error considerations. Do not
+imply that denser uniform sampling guarantees accuracy for arbitrary functions.
+
