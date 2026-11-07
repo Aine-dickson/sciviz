@@ -85,4 +85,4 @@ M1 establishes only the native graphics lifecycle:
 - recover from outdated/lost surfaces where possible
 - exit cleanly on close
 
-No scientific geometry, shaders, camera, or scene graph is introduced in M1.
+M1 introduced no scientific geometry, shaders, camera, or scene graph. M2.4 adds a deliberately narrow renderer path for a fixed reference grid and world axes: the core camera remains f64 and graphics-independent, while `svf-render` converts its view-projection matrix to f32 for a WGSL line-list pipeline. This is a renderer integration harness, not a general scene graph.
