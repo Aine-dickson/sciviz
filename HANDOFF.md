@@ -52,7 +52,7 @@ The wgpu 30 compatibility adjustment uses
 
 ### M2 — Spatial foundation
 
-In progress.
+Implementation and user-reported local Windows validation completed for M2.1–M2.4. The final renderer/workspace automated test output should still be confirmed if not already captured.
 
 #### M2.1 — Coordinate semantics and math foundation
 
@@ -140,6 +140,25 @@ User-reported Windows visual/runtime verification:
 
 The user successfully launched the Explorer after the wgpu 30 pipeline-layout correction. Keep explicit final automated workspace/render test results as pending unless confirmed in the conversation.
 
+### M3 — Scientific geometry
+
+#### M3.1 — Point and line primitives
+
+Implementation committed; local Windows validation pending.
+
+New file: `crates/svf-core/src/geometry.rs`, exported through
+`pub mod geometry`.
+
+Public API:
+- `GeometryError`: non-finite point with offending index, or a polyline with fewer than two points.
+- `PointSet3`: ordered collection of independent `WorldPoint3` values. Empty sets are valid; no connectivity is implied.
+- `LineSegment3`: two finite endpoints, displacement, and Euclidean length. Coincident endpoints are allowed and produce zero length.
+- `Polyline3`: ordered sequence of at least two finite points. Consecutive points define segments; repeated points are retained. The polyline is open unless the first point is explicitly repeated at the end.
+
+All geometry remains in f64 world coordinates. No wgpu types or GPU buffers are exposed by svf-core. Tests cover empty point sets, coordinate validation, endpoint semantics, length, minimum polyline size, ordered segment iteration, repeated points, and explicit closure.
+
+Next: validate locally, then design indexed triangle meshes and topology checks. Do not introduce renderer conversion until the core geometry contract is locally verified.
+
 ## Accepted coordinate conventions
 
 - Right-handed world coordinates, +Y up.
@@ -182,4 +201,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-Confirm the final automated checks (`cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`) if their complete results are not already recorded. Visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified.
+Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry is committed and awaits local validation. Validate M3.1 before extending geometry or connecting it to the renderer.
