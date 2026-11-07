@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use svf_core::sampling::SampledSurface3;
+
 use svf_core::sampling::{
     sample_scalar_2d, Domain1D, Domain2D, SamplingSpec2D, StructuredGrid2D,
 };
@@ -7,7 +9,7 @@ use svf_render::SceneRenderer;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
-    event::{ElementState, WindowEvent},
+    event::{ElementState, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
@@ -22,6 +24,8 @@ struct Explorer {
     window: Option<Arc<Window>>,
     renderer: Option<SceneRenderer>,
     amplitude: f64,
+    surface: Option<SampledSurface3>,
+    cursor_position: Option<[f64; 2]>,
 }
 
 impl Default for Explorer {
@@ -30,11 +34,62 @@ impl Default for Explorer {
             window: None,
             renderer: None,
             amplitude: INITIAL_AMPLITUDE,
+            surface: None,
+            cursor_position: None,
         }
     }
 }
 
 impl Explorer {
+    fn inspect_cursor_position(&mut self) {
+        let (Some(window), Some(renderer), Some(surface), Some([x, y])) = (
+            self.window.as_ref(),
+            self.renderer.as_ref(),
+            self.surface.as_ref(),
+            self.cursor_position,
+        ) else {
+            return;
+        };
+
+        let size = window.inner_size();
+        let ray = match renderer.camera().ray_from_viewport(x, y, size.width, size.height) {
+            Ok(ray) => ray,
+            Err(error) => {
+                eprintln!("Could not construct inspection ray: {error}");
+                return;
+            }
+        };
+
+        match surface.inspect_ray(&ray) {
+            Some(hit) => {
+                let [domain_x, domain_y] = hit.domain_coordinates();
+                let [grid_x, grid_y] = hit.grid_coordinates();
+                let cell = hit.source_cell();
+                let title = format!(
+                    "{} | x={domain_x:.3}, y={domain_y:.3}, f={:.3}",
+                    window_title(self.amplitude),
+                    hit.scalar_value(),
+                );
+                window.set_title(&title);
+                eprintln!(
+                    "Surface inspection: world={:?}, domain=({domain_x:.6}, {domain_y:.6}), \
+                     grid=({grid_x:.3}, {grid_y:.3}), scalar={:.6}, cell=({}, {}), \
+                     triangle={}, barycentric={:?}",
+                    hit.world_position().to_array(),
+                    hit.scalar_value(),
+                    cell.x(),
+                    cell.y(),
+                    hit.triangle_index(),
+                    hit.barycentric(),
+                );
+            }
+            None => {
+                window.set_title(&format!("{} | no surface hit", window_title(self.amplitude)));
+                eprintln!("Surface inspection: no hit");
+            }
+        }
+    }
+
     fn adjust_amplitude(&mut self, delta: f64) -> Result<(), Box<dyn std::error::Error>> {
         let amplitude = (self.amplitude + delta).clamp(MIN_AMPLITUDE, MAX_AMPLITUDE);
         if (amplitude - self.amplitude).abs() <= f64::EPSILON {
@@ -48,6 +103,7 @@ impl Explorer {
             return Ok(());
         };
         renderer.update_mesh(surface.mesh())?;
+        self.surface = Some(surface);
 
         self.amplitude = amplitude;
         if let Some(window) = self.window.as_ref() {
@@ -89,6 +145,7 @@ impl ApplicationHandler for Explorer {
         match pollster::block_on(SceneRenderer::new(window.clone(), surface.mesh())) {
             Ok(renderer) => {
                 self.renderer = Some(renderer);
+                self.surface = Some(surface);
                 self.window = Some(window.clone());
                 window.request_redraw();
             }
@@ -127,6 +184,18 @@ impl ApplicationHandler for Explorer {
                 if let Some(window) = self.window.as_ref() {
                     window.request_redraw();
                 }
+            }
+
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_position = Some([position.x, position.y]);
+            }
+
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } => {
+                self.inspect_cursor_position();
             }
 
             WindowEvent::KeyboardInput { event, .. }
