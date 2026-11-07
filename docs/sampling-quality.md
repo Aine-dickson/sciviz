@@ -21,7 +21,7 @@ The axes can have different point counts and spacing. Increasing a point count w
 
 A 1D sample set stores N values. A 2D sample set stores N_x * N_y values, subject to checked size arithmetic and available memory.
 
-A structured 2D grid has (N_x - 1) * (N_y - 1) cells. A fully finite height field emits at most two triangles per cell: 2 * (N_x - 1) * (N_y - 1). A cell containing any non-finite corner is omitted in full, so the actual triangle count can be lower.
+A structured 2D grid has (N_x - 1) * (N_y - 1) cells. A fully finite sampled graph surface emits at most two triangles per cell: 2 * (N_x - 1) * (N_y - 1). A cell containing any non-finite corner is omitted in full, so the actual triangle count can be lower.
 
 Doubling both axis point counts roughly quadruples the sample count and, for large grids, the potential cell and triangle count. Resolution therefore affects CPU evaluation time, memory use, mesh size, and eventually rendering cost.
 
@@ -29,7 +29,7 @@ Doubling both axis point counts roughly quadruples the sample count and, for lar
 
 Uniform sampling gives known sample locations and deterministic coverage of the requested domain. It does not reveal what happens between samples by itself.
 
-The generated height-field mesh connects neighboring sampled values with planar triangles. It is a piecewise-linear approximation of the sampled function, not an exact representation of the underlying function.
+The generated graph-surface mesh maps the sampled domain onto the world XZ plane and scalar values onto world Y, connecting neighboring samples with planar triangles. It is a piecewise-linear approximation of the sampled function, not an exact representation of the underlying function.
 
 Features narrower than the sample spacing can be missed or misrepresented. A sharp peak may fall between sample locations; rapid oscillation may be undersampled; discontinuities may appear as steep slopes or may be missed. Increasing resolution can improve an approximation when the function is sufficiently regular and relevant features are resolved, but density alone is not a proof of accuracy.
 
