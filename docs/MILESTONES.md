@@ -291,8 +291,8 @@ representations.
 
 ### M6.1 — Field types and association semantics
 
-Implementation is committed to `svf-core`; local Windows validation is
-pending.
+Implementation is committed to `svf-core`; user-reported Windows workspace
+validation completed (94 tests passed: 89 core, 1 Explorer, 4 renderer).
 
 - [x] Add explicit point, cell, and dataset field associations
 - [x] Add field metadata with a non-empty name and optional descriptive units
@@ -317,8 +317,12 @@ the distinction between logical source cells and generated render triangles.
 
 ### M6.2 — Dataset containers and attribute attachment
 
-Implementation is on branch `m6-2-dataset-attachment`; local Windows
-validation is pending.
+<badge>Implementation merged and user-validated on Windows (2026-11-08)</badge>
+
+Merged to `main` through PR #1:
+https://github.com/Aine-dickson/sciviz/pull/1
+
+Merge commit: `9b4fc41` (feature head `dfb27c9`).
 
 - [x] Add a source-geometry enum for point sets, polylines, triangle meshes,
   and structured 2D grids
@@ -331,23 +335,38 @@ validation is pending.
 - [x] Ensure failed attachment leaves the dataset unchanged
 - [x] Keep structured-grid rectangle counts independent of generated surface
   triangle counts
-- [x] Add unit tests for geometry counts, valid attachment, mismatch rejection,
-  duplicate names, and structured-grid source-cell semantics
-- [ ] Review implementation diff and public API on Windows
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
-- [ ] Record user-reported local validation in the handoff
+- [x] Add focused unit tests for dataset geometry and field attachment
+- [x] Review implementation and public API
+- [x] Verify `cargo check --workspace` on Windows (user-reported)
+- [x] Verify `cargo test --workspace` on Windows (103 passed: 98 core,
+  1 Explorer, 4 renderer; doc tests passed)
 
-Design note: geometry is immutable through `Dataset`; changing source
+No formatter was run for this increment. M6.1 formatting-only changes remain
+separate in the user's local stash and must not be blindly restored.
+
+Design boundary: geometry is immutable through `Dataset`; changing source
 geometry creates a new dataset. Field transfer/remapping, mutable topology,
 unstructured grids, time-varying datasets, and automatic interpolation are
 outside M6.2.
 
+### M6.3 — Unstructured topology foundations
 
-M6.2 user-reported Windows validation (2026-11-08):
-- `cargo check --workspace`: passed.
-- `cargo test --workspace`: 103 passed, 0 failed (98 core, 1 Explorer,
-  4 renderer; doc tests also passed).
-- The nine dataset-specific unit tests all passed.
-- No formatter was run; formatting-only changes from M6.1 remain in a
-  separate stash on the user's local repository.
+Planned; design must be settled before implementation.
+
+Objective: add validated unstructured source-cell connectivity to
+`svf-core`, then make it usable as dataset geometry without confusing
+scientific source cells with generated render primitives.
+
+Design and implementation questions:
+- Select the initial supported cell types and define their minimum arity.
+- Define deterministic connectivity and cell ordering.
+- Validate cell offsets/connectivity, node-index bounds, and cell arity.
+- Decide whether mixed cell types belong in the first increment.
+- Integrate point/cell counts with existing `Dataset` field validation.
+- Preserve source-cell identity through later rendering tessellation.
+- Keep structural validity distinct from geometric degeneracy/quality.
+
+Initial scope excludes rendering, file importers, mesh repair, interpolation,
+and broad generic topology abstractions. The first deliverable is a
+graphics-independent validated unstructured dataset representation that
+reuses the existing scalar/vector field association rules.
