@@ -137,3 +137,19 @@ Scope note: this increment validates per-triangle index structure, not global ma
 - Preserve source vertex/face identity and triangle winding
 - Test boundary edges, shared edges, disconnected components, and non-manifold edge incidence without silently classifying meshes as manifold or watertight
 - Keep all topology data and algorithms in `svf-core`, independent of the renderer
+
+### M3.3 — Mesh topology queries
+
+Implementation committed; local Windows validation pending.
+
+- [x] Derive topology independently from the existing `TriangleMesh3` storage
+- [x] Extract unique undirected edges with canonical ascending vertex indices
+- [x] Assign deterministic edge IDs using lexicographic endpoint ordering
+- [x] Expose face-to-edge incidence in local triangle edge order
+- [x] Expose edge-to-face incidence in source face order
+- [x] Query boundary edges (exactly one incident face)
+- [x] Query edges incident to more than two faces without making a global manifoldness claim
+- [x] Cover shared edges, boundary edges, disconnected components, unreferenced vertices, non-manifold edge incidence, deterministic IDs, and empty-face meshes
+- [ ] Verify formatting, core tests, and workspace tests on Windows
+
+Scope note: edge incidence is descriptive topology data. It does not certify consistent adjacent-face orientation, manifold vertices, watertightness, or global surface validity.
