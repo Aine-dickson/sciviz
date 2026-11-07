@@ -20,23 +20,15 @@
 - [x] Verify resize/minimize/restore behavior on real hardware
 - [x] Verify clean window exit
 
-M1 was locally validated on the user's Windows environment:
-- `cargo check -p svf-render` passed.
-- `cargo check --workspace` passed.
-- The Explorer window opened and displayed the clear background.
-- Resizing, minimizing, restoring, and closing behaved as expected.
-
-The visible clear color is intentionally a very dark blue-gray, not pure black.
-These results are user-reported local validation; they have not been independently
-reproduced in this repository environment.
+M1 was locally validated on the user's Windows environment. User-reported
+checks passed, the Explorer window opened, and resizing/minimize/restore/close
+behaved as expected. The visible clear color is intentionally a very dark
+blue-gray. These results have not been independently reproduced here.
 
 ## M2 — Spatial foundation
 
 Objective: establish a graphics-independent mathematical model for spatial
 coordinates and camera transforms before introducing scientific geometry.
-
-Accepted conventions are recorded in
-`docs/decisions/0002-coordinate-conventions.md`.
 
 ### M2.1 — Coordinate semantics and math foundation
 
@@ -51,7 +43,7 @@ Accepted conventions are recorded in
 - [x] Document column-vector multiplication and column-major storage
 - [x] Add a composition-order unit test
 - [x] Verify transform convention tests locally
-- [ ] Add validated world/view transform APIs and tests
+- [ ] Add further typed world/view transform APIs if required by later geometry
 
 User-reported Windows validation:
 - `cargo check --workspace`: passed.
@@ -60,11 +52,17 @@ User-reported Windows validation:
 
 ### M2.3 — Camera and projection
 
-- [ ] Define camera state and view transformation
-- [ ] Implement validated perspective projection
-- [ ] Implement validated orthographic projection
-- [ ] Define aspect-ratio and viewport mapping behavior
-- [ ] Test camera and projection edge cases
+Implementation added; local verification pending.
+
+- [x] Define validated look-at camera pose
+- [x] Derive right-handed world-to-view matrix
+- [x] Implement validated perspective projection with [0, 1] NDC depth
+- [x] Implement validated orthographic projection with [0, 1] NDC depth
+- [x] Add perspective aspect-ratio update without mutating camera/world state
+- [x] Combine view and projection matrices in documented order
+- [x] Add tests for degenerate camera configurations
+- [x] Add tests for projection bounds and invalid parameters
+- [ ] Verify implementation with local Windows workspace checks and tests
 
 ### M2.4 — Renderer integration
 
