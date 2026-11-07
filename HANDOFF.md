@@ -288,13 +288,14 @@ Public API is exposed from `svf_core::sampling`:
   row-major scalar sample collection without duplicating coordinates/values.
 - Grid dimensions and indexed sample access preserve original coordinates
   and finite/non-finite value classification.
-- `to_surface_mesh()` creates a CPU-side `TriangleMesh3` height field with
-  vertices at `(x, y, scalar_value)`.
+- `to_surface_mesh()` creates a CPU-side `TriangleMesh3` graph surface.
+  The 2D domain maps to world XZ and scalar values map to world Y, so vertices
+  are `(x, scalar_value, y)` under the framework's +Y-up convention.
 - Each finite sample becomes one mesh vertex, including finite vertices
   unreferenced because neighboring cells contain invalid samples.
 - A cell emits both triangles only when all four corner samples are finite;
   otherwise the entire cell is omitted. No hole is silently bridged.
-- The lower-left to upper-right diagonal gives +Z-facing winding.
+- The lower-left to upper-right diagonal gives +Y-facing winding.
 - `SampledSurface3` maps each mesh vertex to its source grid sample and each
   triangle to its source grid cell for later inspection and picking.
 - Output allocations are reserved fallibly and vertex indices are checked
@@ -318,3 +319,17 @@ reasoning for arbitrary functions, a practical resolution workflow, and
 current limitations (no adaptive sampling, error estimation, or anti-alias
 filtering).
 
+
+
+### M5 prerequisite — sampled-surface coordinate correction
+
+During the M5 renderer audit, the M4.3 graph-surface mapping was found to
+conflict with the accepted +Y-up world convention: the original implementation
+placed scalar values on world Z and generated +Z-facing triangles. Corrected
+the mapping to world coordinates `(x, scalar_value, y)`, placing the sampled
+domain on XZ and scalar values on Y. Triangle winding now faces +Y. Source
+sample and source-cell mappings remain unchanged. This is a coordinate
+correction to M4.3, not a change to the mathematical sampling domain.
+
+The correction is committed but still requires user-reported Windows
+formatting, compilation, and test validation before M5.1 proceeds.
