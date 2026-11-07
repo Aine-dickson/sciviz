@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! Minimal scientific line renderer for the native Explorer.
+//! Minimal scientific geometry renderer for the native Explorer.
 //!
 //! Scientific coordinates and camera mathematics remain in svf-core at f64
 //! precision. This crate converts the combined camera matrix to f32 only when
@@ -80,7 +80,7 @@ impl CameraUniform {
     }
 }
 
-/// Owns the native surface and renders a reference grid with world axes.
+/// Owns the native surface and renders indexed scientific meshes with reference axes/grid.
 pub struct SceneRenderer {
     instance: wgpu::Instance,
     window: Arc<Window>,
@@ -552,7 +552,7 @@ mod tests {
         ).unwrap();
         let (vertices, indices) = convert_mesh(&mesh).unwrap();
         assert_eq!(vertices[1].position, [1.0, 1.0, 2.0]);
-        assert_eq!(indices, [0, 1, 2]);
+        assert_eq!(indices, vec![0, 1, 2]);
     }
 
     #[test]
