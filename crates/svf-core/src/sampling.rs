@@ -9,6 +9,11 @@
 use std::{error::Error, fmt};
 
 pub mod function;
+pub mod grid;
+pub use grid::{
+    GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D,
+    SurfaceGenerationError,
+};
 pub use function::{
     sample_scalar_1d, sample_scalar_2d, NonFiniteValue, SampleValue, ScalarSample1D,
     ScalarSample2D, ScalarSamples1D, ScalarSamples2D,
