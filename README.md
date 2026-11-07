@@ -13,8 +13,7 @@ library during development.
   clear rendering, resize handling, and basic surface recovery.
 - **M2 — Spatial foundation:** camera mathematics is locally validated; reference-scene renderer implementation is committed and awaiting local validation.
 
-M1 is an initial implementation scaffold. It has not yet been compiled or run
-in this environment because the Rust toolchain is unavailable here.
+M1 was validated on the user's Windows environment. M2.3 camera mathematics has also passed user-reported Windows checks. M2.4's reference-scene rendering implementation is committed and awaiting local compilation and visual verification.
 
 ## Requirements
 
