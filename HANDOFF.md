@@ -279,21 +279,39 @@ cargo test --workspace
 
 
 
-### M4.3 — Structured grids and surface generation (next)
+### M4.3 — Structured grids and surface generation
 
-Design and implement an explicit structured 2D sample grid built from
-`ScalarSamples2D`. Preserve dimensions, axis coordinates, source sample
-identity, and non-finite sample status. Define a separate surface-generation
-step for finite scalar samples, with explicit handling of invalid cells;
-do not silently bridge holes or invent values. Convert to `TriangleMesh3`
-only at the geometry boundary, preserving a mapping from generated vertices
-back to source grid indices. Keep all data CPU-side and renderer-independent.
+Implementation committed; local Windows validation pending.
 
-Before implementation, inspect existing geometry and topology APIs and decide
-whether structured grid storage should own samples or reference/consume an
-existing scalar sample collection. Avoid duplicate coordinate/value storage
-unless needed for a stable public API. Add focused tests for dimensions,
-index mapping, cell validity, triangulation winding, and source identity.
+Public API is exposed from `svf_core::sampling`:
+- `StructuredGrid2D::from_samples(ScalarSamples2D)` owns the original
+  row-major scalar sample collection without duplicating coordinates/values.
+- Grid dimensions and indexed sample access preserve the original sample
+  coordinate and finite/non-finite value classification.
+- `to_surface_mesh()` creates a CPU-side `TriangleMesh3` height field with
+  vertices at `(x, y, scalar_value)`.
+- Each finite sample becomes one mesh vertex, including finite vertices that
+  remain unreferenced because neighboring cells contain invalid samples.
+- A cell emits both triangles only when all four corner samples are finite;
+  otherwise the whole cell is omitted. No hole is silently bridged.
+- Each cell uses the lower-left to upper-right diagonal and +Z-facing winding
+  for the framework's +X-right, +Y-up convention.
+- `SampledSurface3` maps each mesh vertex to its source grid sample and each
+  triangle to its source grid cell, supporting later inspection/picking.
+- Output allocations are reserved fallibly and mesh vertex indexing is
+  checked against the u32 index format.
+- Nine tests cover dimensions/access, mesh generation, winding, invalid-cell
+  omission, source identity, all-invalid grids, and f64 preservation.
+
+User validation commands:
+```powershell
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test -p svf-core
+cargo test --workspace
+```
+
+Expected after M4.3: 67 core tests and 69 workspace tests (67 core, 2 renderer).
 
 ### M4.4 — Sampling quality (planned)
 
