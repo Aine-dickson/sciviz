@@ -156,10 +156,10 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 
 ### M4.3 — Structured grids and surface generation
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
 
 - [x] Wrap existing 2D scalar samples in `StructuredGrid2D` without duplicating sample data
-- [x] Preserve grid dimensions, row-major ordering, source coordinates, and finite/non-finite values
+- [x] Preserve dimensions, row-major ordering, source coordinates, and finite/non-finite values
 - [x] Generate a CPU-side `TriangleMesh3` height field from finite samples
 - [x] Retain finite vertices even when adjacent cells are omitted
 - [x] Omit both triangles of any cell containing a non-finite corner; do not bridge holes
@@ -167,7 +167,9 @@ Implementation committed; local Windows validation pending.
 - [x] Map generated mesh vertices to source grid samples and triangles to source cells
 - [x] Check u32 vertex-index capacity and reserve output allocations fallibly
 - [x] Test dimensions/access, triangulation, winding, invalid cells, source mapping, and f64 values
-- [ ] Verify formatting, core tests, and workspace tests on Windows
+- [x] Verify formatting and workspace check on Windows
+- [x] Verify core tests on Windows (67 passed)
+- [x] Verify workspace tests on Windows (69 passed: 67 core, 2 renderer)
 
 ### M4.4 — Sampling quality
 
