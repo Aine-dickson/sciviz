@@ -308,8 +308,13 @@ User-reported Windows validation completed on 2026-11-08:
 - `cargo test -p svf-core` passed (67 tests).
 - `cargo test --workspace` passed (69 tests: 67 core, 2 renderer).
 
-### M4.4 — Sampling quality (planned)
+### M4.4 — Sampling quality
 
-Document resolution, density, and numerical error considerations. Do not
-imply that denser uniform sampling guarantees accuracy for arbitrary functions.
+Documentation committed in `docs/sampling-quality.md` (2026-11-08).
+Explains point counts versus intervals, uniform spacing, 2D storage and
+triangle growth, piecewise-linear surface approximation, factors affecting
+error, conditional interpolation-error assumptions, limits of Nyquist-style
+reasoning for arbitrary functions, a practical resolution workflow, and
+current limitations (no adaptive sampling, error estimation, or anti-alias
+filtering).
 
