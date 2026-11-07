@@ -32,9 +32,11 @@ and educational communication take priority over decorative rendering.
 - `svf-render`: wgpu rendering infrastructure and native surface integration.
 - `svf-explorer`: thin winit desktop host.
 
-Workspace dependencies currently include wgpu 30.0.1, winit 0.30.13,
-pollster 0.4, and tracing 0.1. `svf-core` currently has no external
-dependencies and contains only project identity constants and a basic test.
+Workspace dependencies include wgpu 30.0.1, winit 0.30.13, pollster 0.4,
+tracing 0.1, and glam =0.34.2. Glam is configured with only `std` and
+`float-types` enabled. `svf-core` now has a `spatial` module containing
+f64 glam primitive re-exports, world-axis constants, and semantic
+`WorldPoint3` / `WorldVector3` wrappers.
 
 ## Milestone status
 
@@ -64,30 +66,37 @@ These are user-reported local results, not independently reproduced here.
 
 ### M2 — Spatial foundation
 
-Started. Current work is design definition; no camera/math implementation is
-claimed yet.
+In progress. M2.1 and M2.2 source changes have been committed, but local
+Windows compilation and tests are pending.
 
-Objective: define coordinate semantics and camera mathematics in
-`svf-core`, test them independently, then connect them to the renderer.
-
-Initial design direction (to be confirmed/refined before implementation):
+Accepted conventions:
 - right-handed world coordinates, +Y up
-- camera looks along local -Z
-- column-vector transform convention
-- WebGPU clip-space depth range [0, 1]
-- world/scientific values remain f64 in core
-- explicit conversion to f32 at the rendering boundary
-- world, view, clip/NDC, and viewport/pixel coordinates remain distinct
+- camera view space is right-handed, +Y up, -Z forward
+- column vectors; transforms multiply on the left
+- matrices use column-major storage
+- WebGPU NDC depth range [0, 1]
+- f64 in the core; explicit f32 conversion at renderer boundary
+- world, view, clip/NDC, and viewport/pixel spaces remain distinct
 
-Next M2 tasks:
-1. Review and agree the coordinate convention document.
-2. Specify transform semantics, matrix layout, and projection parameter
-   validation.
-3. Choose the smallest suitable math implementation strategy; avoid a
-   dependency until the required API and precision needs are clear.
-4. Implement core coordinate/transform primitives with unit tests.
-5. Implement camera view and perspective/orthographic projection.
-6. Integrate matrices into the renderer and draw reference axes/grid.
+Math dependency:
+- `glam =0.34.2`, workspace dependency
+- `std` and `float-types` features only
+- glam types are mathematical primitives; SVF adds semantic domain types
+  rather than treating arbitrary vectors as points.
+
+Implemented in `crates/svf-core/src/spatial.rs`:
+- f64 glam vector, matrix, and quaternion primitive re-exports
+- world axis constants
+- `WorldPoint3` and `WorldVector3` newtypes
+- point/vector arithmetic that preserves point-versus-displacement semantics
+- unit tests for axis handedness, point subtraction/translation, vector
+  operations, and matrix composition order
+
+Not implemented yet:
+- camera state and validated view transform
+- perspective and orthographic projection wrappers
+- viewport/NDC mapping
+- renderer camera integration, axes, or grid
 
 ## Key architectural constraints
 
@@ -108,8 +117,8 @@ Next M2 tasks:
 - `docs/ARCHITECTURE.md`: architectural boundaries and planned data model.
 - `docs/MILESTONES.md`: milestone scope and acceptance criteria.
 - `docs/decisions/0001-windows-first.md`: initial platform decision.
-- `docs/decisions/0002-coordinate-conventions.md`: initial M2 coordinate
-  convention proposal.
+- `docs/decisions/0002-coordinate-conventions.md`: accepted coordinate
+  conventions and glam dependency decision.
 
 ## Local validation commands
 
@@ -117,14 +126,16 @@ From the repository root:
 
 ```powershell
 cargo check --workspace
+cargo test -p svf-core
 cargo test --workspace
-cargo run -p svf-explorer
 ```
 
-Run tests after each core math change. For renderer integration, also verify
-window launch, visible output, resize, minimize/restore, and clean exit.
+For renderer integration later, also verify window launch, visible output,
+resize, minimize/restore, and clean exit.
 
 ## Immediate next action
 
-Review `docs/decisions/0002-coordinate-conventions.md` and settle the
-coordinate, matrix, and projection conventions before writing M2 math code.
+Run the workspace check and core tests on Windows. Fix any compiler or test
+failures before starting camera implementation. Once M2.1/M2.2 pass locally,
+continue with validated camera state and right-handed WebGPU perspective and
+orthographic projection.
