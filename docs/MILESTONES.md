@@ -313,3 +313,32 @@ Design details: `docs/fields.md`.
 M6.1 intentionally does not add a dataset container or geometry attachment.
 M6.2 will define those contracts against actual dataset topology, including
 the distinction between logical source cells and generated render triangles.
+
+
+### M6.2 — Dataset containers and attribute attachment
+
+Implementation is on branch `m6-2-dataset-attachment`; local Windows
+validation is pending.
+
+- [x] Add a source-geometry enum for point sets, polylines, triangle meshes,
+  and structured 2D grids
+- [x] Define source point/sample counts and logical cell counts per geometry
+- [x] Add a dataset container owning immutable source geometry
+- [x] Attach scalar and three-component vector fields with association-aware
+  cardinality validation
+- [x] Enforce unique field names across scalar and vector field kinds
+- [x] Preserve field insertion order and provide typed name lookup
+- [x] Ensure failed attachment leaves the dataset unchanged
+- [x] Keep structured-grid rectangle counts independent of generated surface
+  triangle counts
+- [x] Add unit tests for geometry counts, valid attachment, mismatch rejection,
+  duplicate names, and structured-grid source-cell semantics
+- [ ] Review implementation diff and public API on Windows
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Record user-reported local validation in the handoff
+
+Design note: geometry is immutable through `Dataset`; changing source
+geometry creates a new dataset. Field transfer/remapping, mutable topology,
+unstructured grids, time-varying datasets, and automatic interpolation are
+outside M6.2.
