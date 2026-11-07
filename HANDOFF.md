@@ -662,3 +662,63 @@ The M6.2 branch currently has implementation commits:
 
 The branch also includes the M6.1 implementation from remote main. The user's
 local M6.1 formatting changes and existing stash remain separate and untouched.
+
+
+## M6.2 — Dataset containers and attribute attachment: merged
+
+M6.2 is implemented, reviewed, user-validated on Windows, and merged into
+`main` through PR #1 on 2026-11-08.
+
+- PR: https://github.com/Aine-dickson/sciviz/pull/1
+- Merge commit: `9b4fc41`
+- Feature head: `dfb27c9`
+- Dataset API: `crates/svf-core/src/dataset.rs`, exposed as
+  `svf_core::dataset`.
+- The branch was 9 commits ahead and 0 behind `main` at review time.
+- The PR became mergeable and GitHub confirmed successful merge.
+- No GitHub Actions/check-run results were configured for the feature commit;
+  automated validation is the user's local Windows report.
+
+User-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test --workspace`: 103 passed, 0 failed
+  (98 core, 1 Explorer, 4 renderer; doc tests passed).
+- All nine dataset-specific tests passed.
+- No formatter was run for M6.2.
+
+Review confirmed the dataset API preserves source topology semantics,
+association cardinality, unique field names, insertion order, and
+failure-atomic field attachment. The geometry accessors expose immutable
+references, so topology cannot be mutated through `Dataset`.
+
+The user's local feature branch was synchronized to `dfb27c9` before merge.
+The user's local `main` has not yet been confirmed to contain merge commit
+`9b4fc41`; sync it with `git pull --ff-only origin main` after switching
+to `main`. Do not overwrite or blindly pop the preserved formatting stash.
+The M6.1 formatting-only changes remain separate and must be handled
+deliberately if they are ever reapplied.
+
+## Next milestone — M6.3: Unstructured topology foundations
+
+M6.3 should introduce explicit unstructured source-cell topology without
+conflating source cells with render triangles. Before implementation, define
+and document the minimal cell model and invariants.
+
+Design questions to resolve:
+- Supported initial cell types and their minimum node counts.
+- Connectivity storage and deterministic cell/node ordering.
+- Validation of offsets/connectivity, node-index bounds, and cell arity.
+- How point and cell counts integrate with the existing `Dataset` API.
+- Whether mixed cell types are supported immediately or deferred.
+- How source-cell identity survives later triangulation/tessellation.
+- How degenerate but structurally valid cells are treated separately from
+  invalid connectivity.
+
+Keep M6.3 graphics-independent in `svf-core`. Do not add a renderer,
+file-format importer, mesh repair, interpolation, or broad generic topology
+framework as part of the first increment. The first goal is a validated
+unstructured dataset representation that can attach the existing scalar and
+vector fields using the same point/cell association rules.
+
+The user prefers focused implementation increments, exact Windows commands,
+no routine formatting churn, and a concise handoff update at each milestone.
