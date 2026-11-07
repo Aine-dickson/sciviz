@@ -72,13 +72,15 @@ The combined camera test expects NDC depth 0.88 for its chosen world target at v
 
 ### M2.4 — Renderer integration
 
-Implementation committed; local validation pending.
+Implementation committed; Windows runtime behavior visually validated by the user.
 
 - [x] Convert camera matrices to renderer representation explicitly (f64 to f32 at GPU uniform boundary)
 - [x] Render reference axes and an XZ-plane world grid with a minimal line pipeline
 - [x] Update perspective aspect ratio and camera uniform on non-zero resize without changing world geometry
-- [ ] Verify workspace compilation and tests on Windows
-- [ ] Verify visible axes/grid and resize behavior on real hardware
+- [x] Verify visible red X, green vertical Y, and blue Z axes meeting at the origin
+- [x] Verify XZ grid orientation and consistent perspective across window sizes
+- [x] Verify minimize, restore, and close behavior
+- [ ] Record explicit final `cargo check --workspace`, `cargo test -p svf-render`, and `cargo test --workspace` results if not already captured
 
 ## M3 — Scientific geometry
 
