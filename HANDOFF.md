@@ -599,3 +599,66 @@ renderer changes. Design details and exclusions are documented in
 Tests are included in `fields.rs`, but the user has not yet run formatting,
 workspace compilation, or workspace tests on Windows. Do not mark local
 validation complete until those results are reported.
+
+
+## M6.1 — Scientific field semantics: local validation update
+
+The user reported a successful Windows workspace test run after pulling M6.1:
+- `svf-core`: 89 passed.
+- `svf-explorer`: 1 passed.
+- `svf-render`: 4 passed.
+- Total: 94 passed, 0 failed.
+
+The working tree contains formatting-only changes in
+`crates/svf-core/src/fields.rs` and `crates/svf-core/src/lib.rs`. Inspection
+confirmed no behavior/API/test changes and no whitespace errors. The user
+requested that formatting not become a recurring cleanup task. Preserve these
+changes; do not run a formatter or create a formatting-only commit. The
+`LF will be replaced by CRLF` messages are Git normalization warnings.
+
+## M6.2 — Dataset containers and attribute attachment
+
+Implementation is being developed on branch
+`m6-2-dataset-attachment`, created from remote `main` at M6.1 commit
+`475bb0f`. The user's local `main` branch and its two formatting-only
+changes have not been touched.
+
+New module: `crates/svf-core/src/dataset.rs`, exposed as
+`svf_core::dataset`.
+
+Public API:
+- `DatasetGeometry` variants: `PointSet3`, `Polyline3`,
+  `TriangleMesh3`, and `StructuredGrid2D`.
+- `point_count()` returns source point/sample count.
+- `cell_count()` returns logical source-cell count: zero for point sets,
+  consecutive segments for polylines, source triangles for triangle meshes,
+  and grid rectangles for structured grids.
+- `DatasetField::{Scalar, Vector3}` stores supported field families.
+- `Dataset` owns immutable source geometry and insertion-ordered fields.
+- `add_scalar_field` and `add_vector_field3` validate association
+  cardinality before insertion.
+- Field names are unique across scalar and vector fields.
+- `field`, `scalar_field`, and `vector_field3` provide name lookup.
+- A failed attachment does not mutate the dataset.
+
+Important source/render distinction: each structured-grid rectangle is one
+logical cell, even though the current surface generator may emit two triangles
+for it. Dataset cell-field cardinality is checked against rectangles, not
+render triangles.
+
+Geometry is immutable through the dataset API. Geometry changes create a new
+dataset; field remapping/transfer is deferred. Unstructured grids, time
+series, field interpolation, and renderer integration are not part of M6.2.
+
+Nine focused unit tests are included in `dataset.rs`. They have not yet been
+run locally. No formatting command should be run just to normalize source
+layout. Next, review the diff, run `cargo check --workspace` and
+`cargo test --workspace` on Windows, then report exact output. Do not claim
+validation until those results are supplied.
+
+The M6.2 branch currently has implementation commits:
+- `f02cb1c` — add scientific dataset containers
+- `e4683f5` — expose scientific datasets
+
+The branch also includes the M6.1 implementation from remote main. The user's
+local M6.1 formatting changes and existing stash remain separate and untouched.
