@@ -222,8 +222,9 @@ Implementation committed and user-validated on Windows (2026-11-08).
 
 ### M5.3 — Scientific inspection
 
-Core ray-intersection and scientific hit-mapping layer implemented and
-committed on 2026-11-08; local Windows validation pending.
+Core ray intersection, sampled-surface source mapping, viewport unprojection,
+and Explorer hover/click integration are implemented and user-validated on
+Windows (2026-11-08).
 
 - [x] Add validated f64 world-space rays with normalized directions
 - [x] Intersect rays with indexed triangle meshes without back-face culling
@@ -234,16 +235,14 @@ committed on 2026-11-08; local Windows validation pending.
 - [x] Test intersection edge cases and source-data recovery
 - [ ] Verify `cargo fmt --all -- --check` on Windows (not yet reported)
 - [ ] Verify `cargo check --workspace` on Windows (not yet reported)
-- [x] Verify `cargo test -p svf-core` on Windows (67 passed)
-- [x] Verify `cargo test --workspace` on Windows (72 passed: 67 core, 1 Explorer, 4 renderer)
+- [x] Verify `cargo test --workspace` on Windows (84 passed: 79 core, 1 Explorer, 4 renderer)
 - [x] Convert physical viewport pixels to world rays using inverse view-projection unprojection and WebGPU NDC depth [0, 1]
 - [x] Support perspective and orthographic ray origins
 - [x] Expose the renderer's active camera to CPU-side picking
 - [x] Connect Explorer cursor tracking and left-click scientific surface inspection
 - [x] Add live hover feedback in the window title for surface hits and misses
 - [x] Add explicit click diagnostics with pixel/viewport coordinates and HIT/MISS/ray-error status
-- [ ] Verify formatting, workspace compilation, and tests for viewport/Explorer integration and hover diagnostics on Windows
-- [ ] Visually verify hover feedback and picking at multiple surface locations and outside the surface
+- [x] Visually verify hover feedback and picking at multiple surface locations and outside the surface on Windows
 - [ ] Verify picking remains correct after resizing and changing surface amplitude
 
 ### M3.3 — Mesh topology queries
