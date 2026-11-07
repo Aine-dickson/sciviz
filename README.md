@@ -11,7 +11,7 @@ library during development.
 - **M0 — Foundation:** workspace and architecture established.
 - **M1 — Graphics foundation:** winit window, wgpu device/surface initialization,
   clear rendering, resize handling, and basic surface recovery.
-- **M2 — 3D coordinate system and camera:** not started.
+- **M2 — Spatial foundation:** camera mathematics is locally validated; reference-scene renderer implementation is committed and awaiting local validation.
 
 M1 is an initial implementation scaffold. It has not yet been compiled or run
 in this environment because the Rust toolchain is unavailable here.
