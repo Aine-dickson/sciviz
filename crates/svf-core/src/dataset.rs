@@ -7,6 +7,7 @@
 use std::{error::Error, fmt};
 
 use crate::{
+    unstructured::UnstructuredGrid3,
     fields::{FieldError, FieldMetadata, ScalarField, VectorField3},
     geometry::{PointSet3, Polyline3, TriangleMesh3},
     sampling::StructuredGrid2D,
@@ -23,6 +24,8 @@ pub enum DatasetGeometry {
     TriangleMesh3(TriangleMesh3),
     /// A two-dimensional structured grid whose cells are grid intervals.
     StructuredGrid2D(StructuredGrid2D),
+    /// An unstructured collection of source cells with explicit connectivity.
+    UnstructuredGrid3(UnstructuredGrid3),
 }
 
 impl DatasetGeometry {
@@ -34,6 +37,7 @@ impl DatasetGeometry {
             Self::Polyline3(line) => line.len(),
             Self::TriangleMesh3(mesh) => mesh.vertex_count(),
             Self::StructuredGrid2D(grid) => grid.sample_count(),
+            Self::UnstructuredGrid3(grid) => grid.point_count(),
         }
     }
 
@@ -50,6 +54,7 @@ impl DatasetGeometry {
             Self::StructuredGrid2D(grid) => {
                 (grid.x_sample_count() - 1) * (grid.y_sample_count() - 1)
             }
+            Self::UnstructuredGrid3(grid) => grid.cell_count(),
         }
     }
 }
@@ -75,6 +80,12 @@ impl From<TriangleMesh3> for DatasetGeometry {
 impl From<StructuredGrid2D> for DatasetGeometry {
     fn from(value: StructuredGrid2D) -> Self {
         Self::StructuredGrid2D(value)
+    }
+}
+
+impl From<UnstructuredGrid3> for DatasetGeometry {
+    fn from(value: UnstructuredGrid3) -> Self {
+        Self::UnstructuredGrid3(value)
     }
 }
 
