@@ -394,6 +394,14 @@ mod tests {
     }
 
     #[test]
+    fn default_grid_has_valid_empty_connectivity() {
+        let grid = UnstructuredGrid3::default();
+        assert!(grid.is_empty());
+        assert_eq!(grid.cell_offsets(), &[0]);
+        assert_eq!(grid.cell_point_indices(0), None);
+    }
+
+    #[test]
     fn accepts_empty_grid_and_points_without_cells() {
         let empty = UnstructuredGrid3::new(Vec::new(), Vec::new(), vec![0], Vec::new()).unwrap();
         assert!(empty.is_empty());
