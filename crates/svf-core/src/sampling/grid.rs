@@ -1,6 +1,10 @@
 //! Structured two-dimensional scalar grids and sampled graph-surface generation.
 use std::{error::Error, fmt};
-use crate::{geometry::{GeometryError, TriangleMesh3}, spatial::WorldPoint3};
+use crate::{
+    geometry::{GeometryError, TriangleMesh3},
+    ray::{intersect_mesh, Ray3},
+    spatial::WorldPoint3,
+};
 use super::{SampleValue, ScalarSamples2D};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -125,6 +129,73 @@ impl SampledSurface3 {
     #[must_use] pub fn source_for_triangle(&self, i: usize) -> Option<GridCellIndex2D> { self.triangle_sources.get(i).copied() }
     #[must_use] pub fn vertex_count(&self) -> usize { self.mesh.vertex_count() }
     #[must_use] pub fn triangle_count(&self) -> usize { self.mesh.triangle_count() }
+
+    /// Intersects a world-space ray and maps the nearest hit back to the
+    /// generated surface's source cell and continuous structured-grid space.
+    ///
+    /// Domain coordinates and scalar value are interpolated over the hit
+    /// triangle. This is the piecewise-linear surface represented by the mesh,
+    /// not a fresh evaluation of the original mathematical function.
+    #[must_use]
+    pub fn inspect_ray(&self, ray: &Ray3) -> Option<SurfaceInspection3> {
+        let hit = intersect_mesh(ray, &self.mesh)?;
+        let triangle_index = hit.triangle_index();
+        let source_cell = self.source_for_triangle(triangle_index)?;
+        let triangle = self.mesh.triangles().nth(triangle_index)?;
+        let weights = hit.barycentric();
+        let sources = [
+            self.source_for_vertex(triangle[0] as usize)?,
+            self.source_for_vertex(triangle[1] as usize)?,
+            self.source_for_vertex(triangle[2] as usize)?,
+        ];
+        let grid_coordinates = [
+            weights[0] * sources[0].x() as f64
+                + weights[1] * sources[1].x() as f64
+                + weights[2] * sources[2].x() as f64,
+            weights[0] * sources[0].y() as f64
+                + weights[1] * sources[1].y() as f64
+                + weights[2] * sources[2].y() as f64,
+        ];
+        let position = hit.position();
+        let world = position.to_array();
+        Some(SurfaceInspection3 {
+            distance: hit.distance(),
+            triangle_index,
+            source_cell,
+            barycentric: weights,
+            world_position: position,
+            domain_coordinates: [world[0], world[2]],
+            grid_coordinates,
+            scalar_value: world[1],
+        })
+    }
+}
+
+/// Scientific interpretation of a ray hit on a sampled graph surface.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SurfaceInspection3 {
+    distance: f64,
+    triangle_index: usize,
+    source_cell: GridCellIndex2D,
+    barycentric: [f64; 3],
+    world_position: WorldPoint3,
+    domain_coordinates: [f64; 2],
+    grid_coordinates: [f64; 2],
+    scalar_value: f64,
+}
+impl SurfaceInspection3 {
+    #[must_use] pub const fn distance(&self) -> f64 { self.distance }
+    #[must_use] pub const fn triangle_index(&self) -> usize { self.triangle_index }
+    #[must_use] pub const fn source_cell(&self) -> GridCellIndex2D { self.source_cell }
+    #[must_use] pub const fn barycentric(&self) -> [f64; 3] { self.barycentric }
+    #[must_use] pub const fn world_position(&self) -> WorldPoint3 { self.world_position }
+    /// Continuous source-domain coordinates in the original X/Y domain order.
+    #[must_use] pub const fn domain_coordinates(&self) -> [f64; 2] { self.domain_coordinates }
+    /// Continuous source-grid sample coordinates, where integer pairs are samples.
+    #[must_use] pub const fn grid_coordinates(&self) -> [f64; 2] { self.grid_coordinates }
+    /// Piecewise-linear scalar value represented by the intersected triangle.
+    #[must_use] pub const fn scalar_value(&self) -> f64 { self.scalar_value }
+}
 }
 
 #[cfg(test)]
@@ -200,6 +271,37 @@ mod tests {
         assert_eq!(surface.triangle_count(), 8);
         assert_eq!(surface.triangle_sources()[0], GridCellIndex2D::new(0, 0));
         assert_eq!(surface.triangle_sources()[7], GridCellIndex2D::new(1, 1));
+    }
+
+
+    #[test]
+    fn inspection_maps_ray_hit_to_domain_grid_and_scalar_data() {
+        use crate::ray::Ray3;
+        let surface = grid(2, 2, |x, y| x + 2.0 * y).to_surface_mesh().unwrap();
+        let ray = Ray3::new(
+            WorldPoint3::new(0.75, 5.0, 0.25),
+            crate::spatial::WorldVector3::new(0.0, -1.0, 0.0),
+        ).unwrap();
+        let hit = surface.inspect_ray(&ray).unwrap();
+        assert_eq!(hit.triangle_index(), 0);
+        assert_eq!(hit.source_cell(), GridCellIndex2D::new(0, 0));
+        assert!((hit.domain_coordinates()[0] - 0.75).abs() < 1.0e-12);
+        assert!((hit.domain_coordinates()[1] - 0.25).abs() < 1.0e-12);
+        assert!((hit.grid_coordinates()[0] - 0.75).abs() < 1.0e-12);
+        assert!((hit.grid_coordinates()[1] - 0.25).abs() < 1.0e-12);
+        assert!((hit.scalar_value() - 1.25).abs() < 1.0e-12);
+        assert!((hit.world_position().to_array()[1] - hit.scalar_value()).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn inspection_reports_no_hit_for_rays_outside_the_surface() {
+        use crate::ray::Ray3;
+        let surface = grid(2, 2, |x, y| x + y).to_surface_mesh().unwrap();
+        let ray = Ray3::new(
+            WorldPoint3::new(5.0, 5.0, 5.0),
+            crate::spatial::WorldVector3::new(0.0, -1.0, 0.0),
+        ).unwrap();
+        assert!(surface.inspect_ray(&ray).is_none());
     }
 
     #[test]
