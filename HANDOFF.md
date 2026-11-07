@@ -121,7 +121,7 @@ Potential follow-up review:
 
 #### M2.4 — Renderer integration
 
-Implementation committed; local Windows verification pending.
+Implementation committed; user-reported Windows runtime and visual verification completed.
 
 Implemented in `svf-render`:
 - `SceneRenderer` owns the wgpu surface, device, queue, camera uniform, line pipeline, and reference geometry.
@@ -132,7 +132,13 @@ Implemented in `svf-render`:
 - `apps/svf-explorer` now instantiates `SceneRenderer`.
 - Unit tests cover reference geometry layout and finite camera-uniform conversion.
 
-Local Windows checks and visual inspection are still required. The GPU rendering path has not been compiled or run in the user's environment since this implementation was committed.
+User-reported Windows visual/runtime verification:
+- Red X, green vertical Y, and blue Z axes meet at the origin.
+- The grid lies on the XZ plane, with Y perpendicular to it.
+- Axis orientation and perspective remain consistent across window sizes; narrower viewports crop the grid horizontally without obvious stretching.
+- Minimize, restore, and close work.
+
+The user successfully launched the Explorer after the wgpu 30 pipeline-layout correction. Keep explicit final automated workspace/render test results as pending unless confirmed in the conversation.
 
 ## Accepted coordinate conventions
 
@@ -176,4 +182,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. Then run `cargo run -p svf-explorer` on Windows and inspect the reference axes/grid, resize behavior, minimize/restore, and clean exit. Do not mark M2.4 validated until these checks and visual inspection are reported.
+Confirm the final automated checks (`cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`) if their complete results are not already recorded. Visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified.
