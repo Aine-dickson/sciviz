@@ -248,4 +248,6 @@ Scope note: edge incidence is descriptive topology data. It does not certify con
 - [x] Correct graph-surface vertices to `(x, scalar_value, y)` in world space
 - [x] Correct triangle winding to face +Y
 - [x] Preserve source sample and source-cell mappings
-- [ ] Verify formatting, workspace compilation, and all tests on Windows
+- [x] Verify formatting and workspace compilation on Windows
+- [x] Verify core tests on Windows (67 passed)
+- [x] Verify workspace tests on Windows (69 passed: 67 core, 2 renderer)
