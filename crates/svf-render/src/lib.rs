@@ -382,15 +382,18 @@ impl SceneRenderer {
                 multiview_mask: None,
             });
 
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            pass.draw(0..self.vertex_count, 0..1);
-
+            // Draw opaque mesh first so it establishes depth. Reference lines
+            // follow with depth testing but without writing depth, allowing
+            // visible grid/axes to appear over the surface only where nearer.
             pass.set_pipeline(&self.mesh_pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_vertex_buffer(0, self.mesh_vertex_buffer.slice(..));
             pass.set_index_buffer(self.mesh_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..self.mesh_index_count, 0, 0..1);
+
+            pass.set_pipeline(&self.pipeline);
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            pass.draw(0..self.vertex_count, 0..1);
         }
 
         self.queue.submit([encoder.finish()]);
