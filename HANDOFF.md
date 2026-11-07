@@ -563,7 +563,7 @@ separate decision.
 
 ## M6.1 — Scientific field semantics
 
-Implementation committed to `main`; local Windows validation is pending.
+Implementation committed to `main`; user-reported Windows workspace validation completed (94 tests passed).
 
 New module: `crates/svf-core/src/fields.rs`, exposed as
 `svf_core::fields`.
@@ -596,9 +596,9 @@ unit conversion, local vector coordinate frames, visualization mapping, or
 renderer changes. Design details and exclusions are documented in
 `docs/fields.md`.
 
-Tests are included in `fields.rs`, but the user has not yet run formatting,
-workspace compilation, or workspace tests on Windows. Do not mark local
-validation complete until those results are reported.
+Tests are included in `fields.rs`. User-reported Windows workspace
+validation completed: 89 core, 1 Explorer, and 4 renderer tests passed.
+Formatting status was not newly confirmed for this increment.
 
 
 ## M6.1 — Scientific field semantics: local validation update
@@ -618,10 +618,10 @@ changes; do not run a formatter or create a formatting-only commit. The
 
 ## M6.2 — Dataset containers and attribute attachment
 
-Implementation is being developed on branch
-`m6-2-dataset-attachment`, created from remote `main` at M6.1 commit
-`475bb0f`. The user's local `main` branch and its two formatting-only
-changes have not been touched.
+Implementation was developed on branch `m6-2-dataset-attachment` from
+M6.1 commit `475bb0f` and has since been merged into `main` through PR #1
+(merge commit `9b4fc41`). The user's local `main` branch and its
+formatting-only stash remain separate until the user syncs the merge.
 
 New module: `crates/svf-core/src/dataset.rs`, exposed as
 `svf_core::dataset`.
@@ -650,18 +650,10 @@ Geometry is immutable through the dataset API. Geometry changes create a new
 dataset; field remapping/transfer is deferred. Unstructured grids, time
 series, field interpolation, and renderer integration are not part of M6.2.
 
-Nine focused unit tests are included in `dataset.rs`. They have not yet been
-run locally. No formatting command should be run just to normalize source
-layout. Next, review the diff, run `cargo check --workspace` and
-`cargo test --workspace` on Windows, then report exact output. Do not claim
-validation until those results are supplied.
-
-The M6.2 branch currently has implementation commits:
-- `f02cb1c` — add scientific dataset containers
-- `e4683f5` — expose scientific datasets
-
-The branch also includes the M6.1 implementation from remote main. The user's
-local M6.1 formatting changes and existing stash remain separate and untouched.
+Nine focused unit tests are included in `dataset.rs`; all nine passed in the
+user-reported Windows workspace run. No formatter was run for M6.2. The
+feature branch included the M6.1 implementation from remote main. The user's
+local M6.1 formatting-only changes remain preserved in a separate stash.
 
 
 ## M6.2 — Dataset containers and attribute attachment: merged
