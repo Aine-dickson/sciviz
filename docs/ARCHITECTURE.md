@@ -20,8 +20,8 @@ or scene-composition editor.
    wgpu types.
 4. **Precision is explicit.** Scientific calculations should preserve f64
    where required. Conversion to f32 is a rendering-boundary decision.
-5. **Interaction addresses data.** Picking should eventually resolve from a
-   screen location to a scientific entity and its associated values.
+5. **Interaction addresses data.** Picking should resolve from a screen
+   location to a scientific entity and its associated values.
 6. **Build incrementally.** Crate boundaries are introduced when they express
    stable responsibilities, not merely to maximize the number of crates.
 
@@ -29,40 +29,42 @@ or scene-composition editor.
 
 ### `svf-core`
 
-Graphics-independent scientific/domain foundation. Future responsibilities:
-coordinate systems, datasets, field associations, topology, metadata, and
-validation.
+Graphics-independent scientific/domain foundation: geometry, coordinates,
+datasets, field associations, topology, metadata, and validation.
 
 ### `svf-render`
 
-GPU infrastructure and presentation. The first implementation owns a wgpu
-instance, adapter, device, queue, window surface, and surface configuration.
-It currently uses winit's `Window` as its native host integration point.
-Scientific data structures will not be added here.
+GPU infrastructure and presentation. It owns the wgpu instance, adapter,
+device, queue, window surface, and surface configuration. Scientific dataset
+and field types do not belong here.
 
 ### `svf-explorer`
 
 A deliberately thin desktop host. It owns the event loop and window lifecycle,
 then delegates rendering to `svf-render`. It is not the product's primary API.
 
-## Planned data model
+## Dataset model
 
-The first scientific data abstractions will be designed around semantics,
-not graphics primitives:
+The dataset layer separates source geometry from attached scientific fields.
+A `Dataset` owns one immutable `DatasetGeometry` and an insertion-ordered
+collection of named scalar/vector fields.
 
-- point sets / point clouds
-- polylines
-- triangle meshes
-- structured grids
-- unstructured grids
-- scalar fields
-- vector fields
-- cell-associated and point-associated attributes
+Supported source geometry variants:
+- `PointSet3`: independent points; zero logical cells.
+- `Polyline3`: ordered points; one logical cell per consecutive segment.
+- `TriangleMesh3`: indexed vertices; one logical cell per source triangle.
+- `StructuredGrid2D`: row-major samples; one logical cell per grid rectangle.
 
-The data model must distinguish point-associated, cell-associated, and
- dataset-wide attributes. These associations are not interchangeable. M6.1
- establishes standalone scalar/vector field types and association semantics;
- dataset attachment and topology-aware cardinality are introduced separately.
+Point fields contain one value per source point/sample. Cell fields contain
+one value per logical source cell. Dataset fields contain exactly one value.
+For structured grids, a rectangle remains one source cell even if a later
+surface representation emits two render triangles for that rectangle.
+Derived render geometry never changes source dataset cardinality.
+
+Geometry is immutable through the dataset API, so attached field cardinality
+cannot be invalidated by in-place topology edits. Geometry changes produce a
+new dataset; explicit remapping/transfer of fields between datasets is a
+separate future operation.
 
 ## Planned pipeline
 
@@ -72,19 +74,10 @@ A future pipeline should express:
 
 The pipeline should eventually support dependency tracking, invalidation,
 selective recomputation, caching, and deterministic evaluation. Those
-mechanisms are intentionally not implemented in M1.
+mechanisms are intentionally deferred.
 
-## M1 rendering boundary
+## Rendering boundary
 
-M1 establishes only the native graphics lifecycle:
-
-- create a Windows window
-- create a wgpu instance and compatible adapter
-- request a device and queue
-- create and configure a presentation surface
-- clear the surface
-- respond to resize events
-- recover from outdated/lost surfaces where possible
-- exit cleanly on close
-
-M1 introduced no scientific geometry, shaders, camera, or scene graph. M2.4 adds a deliberately narrow renderer path for a fixed reference grid and world axes: the core camera remains f64 and graphics-independent, while `svf-render` converts its view-projection matrix to f32 for a WGSL line-list pipeline. This is a renderer integration harness, not a general scene graph.
+The core remains f64 and graphics-independent. `svf-render` converts data to
+GPU-compatible formats at the boundary. Render triangles and GPU buffers are
+derived representations, not authoritative scientific topology or values.

@@ -13,8 +13,10 @@ library during development.
 - **M5 — Interactive surface demonstrator:** indexed surface rendering,
   parametric surface updates, viewport unprojection, and scientific picking
   implemented and user-validated on Windows.
-- **M6.1 — Scientific field semantics:** point-, cell-, and dataset-associated
-  scalar/vector field types implemented; local Windows validation is pending.
+- **M6.1 — Scientific field semantics:** implemented; Windows workspace test
+  run reported 94 passing tests.
+- **M6.2 — Dataset containers and attribute attachment:** implementation on
+  branch `m6-2-dataset-attachment`; local validation pending.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
