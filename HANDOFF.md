@@ -76,7 +76,7 @@ User-reported Windows results:
 
 #### M2.3 — Camera and projection
 
-Implementation added; local Windows verification is pending.
+Implementation and user-reported local Windows verification completed.
 
 New file: `crates/svf-core/src/camera.rs`, exposed through
 `pub mod camera` in `svf-core/src/lib.rs`.
@@ -105,7 +105,7 @@ Conventions:
 - Orthographic bounds are explicit camera/view-space extents.
 - Projection depth is [0, 1], suitable for WebGPU.
 - The camera math is f64 and has no wgpu dependency.
-- The renderer will perform explicit f64-to-f32 conversion later.
+- The renderer performs explicit f64-to-f32 conversion when preparing the GPU camera uniform.
 
 Important API behavior:
 - `Projection3::with_aspect_ratio` updates perspective projection only.
@@ -121,10 +121,18 @@ Potential follow-up review:
 
 #### M2.4 — Renderer integration
 
-Not implemented:
-- explicit f64-to-f32 camera matrix conversion
-- reference axes and grid
-- projection update on resize
+Implementation committed; local Windows verification pending.
+
+Implemented in `svf-render`:
+- `SceneRenderer` owns the wgpu surface, device, queue, camera uniform, line pipeline, and reference geometry.
+- `CameraUniform` converts the core `DMat4` to a column-major f32 matrix at the GPU boundary.
+- A minimal WGSL line-list pipeline draws a world-space XZ grid (Y=0) and RGB X/Y/Z axes.
+- A perspective reference camera looks toward the origin from (14, 12, 18).
+- Non-zero surface resize updates the camera's perspective aspect ratio and uniform, then reconfigures the surface. Zero-sized resize is ignored.
+- `apps/svf-explorer` now instantiates `SceneRenderer`.
+- Unit tests cover reference geometry layout and finite camera-uniform conversion.
+
+Local Windows checks and visual inspection are still required. The GPU rendering path has not been compiled or run in the user's environment since this implementation was committed.
 
 ## Accepted coordinate conventions
 
@@ -168,7 +176,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-Run the workspace check and tests on Windows for the new camera implementation.
-If they pass, review API behavior and decide whether any numerical edge cases
-need tightening before beginning M2.4 renderer integration (matrix conversion,
-axes, grid, resize-aware projection).
+Pull the latest `main`, then run `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, `cargo test -p svf-render`, and `cargo test --workspace`. Then run `cargo run -p svf-explorer` on Windows and inspect the reference axes/grid, resize behavior, minimize/restore, and clean exit. Do not mark M2.4 validated until these checks and visual inspection are reported.
