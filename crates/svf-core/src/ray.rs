@@ -3,7 +3,6 @@ use crate::{
     geometry::TriangleMesh3,
     spatial::{WorldPoint3, WorldVector3},
 };
-use glam::DVec3;
 use std::{error::Error, fmt};
 
 const PARALLEL_EPSILON: f64 = 32.0 * f64::EPSILON;
