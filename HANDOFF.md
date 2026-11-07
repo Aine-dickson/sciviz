@@ -401,7 +401,7 @@ the resulting TriangleMesh3 to the renderer.
 
 ## M5.2 — Parametric surface and live amplitude adjustment
 
-Implementation committed; awaiting user-reported Windows validation.
+Implementation committed and user-validated on Windows (2026-11-08).
 
 Explorer now samples the demonstration function
 
@@ -441,14 +441,4 @@ GitHub commits:
 - `6517312` — add adjustable parametric surface demonstration
 - `9cae655` — handle an uninitialized renderer safely during amplitude updates
 
-Next local validation:
-```powershell
-cargo fmt --all -- --check
-cargo check --workspace
-cargo test -p svf-render
-cargo test --workspace
-cargo run -p svf-explorer
-```
-
-Visual verification should confirm a smooth undulating surface and that Up/Down
-changes its height while preserving the reference axes/grid and projection.
+User-reported Windows validation (2026-11-08): the surface changed from flat at A=0.00 to increasingly pronounced peaks and troughs across A=0.25–3.00 as Up Arrow increased amplitude. Decreasing amplitude back to zero returned it to a flat surface. The reference grid, colored axes, and camera view remained in place throughout. This confirms both directions of interactive adjustment and the zero-amplitude boundary. The user had already reported the 67 core and 4 renderer tests passing for the preceding M5.1 validation; no new M5.2 command output was included in this visual report, so M5.2's latest compile/test status remains tied to the previous validation run unless separately confirmed.
