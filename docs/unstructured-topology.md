@@ -35,11 +35,13 @@ expose read-only slices and a bounds-checked cell connectivity lookup.
 | `Line2` | 2 | 1 | start, end |
 | `Triangle3` | 3 | 2 | cyclic perimeter order |
 | `Quad4` | 4 | 2 | cyclic perimeter order |
-| `Tetrahedron4` | 4 | 3 | four-node simplex order |
-| `Hexahedron8` | 8 | 3 | four nodes around one face, then corresponding four around the opposite face |
+| `Tetrahedron4` | 4 | 3 | caller-supplied simplex vertex order; orientation is preserved, not validated |
+| `Hexahedron8` | 8 | 3 | cyclic order around one face, then corresponding cyclic order around the opposite face; indices 0–3 correspond to 4–7 |
 
 These are linear cells only. Higher-order cells, polygons with variable
-arity, wedges, pyramids, and vertex cells are deferred. Independent point
+arity, wedges, pyramids, and vertex cells are deferred. Input node ordering
+is preserved exactly; the constructor does not certify orientation. For a
+hexahedron, corresponding vertical pairs are (0,4), (1,5), (2,6), and (3,7). Independent point
 data remains represented by `PointSet3`.
 
 Mixed cell types and mixed topological dimensions are permitted in one
