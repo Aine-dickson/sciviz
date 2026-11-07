@@ -690,27 +690,51 @@ to `main`. Do not overwrite or blindly pop the preserved formatting stash.
 The M6.1 formatting-only changes remain separate and must be handled
 deliberately if they are ever reapplied.
 
-## Next milestone — M6.3: Unstructured topology foundations
+## M6.3 — Unstructured topology foundations (in progress)
 
-M6.3 should introduce explicit unstructured source-cell topology without
-conflating source cells with render triangles. Before implementation, define
-and document the minimal cell model and invariants.
+Development branch: `m6-3-unstructured-topology`, based on the current
+`main` branch at `db6bd11`. The branch is not merged and has not yet been
+validated on the user's Windows machine.
 
-Design questions to resolve:
-- Supported initial cell types and their minimum node counts.
-- Connectivity storage and deterministic cell/node ordering.
-- Validation of offsets/connectivity, node-index bounds, and cell arity.
-- How point and cell counts integrate with the existing `Dataset` API.
-- Whether mixed cell types are supported immediately or deferred.
-- How source-cell identity survives later triangulation/tessellation.
-- How degenerate but structurally valid cells are treated separately from
-  invalid connectivity.
+Design decision record: `docs/unstructured-topology.md`.
 
-Keep M6.3 graphics-independent in `svf-core`. Do not add a renderer,
-file-format importer, mesh repair, interpolation, or broad generic topology
-framework as part of the first increment. The first goal is a validated
-unstructured dataset representation that can attach the existing scalar and
-vector fields using the same point/cell association rules.
+New module: `crates/svf-core/src/unstructured.rs`, exposed as
+`svf_core::unstructured`.
+
+Current API:
+- `CellType3::{Line2, Triangle3, Quad4, Tetrahedron4, Hexahedron8}`
+  describes supported linear cells embedded in 3D world space.
+- `CellType3::node_count()` and `topological_dimension()` expose fixed
+  arity and dimension.
+- `UnstructuredGrid3` stores finite `WorldPoint3` points, cell types,
+  CSR-style `usize` cell offsets, and flattened `u32` point connectivity.
+- Cell and point IDs are stable positions in their respective source arrays;
+  the constructor preserves input order.
+- Mixed cell types and topological dimensions are allowed.
+- Validation covers finite coordinates, offset count/start/monotonicity/end,
+  fixed cell arity, point-index bounds, and repeated indices within a cell.
+- Empty grids use offsets `[0]`; points without cells are valid.
+- Structurally valid geometric degeneracy is retained; orientation is not
+  normalized or certified.
+- `DatasetGeometry::UnstructuredGrid3` integrates source point and cell
+  counts with existing field cardinality checks.
+
+A dataset integration test attaches a cell scalar field to a mixed triangle
+and tetrahedron grid and checks that incorrect cardinality is rejected.
+
+Tests are written but have not been run locally. Next actions:
+1. Review validation ordering, public API, and cell-order documentation.
+2. Pull the feature branch on Windows.
+3. Run `cargo check --workspace` and `cargo test --workspace`.
+4. Report exact output; do not claim validation before user confirmation.
+
+No formatter should be run just to normalize source layout. Preserve the
+user's M6.1 formatting-only stash; do not pop or discard it.
+
+M6.3 deliberately excludes rendering/tessellation, file importers,
+higher-order cells, variable-arity polygons, mesh repair, quality metrics,
+and general unstructured adjacency. Future render-derived primitives must
+retain their source cell IDs.
 
 The user prefers focused implementation increments, exact Windows commands,
 no routine formatting churn, and a concise handoff update at each milestone.
