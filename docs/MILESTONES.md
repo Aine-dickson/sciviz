@@ -232,10 +232,10 @@ committed on 2026-11-08; local Windows validation pending.
 - [x] Map sampled-surface hits to their source grid cell
 - [x] Recover continuous domain coordinates, continuous grid coordinates, and piecewise-linear scalar value
 - [x] Test intersection edge cases and source-data recovery
-- [ ] Verify `cargo fmt --all -- --check` on Windows
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test -p svf-core` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Verify `cargo fmt --all -- --check` on Windows (not yet reported)
+- [ ] Verify `cargo check --workspace` on Windows (not yet reported)
+- [x] Verify `cargo test -p svf-core` on Windows (67 passed)
+- [x] Verify `cargo test --workspace` on Windows (72 passed: 67 core, 1 Explorer, 4 renderer)
 - [ ] Convert Explorer cursor pixels to a world ray using the inverse camera view-projection transform
 - [ ] Connect left-click selection and display the recovered scientific inspection
 - [ ] Visually verify picking at multiple surface locations and after resizing
