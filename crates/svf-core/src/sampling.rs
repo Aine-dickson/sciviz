@@ -7,6 +7,12 @@
 
 use std::{error::Error, fmt};
 
+pub mod function;
+pub use function::{
+    sample_scalar_1d, sample_scalar_2d, NonFiniteValue, SampleValue, ScalarSample1D,
+    ScalarSample2D, ScalarSamples1D, ScalarSamples2D,
+};
+
 /// Identifies an axis when reporting an invalid sampling count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SamplingAxis {
@@ -53,6 +59,13 @@ pub enum SamplingError {
         actual: usize,
         minimum: usize,
     },
+    /// The requested two-dimensional sample count overflows usize.
+    SampleCountOverflow {
+        x_sample_count: usize,
+        y_sample_count: usize,
+    },
+    /// Memory could not be reserved for the requested sample records.
+    AllocationFailed { requested_samples: usize },
 }
 
 impl fmt::Display for SamplingError {
@@ -61,6 +74,14 @@ impl fmt::Display for SamplingError {
             Self::TooFewSamples { axis, actual, minimum } => write!(
                 f,
                 "sampling along {axis:?} requires at least {minimum} points; received {actual}"
+            ),
+            Self::SampleCountOverflow { x_sample_count, y_sample_count } => write!(
+                f,
+                "two-dimensional sample count overflows usize ({x_sample_count} × {y_sample_count})"
+            ),
+            Self::AllocationFailed { requested_samples } => write!(
+                f,
+                "could not allocate storage for {requested_samples} samples"
             ),
         }
     }
