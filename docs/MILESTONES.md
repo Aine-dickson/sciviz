@@ -187,9 +187,29 @@ Documentation committed in `docs/sampling-quality.md`.
 
 ## M5 — Interactive surface demonstrator
 
-- render the graph `f(x, y) = A * sin(x) * cos(y)` with the domain on world XZ and scalar values on world Y
-- adjust A and regenerate only affected geometry
-- inspect a selected point and recover its source coordinates/value
+### M5.1 — Indexed triangle rendering and depth testing
+
+Implementation committed; awaiting user-reported Windows validation.
+
+- [x] Convert `TriangleMesh3` positions from f64 to f32 at the renderer boundary and reject non-finite narrowed values
+- [x] Preserve source vertex order and u32 indices in GPU buffers
+- [x] Add an indexed TriangleList pipeline using the existing camera uniform
+- [x] Add a Depth32Float target, clear it each frame, and enable mesh depth testing/writes
+- [x] Recreate the depth target on non-zero window resize
+- [x] Render opaque mesh before reference lines; lines depth-test without writing depth
+- [x] Add CPU tests for mesh conversion, index preservation, and f32 range rejection
+- [x] Feed a sampled flat graph surface from svf-core into Explorer as an integration fixture
+- [ ] Verify formatting, workspace compilation, and all tests on Windows
+- [ ] Visually verify the indexed surface, grid/axes, resize, and depth behavior on Windows
+
+### M5.2 — Parametric surface
+
+- [ ] Generate `f(x, y) = A * sin(x) * cos(y)` on world XZ with scalar values on world Y
+- [ ] Adjust amplitude A and regenerate only affected scientific geometry
+
+### M5.3 — Scientific inspection
+
+- [ ] Select a surface location and recover its original grid coordinates and scalar value
 
 ### M3.3 — Mesh topology queries
 
