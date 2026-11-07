@@ -230,4 +230,4 @@ cargo test --workspace
 
 ## M4 — Mathematical sampling (next)
 
-Begin M4.1 design: define bounded mathematical domains and validated sampling specifications without coupling them to function evaluation, mesh generation, or rendering. Agree on domain semantics and test cases before implementing the API. M3.3 is complete and user-validated on Windows (38 core tests; 40 workspace tests).
+M4.1 bounded domains and sampling specifications are implemented and committed; local Windows validation is pending. Public API is in `crates/svf-core/src/sampling.rs`, exported as `svf_core::sampling`. It defines `Domain1D`, `Domain2D`, `SamplingSpec1D`, `SamplingSpec2D`, `DomainError`, `SamplingError`, and `SamplingAxis`. Bounds are finite and strictly increasing; representable extent must remain finite. Sampling counts mean points, require at least two per axis, and expose interval counts as points minus one. No function evaluation, grid allocation, or geometry generation is included. M3.3 is complete and user-validated on Windows (38 core tests; 40 workspace tests).
