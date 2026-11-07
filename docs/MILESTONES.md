@@ -139,7 +139,7 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 
 ### M4.2 — Scalar function sampling
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
 
 - [x] Add 1D scalar sampling using caller-supplied `FnMut(f64) -> f64`
 - [x] Add 2D scalar sampling using caller-supplied `FnMut(f64, f64) -> f64`
@@ -150,7 +150,9 @@ Implementation committed; local Windows validation pending.
 - [x] Retain non-finite results without dropping samples or shifting indices
 - [x] Add checked 2D sample-count multiplication and fallible result allocation
 - [x] Test endpoint inclusion, coordinate mapping, finite values, non-finite classification, random access, and overflow
-- [ ] Verify formatting, core tests, and workspace tests on Windows
+- [x] Verify formatting and workspace check on Windows
+- [x] Verify core tests on Windows (58 passed)
+- [x] Verify workspace tests on Windows (60 passed: 58 core, 2 renderer)
 
 ### M4.3 — Structured grids and surface generation
 
