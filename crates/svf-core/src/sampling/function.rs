@@ -29,7 +29,9 @@ pub enum SampleValue {
 }
 
 impl SampleValue {
-    fn from_f64(value: f64) -> Self {
+    /// Classifies an f64 as finite, NaN, positive infinity, or negative infinity.
+    #[must_use]
+    pub fn from_f64(value: f64) -> Self {
         if value.is_nan() {
             Self::NonFinite(NonFiniteValue::NaN)
         } else if value == f64::INFINITY {
