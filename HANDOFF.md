@@ -186,6 +186,8 @@ M3.2 local Windows validation (user-reported, 2026-11-08): `cargo check --worksp
 
 M3.2 is complete. M3.3 adds a graphics-independent, derived topology query layer. Unique undirected edges are canonicalized and lexicographically ordered by vertex indices; face-edge incidence follows local triangle edge order; edge-face incidence preserves source face order. Boundary-edge and greater-than-two-face-incidence queries are provided without claiming global manifoldness or watertightness.
 
+M3.3 user-reported Windows validation (2026-11-08): `cargo fmt --all -- --check` and `cargo check --workspace` passed; `cargo test -p svf-core` passed 38 tests; `cargo test --workspace` passed 40 tests (38 core, 2 renderer), with no failures.
+
 ## Accepted coordinate conventions
 
 - Right-handed world coordinates, +Y up.
@@ -226,6 +228,6 @@ cargo test -p svf-core
 cargo test --workspace
 ```
 
-## Immediate next action
+## M4 — Mathematical sampling (next)
 
-M3.3 topology queries are implemented and committed; local Windows validation is pending. Pull `main`, run formatting, workspace check, core tests, and full workspace tests. M3.3 adds deterministic unique undirected edges, face-to-edge incidence in triangle-local edge order, edge-to-face incidence in source face order, boundary-edge queries, and queries for edges incident to more than two faces. The topology object is derived from `TriangleMesh3`; the mesh's original storage and validation contract remain unchanged. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 and M3.2 passed user-reported Windows validation (24/32 core tests; 26/34 workspace tests respectively).
+Begin M4.1 design: define bounded mathematical domains and validated sampling specifications without coupling them to function evaluation, mesh generation, or rendering. Agree on domain semantics and test cases before implementing the API. M3.3 is complete and user-validated on Windows (38 core tests; 40 workspace tests).
