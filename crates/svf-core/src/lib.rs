@@ -3,6 +3,7 @@
 
 pub mod camera;
 pub mod geometry;
+pub mod fields;
 pub mod ray;
 pub mod sampling;
 pub mod spatial;
