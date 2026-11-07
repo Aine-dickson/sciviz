@@ -254,6 +254,7 @@ mod tests {
     use crate::{
         fields::{FieldAssociation, VectorBasis3, VectorValue3},
         geometry::GeometryError,
+        unstructured::{CellType3, UnstructuredGrid3},
         sampling::{
             Domain1D, Domain2D, SamplingSpec2D, SampleValue, sample_scalar_2d,
         },
@@ -454,6 +455,51 @@ mod tests {
             .unwrap();
         dataset.add_scalar_field(field).unwrap();
         assert_eq!(dataset.scalar_field("empty_measurement").unwrap().len(), 0);
+    }
+
+    #[test]
+    fn unstructured_dataset_uses_source_cell_count_for_field_cardinality() {
+        let grid = UnstructuredGrid3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+                WorldPoint3::new(0.0, 0.0, 1.0),
+            ],
+            vec![CellType3::Triangle3, CellType3::Tetrahedron4],
+            vec![0, 3, 7],
+            vec![0, 1, 2, 0, 1, 2, 3],
+        )
+        .unwrap();
+        let mut dataset = Dataset::new(grid);
+        assert_eq!((dataset.point_count(), dataset.cell_count()), (4, 2));
+
+        let cell_field = ScalarField::new(
+            metadata("cell_measure"),
+            FieldAssociation::Cell,
+            vec![SampleValue::Finite(1.0), SampleValue::Finite(2.0)],
+        )
+        .unwrap();
+        dataset.add_scalar_field(cell_field).unwrap();
+        assert_eq!(dataset.scalar_field("cell_measure").unwrap().len(), 2);
+
+        let invalid = ScalarField::new(
+            metadata("wrong_cell_measure"),
+            FieldAssociation::Cell,
+            vec![SampleValue::Finite(1.0)],
+        )
+        .unwrap();
+        assert_eq!(
+            dataset.add_scalar_field(invalid),
+            Err(DatasetError::InvalidField(
+                FieldError::CardinalityMismatch {
+                    association: FieldAssociation::Cell,
+                    expected: 2,
+                    actual: 1,
+                }
+            ))
+        );
+        assert_eq!(dataset.fields().len(), 1);
     }
 
     #[test]
