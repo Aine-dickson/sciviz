@@ -24,3 +24,4 @@ wgpu = "30.0.1"
 winit = "0.30.13"
 pollster = "0.4"
 tracing = "0.1"
+glam = { version = "=0.34.2", default-features = false, features = ["std", "float-types"] }
