@@ -15,6 +15,17 @@ pub enum GeometryError {
     NonFinitePoint { index: usize },
     /// A polyline must contain at least two points.
     PolylineRequiresTwoPoints { actual: usize },
+    /// An indexed triangle mesh must contain complete groups of three indices.
+    TriangleIndexCountNotMultipleOfThree { actual: usize },
+    /// A triangle references a vertex that does not exist.
+    TriangleIndexOutOfBounds {
+        triangle_index: usize,
+        corner: usize,
+        index: u32,
+        vertex_count: usize,
+    },
+    /// A triangle cannot reference the same vertex more than once.
+    RepeatedTriangleVertexIndex { triangle_index: usize, index: u32 },
 }
 
 impl fmt::Display for GeometryError {
@@ -26,6 +37,22 @@ impl fmt::Display for GeometryError {
             Self::PolylineRequiresTwoPoints { actual } => {
                 write!(f, "a polyline requires at least two points; received {actual}")
             }
+            Self::TriangleIndexCountNotMultipleOfThree { actual } => {
+                write!(f, "triangle index count must be divisible by three; received {actual}")
+            }
+            Self::TriangleIndexOutOfBounds {
+                triangle_index,
+                corner,
+                index,
+                vertex_count,
+            } => write!(
+                f,
+                "triangle {triangle_index} corner {corner} references vertex {index}, but only {vertex_count} vertices exist"
+            ),
+            Self::RepeatedTriangleVertexIndex { triangle_index, index } => write!(
+                f,
+                "triangle {triangle_index} references vertex {index} more than once"
+            ),
         }
     }
 }
@@ -167,6 +194,119 @@ impl Polyline3 {
     }
 }
 
+/// An indexed triangle mesh in world coordinates.
+///
+/// Vertices are stored once and triangles refer to them through three
+/// `u32` indices per triangle. Triangle winding and input ordering are
+/// preserved. Unreferenced vertices are allowed. The mesh does not require
+/// manifold edges or a closed surface: open surfaces and disconnected
+/// components are valid scientific geometry.
+///
+/// Repeated vertex indices within one triangle are rejected because they do
+/// not define a valid triangle topology. Geometrically collinear or coincident
+/// vertex positions are retained; geometric degeneracy is distinct from
+/// index-topology validity and may be meaningful in source datasets.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TriangleMesh3 {
+    vertices: Vec<WorldPoint3>,
+    indices: Vec<u32>,
+}
+
+impl TriangleMesh3 {
+    /// Creates an indexed triangle mesh after validating coordinates and
+    /// triangle index topology.
+    pub fn new(
+        vertices: Vec<WorldPoint3>,
+        indices: Vec<u32>,
+    ) -> Result<Self, GeometryError> {
+        validate_points(&vertices)?;
+
+        if indices.len() % 3 != 0 {
+            return Err(GeometryError::TriangleIndexCountNotMultipleOfThree {
+                actual: indices.len(),
+            });
+        }
+
+        let vertex_count = vertices.len();
+        for (triangle_index, triangle) in indices.chunks_exact(3).enumerate() {
+            for (corner, &index) in triangle.iter().enumerate() {
+                if index as usize >= vertex_count {
+                    return Err(GeometryError::TriangleIndexOutOfBounds {
+                        triangle_index,
+                        corner,
+                        index,
+                        vertex_count,
+                    });
+                }
+            }
+
+            if triangle[0] == triangle[1] {
+                return Err(GeometryError::RepeatedTriangleVertexIndex {
+                    triangle_index,
+                    index: triangle[0],
+                });
+            }
+            if triangle[0] == triangle[2] {
+                return Err(GeometryError::RepeatedTriangleVertexIndex {
+                    triangle_index,
+                    index: triangle[0],
+                });
+            }
+            if triangle[1] == triangle[2] {
+                return Err(GeometryError::RepeatedTriangleVertexIndex {
+                    triangle_index,
+                    index: triangle[1],
+                });
+            }
+        }
+
+        Ok(Self { vertices, indices })
+    }
+
+    /// Returns the vertex positions in their original order.
+    #[must_use]
+    pub fn vertices(&self) -> &[WorldPoint3] {
+        &self.vertices
+    }
+
+    /// Returns the flattened triangle indices in their original order.
+    #[must_use]
+    pub fn indices(&self) -> &[u32] {
+        &self.indices
+    }
+
+    /// Returns the number of stored vertices, including unreferenced ones.
+    #[must_use]
+    pub fn vertex_count(&self) -> usize {
+        self.vertices.len()
+    }
+
+    /// Returns the number of indexed triangles.
+    #[must_use]
+    pub fn triangle_count(&self) -> usize {
+        self.indices.len() / 3
+    }
+
+    /// Returns whether the mesh contains neither vertices nor triangles.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty() && self.indices.is_empty()
+    }
+
+    /// Iterates over triangle vertex indices, preserving winding order.
+    pub fn triangles(&self) -> impl ExactSizeIterator<Item = [u32; 3]> + '_ {
+        self.indices
+            .chunks_exact(3)
+            .map(|triangle| [triangle[0], triangle[1], triangle[2]])
+    }
+
+    /// Consumes the mesh and returns its vertices and flattened indices.
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<WorldPoint3>, Vec<u32>) {
+        (self.vertices, self.indices)
+    }
+}
+
 fn validate_points(points: &[WorldPoint3]) -> Result<(), GeometryError> {
     for (index, point) in points.iter().enumerate() {
         if !point.to_vector().is_finite() {
@@ -182,6 +322,122 @@ mod tests {
 
     fn point(x: f64, y: f64, z: f64) -> WorldPoint3 {
         WorldPoint3::new(x, y, z)
+    }
+
+    #[test]
+    fn triangle_mesh_accepts_empty_mesh_and_vertices_without_triangles() {
+        let empty = TriangleMesh3::new(Vec::new(), Vec::new()).unwrap();
+        assert!(empty.is_empty());
+        assert_eq!(empty.vertex_count(), 0);
+        assert_eq!(empty.triangle_count(), 0);
+
+        let vertices = vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)];
+        let vertices_only = TriangleMesh3::new(vertices.clone(), Vec::new()).unwrap();
+        assert!(!vertices_only.is_empty());
+        assert_eq!(vertices_only.vertices(), vertices);
+        assert_eq!(vertices_only.triangle_count(), 0);
+    }
+
+    #[test]
+    fn triangle_mesh_preserves_vertex_order_indices_and_winding() {
+        let vertices = vec![
+            point(0.0, 0.0, 0.0),
+            point(1.0, 0.0, 0.0),
+            point(0.0, 1.0, 0.0),
+            point(1.0, 1.0, 0.0),
+        ];
+        let indices = vec![0, 1, 2, 2, 1, 3];
+        let mesh = TriangleMesh3::new(vertices.clone(), indices.clone()).unwrap();
+
+        assert_eq!(mesh.vertices(), vertices);
+        assert_eq!(mesh.indices(), indices);
+        assert_eq!(mesh.vertex_count(), 4);
+        assert_eq!(mesh.triangle_count(), 2);
+        assert_eq!(mesh.triangles().collect::<Vec<_>>(), vec![[0, 1, 2], [2, 1, 3]]);
+        assert_eq!(mesh.into_parts(), (vertices, indices));
+    }
+
+    #[test]
+    fn triangle_mesh_allows_unreferenced_vertices() {
+        let vertices = vec![
+            point(0.0, 0.0, 0.0),
+            point(1.0, 0.0, 0.0),
+            point(0.0, 1.0, 0.0),
+            point(9.0, 9.0, 9.0),
+        ];
+        let mesh = TriangleMesh3::new(vertices, vec![0, 1, 2]).unwrap();
+        assert_eq!(mesh.vertex_count(), 4);
+        assert_eq!(mesh.triangle_count(), 1);
+    }
+
+    #[test]
+    fn triangle_mesh_rejects_incomplete_index_groups() {
+        assert_eq!(
+            TriangleMesh3::new(
+                vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0)],
+                vec![0, 1]
+            ),
+            Err(GeometryError::TriangleIndexCountNotMultipleOfThree { actual: 2 })
+        );
+    }
+
+    #[test]
+    fn triangle_mesh_rejects_out_of_range_indices_with_location() {
+        let result = TriangleMesh3::new(
+            vec![point(0.0, 0.0, 0.0), point(1.0, 0.0, 0.0), point(0.0, 1.0, 0.0)],
+            vec![0, 1, 3],
+        );
+        assert_eq!(
+            result,
+            Err(GeometryError::TriangleIndexOutOfBounds {
+                triangle_index: 0,
+                corner: 2,
+                index: 3,
+                vertex_count: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn triangle_mesh_rejects_repeated_vertex_indices() {
+        let vertices = vec![
+            point(0.0, 0.0, 0.0),
+            point(1.0, 0.0, 0.0),
+            point(0.0, 1.0, 0.0),
+        ];
+        for indices in [vec![0, 0, 1], vec![0, 1, 0], vec![1, 0, 1]] {
+            assert!(matches!(
+                TriangleMesh3::new(vertices.clone(), indices),
+                Err(GeometryError::RepeatedTriangleVertexIndex { triangle_index: 0, .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn triangle_mesh_rejects_non_finite_vertex_coordinates() {
+        let result = TriangleMesh3::new(
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(0.0, f64::NAN, 0.0),
+            ],
+            vec![0, 1, 2],
+        );
+        assert_eq!(result, Err(GeometryError::NonFinitePoint { index: 2 }));
+    }
+
+    #[test]
+    fn triangle_mesh_preserves_geometrically_degenerate_positions() {
+        let mesh = TriangleMesh3::new(
+            vec![
+                point(0.0, 0.0, 0.0),
+                point(1.0, 0.0, 0.0),
+                point(2.0, 0.0, 0.0),
+            ],
+            vec![0, 1, 2],
+        )
+        .unwrap();
+        assert_eq!(mesh.triangle_count(), 1);
     }
 
     #[test]
