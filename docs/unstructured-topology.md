@@ -41,8 +41,8 @@ expose read-only slices and a bounds-checked cell connectivity lookup.
 These are linear cells only. Higher-order cells, polygons with variable
 arity, wedges, pyramids, and vertex cells are deferred. Input node ordering
 is preserved exactly; the constructor does not certify orientation. For a
-hexahedron, corresponding vertical pairs are (0,4), (1,5), (2,6), and (3,7). Independent point
-data remains represented by `PointSet3`.
+hexahedron, corresponding vertical pairs are (0,4), (1,5), (2,6), and (3,7).
+Independent point data remains represented by `PointSet3`.
 
 Mixed cell types and mixed topological dimensions are permitted in one
 unstructured grid. This supports, for example, embedded line or surface
@@ -98,8 +98,10 @@ cell identity for picking, field lookup, and diagnostics.
 - adjacency/manifold analysis for general unstructured cells;
 - interpolation, field remapping, and time-varying datasets.
 
-## Planned verification
+## Verification status
 
-Unit tests will cover valid mixed cells, stable point/cell ordering, empty and
-points-only grids, every validation failure, preservation of geometrically
-degenerate cells, and Dataset field attachment using source cell counts.
+Unit tests now cover valid mixed cells, stable point/cell ordering, empty and
+points-only grids, default construction, validation failures, preservation of
+geometrically degenerate cells, and Dataset field attachment using source
+cell counts. These tests are committed on the M6.3 branch but have not yet
+been run on the user's Windows environment.
