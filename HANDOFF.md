@@ -488,6 +488,14 @@ Implementation commits:
 - `10109bd` — map sampled surface ray hits to scientific source data
 - `cc3aecf` — export sampled surface inspection results
 
+User-reported Windows test results (2026-11-08):
+- `svf-core`: 67 passed.
+- Explorer: 1 passed.
+- `svf-render`: 4 passed.
+- Workspace total: 72 passed, 0 failed.
+The user supplied the test output. Formatting and workspace-check results
+were not included in that report and remain unconfirmed.
+
 Next: implement and test screen-pixel-to-world-ray conversion using the
 existing camera's inverse view-projection matrix and WebGPU NDC depth [0, 1],
 then connect left-click inspection in Explorer. Do not move picking logic into
