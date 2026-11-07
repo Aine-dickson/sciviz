@@ -60,7 +60,9 @@ not graphics primitives:
 - cell-associated and point-associated attributes
 
 The data model must distinguish point-associated, cell-associated, and
-dataset-wide attributes. These associations are not interchangeable.
+ dataset-wide attributes. These associations are not interchangeable. M6.1
+ establishes standalone scalar/vector field types and association semantics;
+ dataset attachment and topology-aware cardinality are introduced separately.
 
 ## Planned pipeline
 
