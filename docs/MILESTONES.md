@@ -189,7 +189,7 @@ Documentation committed in `docs/sampling-quality.md`.
 
 ### M5.1 — Indexed triangle rendering and depth testing
 
-Implementation committed; awaiting user-reported Windows validation.
+Implementation committed and user-validated on Windows (2026-11-08).
 
 - [x] Convert `TriangleMesh3` positions from f64 to f32 at the renderer boundary and reject non-finite narrowed values
 - [x] Preserve source vertex order and u32 indices in GPU buffers
@@ -208,8 +208,17 @@ Implementation committed; awaiting user-reported Windows validation.
 
 ### M5.2 — Parametric surface
 
-- [ ] Generate `f(x, y) = A * sin(x) * cos(y)` on world XZ with scalar values on world Y
-- [ ] Adjust amplitude A and regenerate only affected scientific geometry
+Implementation committed; awaiting user-reported Windows validation.
+
+- [x] Generate `f(x, y) = A * sin(x) * cos(y)` on world XZ with scalar values on world Y
+- [x] Use the existing svf-core scalar sampling and structured-grid pipeline
+- [x] Add Up/Down amplitude controls with a bounded range and visible current value
+- [x] Regenerate CPU-side scientific geometry when amplitude changes
+- [x] Update existing GPU mesh buffers without recreating pipelines, camera, or reference geometry
+- [x] Reject mesh updates that change the allocated vertex/index counts
+- [x] Test amplitude scaling and preservation of mesh topology
+- [ ] Verify formatting, workspace compilation, and tests on Windows
+- [ ] Visually verify the parametric surface and live amplitude adjustment on Windows
 
 ### M5.3 — Scientific inspection
 
