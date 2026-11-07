@@ -184,7 +184,7 @@ Eight M3.2 tests cover empty/vertex-only meshes, index and winding preservation,
 
 M3.2 local Windows validation (user-reported, 2026-11-08): `cargo check --workspace` passed; `cargo test -p svf-core` passed 32 tests; `cargo test --workspace` passed 34 tests (32 core, 2 renderer), with no failures. The pasted output did not include the formatting-check result, so formatting status is not newly recorded here.
 
-M3.2 is complete. The next increment should add an explicit, graphics-independent mesh-topology query layer (starting with unique undirected edges and face/edge incidence), while keeping the current mesh storage and validation contract stable. Design and test topology semantics before renderer integration; do not imply manifoldness or watertightness from adjacency data alone.
+M3.2 is complete. M3.3 adds a graphics-independent, derived topology query layer. Unique undirected edges are canonicalized and lexicographically ordered by vertex indices; face-edge incidence follows local triangle edge order; edge-face incidence preserves source face order. Boundary-edge and greater-than-two-face-incidence queries are provided without claiming global manifoldness or watertightness.
 
 ## Accepted coordinate conventions
 
@@ -228,4 +228,4 @@ cargo test --workspace
 
 ## Immediate next action
 
-M3.2 indexed triangle meshes are implemented and user-validated on Windows: workspace check passed, 32 core tests passed, and the full workspace suite passed 34 tests (32 core, 2 renderer). The next work item is to design M3.3 as a graphics-independent topology query layer, beginning with unique undirected edges and face/edge incidence. Preserve the existing f64 mesh data contract and explicitly distinguish adjacency from stronger properties such as manifoldness and watertightness. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 point/line geometry passed user-reported Windows validation (24 core tests; 26 workspace tests).
+M3.3 topology queries are implemented and committed; local Windows validation is pending. Pull `main`, run formatting, workspace check, core tests, and full workspace tests. M3.3 adds deterministic unique undirected edges, face-to-edge incidence in triangle-local edge order, edge-to-face incidence in source face order, boundary-edge queries, and queries for edges incident to more than two faces. The topology object is derived from `TriangleMesh3`; the mesh's original storage and validation contract remain unchanged. M2.4 visual/runtime behavior for the reference axes/grid, resize, minimize/restore, and clean exit has been user-verified. M3.1 and M3.2 passed user-reported Windows validation (24/32 core tests; 26/34 workspace tests respectively).
