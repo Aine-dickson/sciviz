@@ -683,12 +683,11 @@ association cardinality, unique field names, insertion order, and
 failure-atomic field attachment. The geometry accessors expose immutable
 references, so topology cannot be mutated through `Dataset`.
 
-The user's local feature branch was synchronized to `dfb27c9` before merge.
-The user's local `main` has not yet been confirmed to contain merge commit
-`9b4fc41`; sync it with `git pull --ff-only origin main` after switching
-to `main`. Do not overwrite or blindly pop the preserved formatting stash.
-The M6.1 formatting-only changes remain separate and must be handled
-deliberately if they are ever reapplied.
+The user subsequently reported completing the local switch to `main` and
+fast-forward pull after the merge. Exact command output was not included.
+Do not overwrite or blindly pop the preserved formatting stash. The M6.1
+formatting-only changes remain separate and must be handled deliberately if
+they are ever reapplied.
 
 ## M6.3 — Unstructured topology foundations (in progress)
 
