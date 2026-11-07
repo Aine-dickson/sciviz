@@ -254,11 +254,11 @@ mod tests {
     use crate::{
         fields::{FieldAssociation, VectorBasis3, VectorValue3},
         geometry::GeometryError,
-        unstructured::{CellType3, UnstructuredGrid3},
         sampling::{
-            Domain1D, Domain2D, SamplingSpec2D, SampleValue, sample_scalar_2d,
+            Domain1D, Domain2D, SampleValue, SamplingSpec2D, sample_scalar_2d,
         },
         spatial::WorldPoint3,
+        unstructured::{CellType3, UnstructuredGrid3},
     };
 
     fn metadata(name: &str) -> FieldMetadata {
