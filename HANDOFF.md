@@ -489,25 +489,20 @@ Implementation commits:
 - `cc3aecf` — export sampled surface inspection results
 
 User-reported Windows test results (2026-11-08):
-- `svf-core`: 67 passed.
+- `svf-core`: 79 passed.
 - Explorer: 1 passed.
 - `svf-render`: 4 passed.
-- Workspace total: 72 passed, 0 failed.
-The user supplied the test output. Formatting and workspace-check results
-were not included in that report and remain unconfirmed.
+- Workspace total: 84 passed, 0 failed.
+The user supplied the workspace test output after syncing to commit
+`87f1d59`. Formatting and `cargo check --workspace` results were not
+included and remain unconfirmed.
 
-Next: implement and test screen-pixel-to-world-ray conversion using the
-existing camera's inverse view-projection matrix and WebGPU NDC depth [0, 1],
-then connect left-click inspection in Explorer. Do not move picking logic into
-wgpu or GPU buffers. Keep command/runtime validation status pending until the
-user reports Windows results.
+### M5.3 — Viewport unprojection and Explorer interaction validation
 
+Implementation is committed and the user has now validated the interaction
+on Windows (2026-11-08).
 
-### M5.3 — Viewport unprojection and Explorer click integration
-
-Implementation committed on 2026-11-08; Windows validation pending.
-
-The camera now exposes
+The camera exposes
 `Camera3::ray_from_viewport(pixel_x, pixel_y, width, height)`. It accepts
 physical-pixel coordinates from a top-left-origin viewport, unprojects NDC
 depth 0 and 1 through the inverse view-projection matrix, and returns a
@@ -518,36 +513,34 @@ coordinates are reported explicitly.
 
 The renderer exposes its current `Camera3` by reference so picking uses the
 same camera and projection as rendering. Explorer retains the current
-`SampledSurface3` and tracks the cursor's physical-pixel position. The
-initial click-only feedback proved too difficult to diagnose in the user's
-visual run: the user could not identify a visible response to clicks or
-hovering. Commit `c06df8c` therefore adds live hover inspection: moving the
-cursor updates the window title with domain coordinates and scalar value, or
-explicitly reports that no surface is under the cursor. Left-click now emits
-the pixel coordinate and viewport dimensions, followed by an explicit HIT,
-MISS, or ray-error diagnostic; successful hits include world position,
-continuous grid coordinates, source cell, triangle, and barycentric weights.
-Hover does not flood stderr. Amplitude changes replace the retained scientific
-surface after updating the renderer buffers.
+`SampledSurface3`, tracks the cursor's physical-pixel position, and performs
+hover inspection. The window title displays scientific coordinates/scalar
+information over the surface and indicates when no surface is under the
+cursor. Left-click emits pixel and viewport dimensions followed by explicit
+HIT/MISS/ray-error diagnostics. Successful hits include world position,
+continuous domain and grid coordinates, scalar value, source cell, triangle,
+and barycentric weights. Hover does not flood stderr. Amplitude changes
+replace the retained scientific surface after updating renderer buffers.
 
-Camera tests cover centered perspective rays, direction changes across the
-viewport, parallel orthographic rays with distinct origins, and invalid
-viewport/pixel inputs.
+User-reported Windows runtime validation (2026-11-08):
+- Explorer launched on AMD Radeon(TM) Graphics using Vulkan.
+- Moving over the blue surface showed coordinates/scalar information in the
+  window title; moving off the surface showed the no-surface state.
+- Two clicks outside the visible surface returned MISS.
+- Three clicks at different visible surface locations returned HIT and
+  reported plausible world/domain/grid coordinates, scalar values, source
+  cells, triangle indices, and barycentric weights.
+- The observed interaction confirms the complete physical-pixel -> camera
+  ray -> mesh intersection -> sampled scientific data -> UI/diagnostic path.
 
-Files changed:
-- `crates/svf-core/src/camera.rs`
-- `crates/svf-render/src/lib.rs`
-- `apps/explorer/src/main.rs`
+User-reported automated validation after syncing to `87f1d59`:
+- `cargo test --workspace`: 84 passed, 0 failed (79 core, 1 Explorer,
+  4 renderer).
+- `cargo fmt --all -- --check`: not yet reported.
+- `cargo check --workspace`: not yet reported.
 
-Implementation commits:
-- `70ac2fc` — add viewport pixel to world ray conversion
-- `7ad9063` — expose renderer camera for scientific picking
-- `f7bb14f` — connect Explorer clicks to scientific surface inspection
-
-Next validation: run formatting, workspace compilation, and tests on Windows.
-Then launch Explorer, move the cursor over the surface and outside it, and
-confirm that the title changes between scientific hover values and "no
-surface". Left-click several visible surface regions and inspect the explicit
-pixel/viewport plus HIT/MISS terminal diagnostics. Repeat after resizing and
-changing amplitude. The hover-feedback and diagnostic update has not yet been
-user-validated.
+Remaining validation:
+1. Run formatting and workspace compilation checks on Windows.
+2. Verify picking after resizing the window and changing surface amplitude.
+3. Only after those checks, inspect and deliberately recover any local changes
+   preserved in the pre-sync Git stash. Do not blindly apply the stash.
