@@ -246,7 +246,7 @@ User-reported validation: formatting check and workspace check passed;
 
 ### M4.2 — Scalar function sampling
 
-Implementation committed; local Windows validation pending.
+Implementation committed and user-validated on Windows (2026-11-08). User reports `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, and `cargo test --workspace` all passed: 58 core tests and 60 workspace tests (58 core, 2 renderer).
 
 Public API is exposed from `svf_core::sampling`:
 - `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided
@@ -277,12 +277,23 @@ cargo test -p svf-core
 cargo test --workspace
 ```
 
-Expected after M4.2: 58 core tests and 60 workspace tests (58 core, 2 renderer).
 
-### M4.3 — Structured grids and surface generation (planned)
 
-Represent structured sampled grids explicitly, then generate geometry from
-sampled scalar fields while preserving source sample identity.
+### M4.3 — Structured grids and surface generation (next)
+
+Design and implement an explicit structured 2D sample grid built from
+`ScalarSamples2D`. Preserve dimensions, axis coordinates, source sample
+identity, and non-finite sample status. Define a separate surface-generation
+step for finite scalar samples, with explicit handling of invalid cells;
+do not silently bridge holes or invent values. Convert to `TriangleMesh3`
+only at the geometry boundary, preserving a mapping from generated vertices
+back to source grid indices. Keep all data CPU-side and renderer-independent.
+
+Before implementation, inspect existing geometry and topology APIs and decide
+whether structured grid storage should own samples or reference/consume an
+existing scalar sample collection. Avoid duplicate coordinate/value storage
+unless needed for a stable public API. Add focused tests for dimensions,
+index mapping, cell validity, triangulation winding, and source identity.
 
 ### M4.4 — Sampling quality (planned)
 
