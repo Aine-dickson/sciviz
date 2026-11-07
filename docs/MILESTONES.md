@@ -173,8 +173,16 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 
 ### M4.4 — Sampling quality
 
-- [ ] Document resolution, density, and numerical error considerations
-- [ ] Avoid implying that denser uniform sampling guarantees accuracy for arbitrary functions
+Documentation committed in `docs/sampling-quality.md`.
+
+- [x] Explain sample point counts versus interval counts and endpoint inclusion
+- [x] Explain uniform spacing and independent 2D axis resolution
+- [x] Describe sample, cell, and triangle growth as resolution increases
+- [x] Explain piecewise-linear approximation and limits of uniform sampling
+- [x] Describe error factors and conditional interpolation-error assumptions
+- [x] Clarify that Nyquist-style guarantees require band-limited assumptions
+- [x] Provide a practical resolution-selection and comparison workflow
+- [x] Document current absence of adaptive sampling, error estimation, and anti-alias filtering
 
 ## M5 — Interactive surface demonstrator
 
