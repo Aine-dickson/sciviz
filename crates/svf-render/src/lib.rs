@@ -416,8 +416,8 @@ const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 fn line_depth_state() -> wgpu::DepthStencilState {
     wgpu::DepthStencilState {
         format: DEPTH_FORMAT,
-        depth_write_enabled: false,
-        depth_compare: wgpu::CompareFunction::LessEqual,
+        depth_write_enabled: Some(false),
+        depth_compare: Some(wgpu::CompareFunction::LessEqual),
         stencil: Default::default(),
         bias: Default::default(),
     }
@@ -426,8 +426,8 @@ fn line_depth_state() -> wgpu::DepthStencilState {
 fn mesh_depth_state() -> wgpu::DepthStencilState {
     wgpu::DepthStencilState {
         format: DEPTH_FORMAT,
-        depth_write_enabled: true,
-        depth_compare: wgpu::CompareFunction::Less,
+        depth_write_enabled: Some(true),
+        depth_compare: Some(wgpu::CompareFunction::Less),
         stencil: Default::default(),
         bias: Default::default(),
     }
@@ -549,7 +549,8 @@ mod tests {
                 WorldPoint3::new(0.0, 1.0, 3.0),
             ],
             vec![0, 1, 2],
-        ).unwrap();
+        )
+        .unwrap();
         let (vertices, indices) = convert_mesh(&mesh).unwrap();
         assert_eq!(vertices[1].position, [1.0, 1.0, 2.0]);
         assert_eq!(indices, vec![0, 1, 2]);
@@ -564,8 +565,12 @@ mod tests {
                 WorldPoint3::new(0.0, 1.0, 0.0),
             ],
             vec![0, 1, 2],
-        ).unwrap();
-        assert!(matches!(convert_mesh(&mesh), Err(RenderError::MeshConversion)));
+        )
+        .unwrap();
+        assert!(matches!(
+            convert_mesh(&mesh),
+            Err(RenderError::MeshConversion)
+        ));
     }
 
     #[test]
@@ -587,10 +592,12 @@ mod tests {
         let camera = reference_camera(16.0 / 9.0).expect("valid reference camera");
         let uniform = CameraUniform::from_camera(&camera);
 
-        assert!(uniform
-            .view_projection
-            .iter()
-            .flatten()
-            .all(|value| value.is_finite()));
+        assert!(
+            uniform
+                .view_projection
+                .iter()
+                .flatten()
+                .all(|value| value.is_finite())
+        );
     }
 }
