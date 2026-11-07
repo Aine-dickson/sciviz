@@ -6,5 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 description = "Graphics-independent scientific data and mathematical foundations"
 
+[dependencies]
+glam.workspace = true
+
 [lib]
 path = "src/lib.rs"
