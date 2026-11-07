@@ -342,3 +342,12 @@ Design note: geometry is immutable through `Dataset`; changing source
 geometry creates a new dataset. Field transfer/remapping, mutable topology,
 unstructured grids, time-varying datasets, and automatic interpolation are
 outside M6.2.
+
+
+M6.2 user-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test --workspace`: 103 passed, 0 failed (98 core, 1 Explorer,
+  4 renderer; doc tests also passed).
+- The nine dataset-specific unit tests all passed.
+- No formatter was run; formatting-only changes from M6.1 remain in a
+  separate stash on the user's local repository.
