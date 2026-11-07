@@ -1,4 +1,4 @@
-//! Structured two-dimensional scalar grids and height-field surface generation.
+//! Structured two-dimensional scalar grids and sampled graph-surface generation.
 use std::{error::Error, fmt};
 use crate::{geometry::{GeometryError, TriangleMesh3}, spatial::WorldPoint3};
 use super::{SampleValue, ScalarSamples2D};
@@ -30,10 +30,11 @@ impl StructuredGrid2D {
     #[must_use] pub const fn samples(&self) -> &ScalarSamples2D { &self.samples }
     #[must_use] pub fn into_samples(self) -> ScalarSamples2D { self.samples }
 
-    /// Creates a height-field mesh at (x, y, scalar_value).
+    /// Creates a graph-surface mesh at world coordinates (x, scalar_value, y).
+    /// The sampled domain maps to the world XZ plane; scalar values map to +Y.
     /// A cell emits both triangles only when all four corners are finite.
     /// Finite vertices are retained even when not referenced by a triangle.
-    /// The lower-left to upper-right diagonal gives +Z-facing winding.
+    /// The lower-left to upper-right diagonal gives +Y-facing winding.
     pub fn to_surface_mesh(&self) -> Result<SampledSurface3, SurfaceGenerationError> {
         let count = self.sample_count();
         let mut source_to_vertex = Vec::new();
@@ -47,13 +48,13 @@ impl StructuredGrid2D {
         reserve(&mut vertex_sources, finite_count)?;
 
         for sample in self.samples.as_slice() {
-            let SampleValue::Finite(z) = sample.value() else { continue };
+            let SampleValue::Finite(height) = sample.value() else { continue };
             let id = u32::try_from(vertices.len()).map_err(|_| SurfaceGenerationError::VertexIndexOverflow {
                 source: GridSampleIndex2D::new(sample.x_index(), sample.y_index()),
             })?;
             let source = sample.y_index() * self.x_sample_count() + sample.x_index();
             source_to_vertex[source] = Some(id);
-            vertices.push(WorldPoint3::new(sample.x(), sample.y(), z));
+            vertices.push(WorldPoint3::new(sample.x(), height, sample.y()));
             vertex_sources.push(GridSampleIndex2D::new(sample.x_index(), sample.y_index()));
         }
 
@@ -77,7 +78,7 @@ impl StructuredGrid2D {
                     source_to_vertex[(y + 1) * nx + x + 1],
                 ];
                 let [Some(ll), Some(lr), Some(ul), Some(ur)] = corners else { continue };
-                indices.extend_from_slice(&[ll, lr, ur, ll, ur, ul]);
+                indices.extend_from_slice(&[ll, ur, lr, ll, ul, ur]);
                 triangle_sources.push(GridCellIndex2D::new(x, y));
                 triangle_sources.push(GridCellIndex2D::new(x, y));
             }
@@ -149,19 +150,19 @@ mod tests {
     fn finite_grid_generates_two_triangles_per_cell() {
         let surface = grid(3, 2, |x, y| x + y).to_surface_mesh().unwrap();
         assert_eq!((surface.vertex_count(), surface.triangle_count()), (6, 4));
-        assert_eq!(surface.mesh().indices(), &[0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4]);
-        assert_eq!(surface.mesh().vertices()[5].to_array(), [2.0, 1.0, 3.0]);
+        assert_eq!(surface.mesh().indices(), &[0, 4, 1, 0, 3, 4, 1, 5, 2, 1, 4, 5]);
+        assert_eq!(surface.mesh().vertices()[5].to_array(), [2.0, 3.0, 1.0]);
     }
 
     #[test]
-    fn triangle_winding_faces_positive_z() {
+    fn triangle_winding_faces_positive_world_y() {
         let surface = grid(2, 2, |_, _| 0.0).to_surface_mesh().unwrap();
         let v = surface.mesh().vertices();
         for t in surface.mesh().triangles() {
             let a = v[t[0] as usize].to_vector();
             let b = v[t[1] as usize].to_vector();
             let c = v[t[2] as usize].to_vector();
-            assert!((b - a).cross(c - a).z > 0.0);
+            assert!((b - a).cross(c - a).y > 0.0);
         }
     }
 
@@ -204,6 +205,6 @@ mod tests {
     #[test]
     fn generated_vertices_preserve_f64_values() {
         let surface = grid(2, 2, |_, _| 1.0e100).to_surface_mesh().unwrap();
-        assert_eq!(surface.mesh().vertices()[0].to_array()[2], 1.0e100);
+        assert_eq!(surface.mesh().vertices()[0].to_array()[1], 1.0e100);
     }
 }
