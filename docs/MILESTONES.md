@@ -119,10 +119,32 @@ Scope note: this increment validates per-triangle index structure, not global ma
 
 ## M4 — Mathematical sampling
 
-- bounded domains and sampling strategies
-- function sampling with invalid-value handling
-- surface mesh generation
-- sampling density and error considerations
+Objective: represent mathematical domains and sampled values explicitly before converting them into renderable geometry.
+
+### M4.1 — Bounded domains and sampling specifications (next)
+
+- Define finite, ordered 1D and 2D domain bounds
+- Define sampling counts/interval semantics unambiguously (sample count denotes points, not intervals)
+- Validate finite bounds, positive extents, and minimum sample counts
+- Keep domain/sampling types independent of function evaluation and rendering
+- Test endpoints, degenerate bounds, non-finite bounds, and invalid counts
+
+### M4.2 — Function sampling
+
+- Sample scalar functions over validated domains
+- Define explicit handling for non-finite/undefined function results
+- Preserve mapping between sample indices and source coordinates
+
+### M4.3 — Structured grids and surface generation
+
+- Represent structured sampled grids with explicit dimensions and coordinate semantics
+- Generate surface geometry from sampled scalar fields where appropriate
+- Preserve source sample identity for inspection and picking
+
+### M4.4 — Sampling quality
+
+- Document resolution, density, and numerical error considerations
+- Avoid implying that denser uniform sampling guarantees accuracy for arbitrary functions
 
 ## M5 — Interactive surface demonstrator
 
@@ -130,17 +152,9 @@ Scope note: this increment validates per-triangle index structure, not global ma
 - adjust A and regenerate only affected geometry
 - inspect a selected point and recover its source coordinates/value
 
-### M3.3 — Mesh topology queries (planned)
-
-- Define stable, deterministic unique-undirected-edge extraction
-- Define face-to-edge and edge-to-face incidence semantics
-- Preserve source vertex/face identity and triangle winding
-- Test boundary edges, shared edges, disconnected components, and non-manifold edge incidence without silently classifying meshes as manifold or watertight
-- Keep all topology data and algorithms in `svf-core`, independent of the renderer
-
 ### M3.3 — Mesh topology queries
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
 
 - [x] Derive topology independently from the existing `TriangleMesh3` storage
 - [x] Extract unique undirected edges with canonical ascending vertex indices
@@ -150,6 +164,9 @@ Implementation committed; local Windows validation pending.
 - [x] Query boundary edges (exactly one incident face)
 - [x] Query edges incident to more than two faces without making a global manifoldness claim
 - [x] Cover shared edges, boundary edges, disconnected components, unreferenced vertices, non-manifold edge incidence, deterministic IDs, and empty-face meshes
-- [ ] Verify formatting, core tests, and workspace tests on Windows
+- [x] Verify `cargo fmt --all -- --check` on Windows
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (38 passed)
+- [x] Verify `cargo test --workspace` on Windows (40 passed: 38 core, 2 renderer)
 
 Scope note: edge incidence is descriptive topology data. It does not certify consistent adjacent-face orientation, manifold vertices, watertightness, or global surface validity.
