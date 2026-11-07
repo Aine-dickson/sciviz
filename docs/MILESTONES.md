@@ -240,10 +240,11 @@ committed on 2026-11-08; local Windows validation pending.
 - [x] Support perspective and orthographic ray origins
 - [x] Expose the renderer's active camera to CPU-side picking
 - [x] Connect Explorer cursor tracking and left-click scientific surface inspection
-- [x] Display domain/scalar values in the window title and full hit metadata in the terminal
-- [ ] Verify formatting, workspace compilation, and tests for viewport/Explorer integration on Windows
-- [ ] Visually verify picking at multiple surface locations and after resizing
-- [ ] Verify picking remains correct after changing surface amplitude
+- [x] Add live hover feedback in the window title for surface hits and misses
+- [x] Add explicit click diagnostics with pixel/viewport coordinates and HIT/MISS/ray-error status
+- [ ] Verify formatting, workspace compilation, and tests for viewport/Explorer integration and hover diagnostics on Windows
+- [ ] Visually verify hover feedback and picking at multiple surface locations and outside the surface
+- [ ] Verify picking remains correct after resizing and changing surface amplitude
 
 ### M3.3 — Mesh topology queries
 
