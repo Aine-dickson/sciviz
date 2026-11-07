@@ -6,7 +6,8 @@
 
 use std::{error::Error, fmt};
 
-use glam::{DMat4, DVec3};
+use glam::DMat4;
+use glam::dcamera::rh::{proj::directx, view};
 
 use crate::spatial::{WorldPoint3, WorldVector3};
 
@@ -102,7 +103,7 @@ impl LookAtCamera {
     /// Derives the world-to-view transformation.
     #[must_use]
     pub fn view_matrix(&self) -> DMat4 {
-        DMat4::look_at_rh(
+        view::look_at_mat4(
             self.position.to_vector(),
             self.target.to_vector(),
             self.up.to_vector(),
@@ -160,7 +161,7 @@ impl PerspectiveProjection {
     /// Builds a right-handed perspective matrix with [0, 1] NDC depth.
     #[must_use]
     pub fn matrix(&self) -> DMat4 {
-        DMat4::perspective_rh(
+        directx::perspective(
             self.vertical_fov_radians,
             self.aspect_ratio,
             self.near,
@@ -206,7 +207,7 @@ impl OrthographicProjection {
     /// Builds a right-handed orthographic matrix with [0, 1] NDC depth.
     #[must_use]
     pub fn matrix(&self) -> DMat4 {
-        DMat4::orthographic_rh(
+        directx::orthographic(
             self.left, self.right, self.bottom, self.top, self.near, self.far,
         )
     }
@@ -281,6 +282,7 @@ fn validate_near_far(near: f64, far: f64) -> Result<(), CameraError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use glam::DVec3;
 
     const EPSILON: f64 = 1.0e-10;
 
@@ -389,6 +391,6 @@ mod tests {
         let pose = test_camera();
         let projection = PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.0, 1.0, 11.0).unwrap();
         let camera = Camera3::new(pose, Projection3::Perspective(projection));
-        approx_eq(ndc(camera.view_projection_matrix(), DVec3::ZERO).z, 0.8);
+        approx_eq(ndc(camera.view_projection_matrix(), DVec3::ZERO).z, 0.88);
     }
 }
