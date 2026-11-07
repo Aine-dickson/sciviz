@@ -222,7 +222,23 @@ Implementation committed and user-validated on Windows (2026-11-08).
 
 ### M5.3 — Scientific inspection
 
-- [ ] Select a surface location and recover its original grid coordinates and scalar value
+Core ray-intersection and scientific hit-mapping layer implemented and
+committed on 2026-11-08; local Windows validation pending.
+
+- [x] Add validated f64 world-space rays with normalized directions
+- [x] Intersect rays with indexed triangle meshes without back-face culling
+- [x] Return nearest non-negative hit distance, world position, triangle index, and barycentric weights
+- [x] Skip degenerate and near-parallel triangles; accept hits at ray origin
+- [x] Map sampled-surface hits to their source grid cell
+- [x] Recover continuous domain coordinates, continuous grid coordinates, and piecewise-linear scalar value
+- [x] Test intersection edge cases and source-data recovery
+- [ ] Verify `cargo fmt --all -- --check` on Windows
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test -p svf-core` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Convert Explorer cursor pixels to a world ray using the inverse camera view-projection transform
+- [ ] Connect left-click selection and display the recovered scientific inspection
+- [ ] Visually verify picking at multiple surface locations and after resizing
 
 ### M3.3 — Mesh topology queries
 
