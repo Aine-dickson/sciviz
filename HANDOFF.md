@@ -559,3 +559,43 @@ older Explorer without picking integration, and contains stale milestone
 documentation. No stash content should be restored over the validated M5.3
 implementation. Keep the stash until its eventual disposal is an explicit,
 separate decision.
+
+
+## M6.1 — Scientific field semantics
+
+Implementation committed to `main`; local Windows validation is pending.
+
+New module: `crates/svf-core/src/fields.rs`, exposed as
+`svf_core::fields`.
+
+Public API:
+- `FieldAssociation::{Point, Cell, Dataset}` distinguishes values attached
+  to points, logical cells, or the dataset as a whole.
+- `FieldMetadata` carries a non-empty field name and optional descriptive
+  units. Units are labels only; no conversion or dimensional analysis occurs.
+- `ScalarField` stores ordered `SampleValue` entries and preserves
+  finite/non-finite classifications.
+- `VectorField3` stores ordered `VectorValue3` entries with explicit
+  `VectorBasis3::World` basis.
+- `VectorValue3` classifies each component independently and converts to a
+  `WorldVector3` only when all components are finite.
+- `FieldError` reports invalid metadata and cardinality failures.
+- `SampleValue::from_f64` is now public for consistent scalar classification.
+
+Association rules:
+- Point fields are validated against dataset point count.
+- Cell fields are validated against logical dataset cell count, not generated
+  render-triangle count.
+- Dataset-associated fields contain exactly one value.
+- Point/cell fields can be constructed before attachment; their cardinality
+  is checked when dataset counts are available.
+- No implicit interpolation or conversion between associations occurs.
+
+The increment deliberately does not add a dataset container, field registry,
+unit conversion, local vector coordinate frames, visualization mapping, or
+renderer changes. Design details and exclusions are documented in
+`docs/fields.md`.
+
+Tests are included in `fields.rs`, but the user has not yet run formatting,
+workspace compilation, or workspace tests on Windows. Do not mark local
+validation complete until those results are reported.
