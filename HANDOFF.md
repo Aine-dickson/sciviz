@@ -34,7 +34,8 @@ and educational communication take priority over decorative rendering.
 
 Workspace dependencies include wgpu 30.0.1, winit 0.30.13, pollster 0.4,
 tracing 0.1, and glam =0.34.2. Glam is configured with only `std` and
-`float-types` enabled. `svf-core` now has a `spatial` module containing
+`float-types` enabled and is inherited by svf-core through
+`glam.workspace = true`. `svf-core` has a `spatial` module containing
 f64 glam primitive re-exports, world-axis constants, and semantic
 `WorldPoint3` / `WorldVector3` wrappers.
 
@@ -66,10 +67,48 @@ These are user-reported local results, not independently reproduced here.
 
 ### M2 — Spatial foundation
 
-In progress. M2.1 and M2.2 source changes have been committed, but local
-Windows compilation and tests are pending.
+In progress.
 
-Accepted conventions:
+#### M2.1 — Coordinate semantics and math foundation
+
+Implementation and local validation completed.
+
+- `glam =0.34.2` is pinned in workspace dependencies.
+- `svf-core` inherits it through `glam.workspace = true`.
+- Right-handed world axes, +Y up, are defined.
+- `WorldPoint3` and `WorldVector3` preserve point/displacement semantics.
+- Unit tests cover handedness, point/vector arithmetic and f64 operations.
+
+#### M2.2 — Transform semantics
+
+Initial convention implementation and local validation completed.
+
+- Column-vector multiplication is documented.
+- Matrix storage is column-major.
+- Composition-order test passes.
+- Full typed world/view transform APIs remain future work.
+
+User-reported Windows validation for the current M2 source:
+- `cargo check --workspace`: passed.
+- `cargo test -p svf-core`: passed.
+- `cargo test --workspace`: passed.
+
+#### M2.3 — Camera and projection
+
+Not yet implemented:
+- camera state and validated view transformation
+- perspective and orthographic projection wrappers
+- viewport/NDC mapping and parameter validation
+
+#### M2.4 — Renderer integration
+
+Not yet implemented:
+- explicit f64-to-f32 camera matrix conversion
+- reference axes and grid
+- projection update on resize
+
+## Accepted conventions
+
 - right-handed world coordinates, +Y up
 - camera view space is right-handed, +Y up, -Z forward
 - column vectors; transforms multiply on the left
@@ -77,26 +116,6 @@ Accepted conventions:
 - WebGPU NDC depth range [0, 1]
 - f64 in the core; explicit f32 conversion at renderer boundary
 - world, view, clip/NDC, and viewport/pixel spaces remain distinct
-
-Math dependency:
-- `glam =0.34.2`, workspace dependency
-- `std` and `float-types` features only
-- glam types are mathematical primitives; SVF adds semantic domain types
-  rather than treating arbitrary vectors as points.
-
-Implemented in `crates/svf-core/src/spatial.rs`:
-- f64 glam vector, matrix, and quaternion primitive re-exports
-- world axis constants
-- `WorldPoint3` and `WorldVector3` newtypes
-- point/vector arithmetic that preserves point-versus-displacement semantics
-- unit tests for axis handedness, point subtraction/translation, vector
-  operations, and matrix composition order
-
-Not implemented yet:
-- camera state and validated view transform
-- perspective and orthographic projection wrappers
-- viewport/NDC mapping
-- renderer camera integration, axes, or grid
 
 ## Key architectural constraints
 
@@ -135,7 +154,7 @@ resize, minimize/restore, and clean exit.
 
 ## Immediate next action
 
-Run the workspace check and core tests on Windows. Fix any compiler or test
-failures before starting camera implementation. Once M2.1/M2.2 pass locally,
-continue with validated camera state and right-handed WebGPU perspective and
-orthographic projection.
+Implement validated camera state and right-handed WebGPU perspective and
+orthographic projection in svf-core. Add tests for degenerate camera
+configurations, projection bounds, invalid parameters, and aspect ratio before
+integrating matrices into the renderer.
