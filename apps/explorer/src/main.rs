@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use svf_render::ClearRenderer;
+use svf_render::SceneRenderer;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -12,7 +12,7 @@ use winit::{
 #[derive(Default)]
 struct Explorer {
     window: Option<Arc<Window>>,
-    renderer: Option<ClearRenderer>,
+    renderer: Option<SceneRenderer>,
 }
 
 impl ApplicationHandler for Explorer {
@@ -34,7 +34,7 @@ impl ApplicationHandler for Explorer {
             }
         };
 
-        match pollster::block_on(ClearRenderer::new(window.clone())) {
+        match pollster::block_on(SceneRenderer::new(window.clone())) {
             Ok(renderer) => {
                 self.renderer = Some(renderer);
                 self.window = Some(window.clone());
@@ -66,7 +66,11 @@ impl ApplicationHandler for Explorer {
 
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.resize(size);
+                    if let Err(error) = renderer.resize(size) {
+                        eprintln!("Renderer resize failed: {error}");
+                        event_loop.exit();
+                        return;
+                    }
                 }
                 window.request_redraw();
             }
