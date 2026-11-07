@@ -44,10 +44,9 @@ impl Explorer {
         // Re-evaluate the mathematical model and regenerate its CPU-side mesh.
         // The renderer keeps its pipelines, camera, grid, axes, and depth target.
         let surface = demo_surface(amplitude)?;
-        let renderer = self
-            .renderer
-            .as_mut()
-            .ok_or("renderer is not initialized")?;
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Ok(());
+        };
         renderer.update_mesh(surface.mesh())?;
 
         self.amplitude = amplitude;
