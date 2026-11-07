@@ -199,8 +199,12 @@ Implementation committed; awaiting user-reported Windows validation.
 - [x] Render opaque mesh before reference lines; lines depth-test without writing depth
 - [x] Add CPU tests for mesh conversion, index preservation, and f32 range rejection
 - [x] Feed a sampled flat graph surface from svf-core into Explorer as an integration fixture
-- [ ] Verify formatting, workspace compilation, and all tests on Windows
-- [ ] Visually verify the indexed surface, grid/axes, resize, and depth behavior on Windows
+- [x] Verify `cargo fmt --all -- --check` on Windows
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-render` on Windows (4 passed)
+- [x] Verify `cargo test --workspace` on Windows (71 passed: 67 core, 4 renderer)
+- [x] Visually verify the indexed surface, grid/axes, and resize/restore behavior on Windows
+- [ ] Perform a dedicated visual occlusion/depth-intersection stress test
 
 ### M5.2 — Parametric surface
 
