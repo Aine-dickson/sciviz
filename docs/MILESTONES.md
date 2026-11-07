@@ -123,11 +123,17 @@ Objective: represent mathematical domains and sampled values explicitly before c
 
 ### M4.1 — Bounded domains and sampling specifications (next)
 
-- Define finite, ordered 1D and 2D domain bounds
-- Define sampling counts/interval semantics unambiguously (sample count denotes points, not intervals)
-- Validate finite bounds, positive extents, and minimum sample counts
-- Keep domain/sampling types independent of function evaluation and rendering
-- Test endpoints, degenerate bounds, non-finite bounds, and invalid counts
+Implementation committed; local Windows validation pending.
+
+- [x] Add `Domain1D` with finite, strictly increasing inclusive bounds
+- [x] Add `Domain2D` with independent X and Y ranges
+- [x] Reject non-finite bounds, non-positive extents, and extents that overflow f64
+- [x] Add `SamplingSpec1D` and `SamplingSpec2D` with independent axis counts
+- [x] Define sample counts as points, with interval count equal to points minus one
+- [x] Require at least two points per sampled axis and report the offending axis
+- [x] Keep domain and sampling specifications independent of function evaluation, grid allocation, geometry, and rendering
+- [x] Test valid bounds, non-finite/equal/reversed/overflowing bounds, independent axes, endpoint-capable minimum counts, and invalid sample counts
+- [ ] Verify formatting, core tests, and workspace tests on Windows
 
 ### M4.2 — Function sampling
 
