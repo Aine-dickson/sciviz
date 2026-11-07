@@ -80,13 +80,13 @@ Implementation committed; Windows runtime behavior visually validated by the use
 - [x] Verify visible red X, green vertical Y, and blue Z axes meeting at the origin
 - [x] Verify XZ grid orientation and consistent perspective across window sizes
 - [x] Verify minimize, restore, and close behavior
-- [ ] Record explicit final `cargo check --workspace`, `cargo test -p svf-render`, and `cargo test --workspace` results if not already captured
+- [x] Record final workspace check and test results (user-reported 2026-11-08: workspace check passed; 32 core tests and 2 renderer tests passed in the full workspace run)
 
 ## M3 — Scientific geometry
 
 ### M3.1 — Point and line primitives
 
-Implementation committed; local Windows validation pending.
+Implementation committed; local Windows validation completed (24 core tests; 26 workspace tests passed).
 
 - [x] Add graphics-independent `PointSet3` with ordered f64 world points
 - [x] Add validated `LineSegment3` with endpoint, displacement, and length accessors
@@ -95,11 +95,11 @@ Implementation committed; local Windows validation pending.
 - [x] Preserve repeated points and zero-length segments explicitly
 - [x] Require at least two points for a polyline; closed paths repeat the first point explicitly
 - [x] Add CPU unit tests for construction, validation, ordering, and segment semantics
-- [ ] Verify formatting, core tests, and workspace tests on Windows
+- [x] Verify core tests and workspace tests on Windows (24 core; 26 workspace tests passed)
 
 ### M3.2 — Indexed triangle meshes
 
-Implementation committed; local Windows validation pending.
+Implementation committed; user-reported local Windows validation completed on 2026-11-08 (32 core tests; 34 workspace tests passed).
 
 - [x] Add graphics-independent `TriangleMesh3` with f64 world-space vertices and flattened `u32` triangle indices
 - [x] Preserve vertex order, triangle order, and winding
@@ -110,7 +110,10 @@ Implementation committed; local Windows validation pending.
 - [x] Allow empty meshes, vertices without triangles, and unreferenced vertices
 - [x] Preserve geometrically degenerate triangles; geometric quality checks are a separate concern
 - [x] Add CPU tests for valid meshes and each validation rule
-- [ ] Verify formatting, core tests, and workspace tests on Windows
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (32 passed)
+- [x] Verify `cargo test --workspace` on Windows (34 passed: 32 core, 2 renderer)
+- [ ] Record formatting-check result for this increment
 
 Scope note: this increment validates per-triangle index structure, not global manifoldness, watertightness, connected components, or consistent orientation across adjacent triangles. Those require explicit future topology APIs.
 
@@ -126,3 +129,11 @@ Scope note: this increment validates per-triangle index structure, not global ma
 - render `z = A * sin(x) * cos(y)`
 - adjust A and regenerate only affected geometry
 - inspect a selected point and recover its source coordinates/value
+
+### M3.3 — Mesh topology queries (planned)
+
+- Define stable, deterministic unique-undirected-edge extraction
+- Define face-to-edge and edge-to-face incidence semantics
+- Preserve source vertex/face identity and triangle winding
+- Test boundary edges, shared edges, disconnected components, and non-manifold edge incidence without silently classifying meshes as manifold or watertight
+- Keep all topology data and algorithms in `svf-core`, independent of the renderer
