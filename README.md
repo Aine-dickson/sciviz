@@ -8,12 +8,16 @@ library during development.
 
 ## Current status
 
-- **M0 — Foundation:** workspace and architecture established.
-- **M1 — Graphics foundation:** winit window, wgpu device/surface initialization,
-  clear rendering, resize handling, and basic surface recovery.
-- **M2 — Spatial foundation:** camera mathematics is locally validated; reference-scene renderer implementation is committed and awaiting local validation.
+- **M0–M4 — Foundation, spatial math, scientific geometry, and mathematical
+  sampling:** implemented.
+- **M5 — Interactive surface demonstrator:** indexed surface rendering,
+  parametric surface updates, viewport unprojection, and scientific picking
+  implemented and user-validated on Windows.
+- **M6.1 — Scientific field semantics:** point-, cell-, and dataset-associated
+  scalar/vector field types implemented; local Windows validation is pending.
 
-M1 was validated on the user's Windows environment. M2.3 camera mathematics has also passed user-reported Windows checks. M2.4's reference-scene rendering implementation is committed and awaiting local compilation and visual verification.
+See [Milestones](docs/MILESTONES.md) for scope and validation details, and
+[HANDOFF.md](HANDOFF.md) for the current development state.
 
 ## Requirements
 
