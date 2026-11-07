@@ -41,15 +41,22 @@ Accepted conventions are recorded in
 ### M2.1 — Coordinate semantics and math foundation
 
 - [x] Select glam for f64 vector/matrix/quaternion primitives
+- [x] Declare glam centrally and inherit it in svf-core
 - [x] Define right-handed world axes (+Y up)
 - [x] Distinguish world points from displacement vectors
-- [ ] Verify implementation with local Windows cargo checks and tests
+- [x] Verify implementation with local Windows workspace checks and tests
 
 ### M2.2 — Transform semantics
 
 - [x] Document column-vector multiplication and column-major storage
 - [x] Add a composition-order unit test
+- [x] Verify transform convention tests locally
 - [ ] Add validated world/view transform APIs and tests
+
+User-reported Windows validation:
+- `cargo check --workspace`: passed.
+- `cargo test -p svf-core`: passed.
+- `cargo test --workspace`: passed.
 
 ### M2.3 — Camera and projection
 
@@ -64,9 +71,6 @@ Accepted conventions are recorded in
 - [ ] Convert camera matrices to renderer representation explicitly
 - [ ] Render reference axes and a grid
 - [ ] Verify resize updates projection without mutating world data
-
-M2.1/M2.2 source implementation has been added but is not considered locally
-verified until the user runs the workspace checks and tests.
 
 ## M3 — Scientific geometry
 
