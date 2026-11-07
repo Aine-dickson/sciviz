@@ -333,3 +333,51 @@ correction to M4.3, not a change to the mathematical sampling domain.
 
 The correction is committed but still requires user-reported Windows
 formatting, compilation, and test validation before M5.1 proceeds.
+
+
+## M5.1 — Indexed triangle rendering and depth testing
+
+Implementation committed; awaiting user-reported Windows validation.
+
+Changes:
+- `svf-render` accepts a graphics-independent `TriangleMesh3` when
+  constructing `SceneRenderer`.
+- Mesh positions are converted from f64 world coordinates to f32 at the
+  renderer boundary. Conversion rejects coordinates that become non-finite
+  after narrowing. Vertex order and u32 triangle indices are preserved.
+- Added a dedicated indexed TriangleList pipeline and WGSL mesh shader.
+- Added a Depth32Float target. It is cleared per frame, recreated on
+  non-zero resize, and used by depth-aware line and mesh pipelines.
+- The mesh pipeline currently uses a fixed color and basic directional
+  diffuse term. Normals, material systems, and advanced lighting are outside
+  this milestone.
+- Explorer generates a small flat sampled graph surface through svf-core and
+  passes its mesh to the renderer. This is an integration fixture; M5.2
+  replaces it with the adjustable parametric surface.
+
+Renderer unit tests cover f64-to-f32 conversion, preservation of indices, and
+rejection of values outside the representable f32 range.
+
+Files changed:
+- `crates/svf-render/src/lib.rs`
+- `crates/svf-render/src/mesh.wgsl` (new)
+- `apps/explorer/src/main.rs`
+
+GitHub commits:
+- `d8d089c` — indexed triangle mesh pipeline and depth target
+- `4bd5dfd` — mesh WGSL shader
+- `4925824` — sampled flat surface in Explorer
+
+Next local validation:
+```powershell
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test -p svf-render
+cargo test --workspace
+cargo run -p svf-explorer
+```
+
+Expected visual check: a flat blue surface should appear over the XZ grid,
+with the colored world axes visible. Resize the window and verify the surface
+remains correctly projected. If any check fails, report the exact output
+before further implementation.
