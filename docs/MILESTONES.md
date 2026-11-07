@@ -15,23 +15,48 @@
 - [x] Clear the surface through a render pass
 - [x] Handle window resizing and zero-sized surfaces
 - [x] Handle close requests and surface acquisition states
-- [ ] Compile on Windows MSVC
-- [ ] Run on a Windows machine with a supported GPU
-- [ ] Verify resize/minimize/restore behavior on real hardware
+- [x] Compile on Windows MSVC
+- [x] Run on a Windows machine with a supported GPU
+- [x] Verify resize/minimize/restore behavior on real hardware
+- [x] Verify clean window exit
 
-M1 is implementation-complete in source, but not validated until the unchecked
-Windows build/runtime checks pass.
+M1 was locally validated on the user's Windows environment:
+- `cargo check -p svf-render` passed.
+- `cargo check --workspace` passed.
+- The Explorer window opened and displayed the clear background.
+- Resizing, minimizing, restoring, and closing behaved as expected.
+
+The visible clear color is intentionally a very dark blue-gray, not pure black.
+These results are user-reported local validation; they have not been independently
+reproduced in this repository environment.
 
 ## M2 — Spatial foundation
 
-Proposed acceptance criteria:
+Objective: establish a graphics-independent mathematical model for spatial
+coordinates and camera transforms before introducing scientific geometry.
 
-- define coordinate conventions and handedness
-- define world, view, and clip-space boundaries
-- implement camera state and projection
-- render 3D axes and a reference grid
-- implement orbit, pan, and zoom
-- unit-test camera transforms and projection parameters
+Initial design direction:
+- use a right-handed world coordinate system with +Y up
+- define camera forward as local -Z
+- use column vectors and explicit transform composition
+- preserve f64 in the scientific/core layer
+- make conversion to renderer-friendly f32 an explicit boundary
+- use WebGPU clip-space depth range [0, 1]
+- keep viewport/pixel coordinates distinct from world and clip coordinates
+
+Planned acceptance criteria:
+- document coordinate spaces and transformation direction
+- implement tested vector/matrix or equivalent transform primitives in
+  `svf-core`, without exposing wgpu types
+- implement camera view transformation
+- implement perspective and orthographic projection with validated parameters
+- define aspect-ratio and viewport mapping behavior
+- add unit tests for camera transforms, projection, and edge cases
+- integrate camera matrices into `svf-render` only after core math is tested
+- render reference axes/grid as the first spatial integration test
+
+M2 has started with coordinate-convention design. No camera or transform
+implementation is claimed yet.
 
 ## M3 — Scientific geometry
 
