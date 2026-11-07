@@ -370,8 +370,15 @@ GitHub commits:
 - `ad73763` — render opaque mesh before depth-tested reference lines
 - `1fc79c5` — renderer documentation and conversion-test cleanup
 - `45d1383` — keep generic mesh shader unlit until normals are defined
+- `d826410` — use wgpu 30 optional depth-state fields and align test formatting
 
-Next local validation:
+Initial Windows validation exposed four compile errors: wgpu 30 defines
+`DepthStencilState.depth_write_enabled` and `depth_compare` as optional
+fields. The implementation has been corrected to use `Some(...)`. The same
+correction commit also aligns the reported rustfmt differences in the renderer
+tests.
+
+Next local validation (after pulling the correction):
 ```powershell
 cargo fmt --all -- --check
 cargo check --workspace
