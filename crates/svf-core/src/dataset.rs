@@ -7,10 +7,10 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    unstructured::UnstructuredGrid3,
     fields::{FieldError, FieldMetadata, ScalarField, VectorField3},
     geometry::{PointSet3, Polyline3, TriangleMesh3},
     sampling::StructuredGrid2D,
+    unstructured::UnstructuredGrid3,
 };
 
 /// Geometry variants currently supported as source datasets.
