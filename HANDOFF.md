@@ -541,6 +541,7 @@ User-reported automated validation after syncing to `87f1d59`:
 
 Remaining validation:
 1. Run formatting and workspace compilation checks on Windows.
-2. Verify picking after resizing the window and changing surface amplitude.
+2. Verify picking after changing surface amplitude; resize/minimize/maximize
+   behavior has now been user-validated on Windows.
 3. Only after those checks, inspect and deliberately recover any local changes
    preserved in the pre-sync Git stash. Do not blindly apply the stash.
