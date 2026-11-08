@@ -539,3 +539,30 @@ Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
 time-varying fields, implicit field transfer/interpolation, GPU-side scalar
 mapping, logarithmic/percentile ranges, materials/lighting, on-screen text
 legends, file import/export, and mesh repair.
+
+
+## M7.3 — Vector field visualization
+
+Design contract: `docs/vector-field-visualization.md`.
+
+Status: adopted as the next development increment; design contract recorded
+on feature branch `m7-3-vector-field-visualization`. Implementation has not
+started.
+
+Objective: convert point- and cell-associated `VectorField3` data into
+graphics-independent, provenance-preserving 3D arrow glyphs in `svf-core`,
+then render prepared glyph geometry in `svf-render`.
+
+Initial semantics:
+- Point glyphs use exact source point positions.
+- Cell glyphs use deterministic arithmetic-mean source-vertex centers;
+  these are not mass or volume centroids.
+- Dataset-associated vectors are deferred because they have no intrinsic
+  spatial anchor; the API must not invent one.
+- World-basis vectors only.
+- Explicit magnitude-scaled and uniform-length policies; no automatic scaling.
+- Zero and non-finite vectors retain explicit source status.
+- Core generates arrow line segments in f64; renderer only converts and draws.
+
+See the design contract for geometry-specific center rules, numerical
+requirements, tests, and non-goals.
