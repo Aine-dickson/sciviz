@@ -1,6 +1,6 @@
 # Scientific Visualization Framework — Handoff
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 ## Project objective
 
@@ -1124,27 +1124,60 @@ User-reported Windows validation (2026-11-08):
 M8.1 core extraction, Explorer integration, automated Windows validation,
 and visual acceptance are complete.
 
-## Next increment — M8.2 Provenance-based scalar transfer
+## M8.2 — Provenance-based scalar transfer onto derived isosurfaces (complete; merged 2026-11-09)
 
 Design contract: `docs/isosurface-field-transfer.md`.
 
-Status: design finalized; implementation awaits review/approval.
+- Core PR #20 merged to `main`; merge commit
+  `531bd64da3f57dbe20c37dad8b591874bc625043`.
+- Renderer/Explorer PR #21 merged to `main`; merge commit
+  `ccc84e0b72fb1cedbaa6a159ecc2d5c384b2a917`.
 
-M8.2 transfers a point-associated scalar field from the exact source dataset
-onto M8.1 isosurface vertices, using the preserved source-point/source-edge
-provenance. Key settled decisions:
-- Preserve `SampleValue` classifications; interior NaN propagates, signed
-  infinities follow convex-combination semantics, and invalid samples affect
-  only their output vertices.
-- Use sign-aware finite interpolation to avoid avoidable overflow.
-- Own the exact `Isosurface3` alongside transferred values so mesh order and
-  provenance cannot be accidentally detached.
-- Map one color per unique derived vertex; automatic range uses finite
-  transferred values on the extracted surface.
-- Keep `MappedSurface3` unchanged; add a dedicated mapped-isosurface type.
-- Add renderer support and a separate Explorer `--colored-isosurface` mode.
-- Preserve existing `--isosurface` and all prior modes.
+Implemented:
+- `svf-core::isosurface_field_transfer` transfers point-associated scalar
+  values to isosurface vertices using source-point/source-edge provenance.
+- `TransferredScalarField3` owns the exact `Isosurface3`, source metadata,
+  and transferred values in mesh-vertex order.
+- `MappedIsosurface3` owns the transferred field, one RGBA color per unique
+  derived vertex, and the resolved scalar range. Existing `MappedSurface3`
+  remains unchanged.
+- Transfer validates the unstructured source dataset, point association,
+  field cardinality, provenance count and bounds, canonical edge endpoint
+  ordering, finite interpolation parameter in [0, 1], and triangle source
+  cell IDs.
+- Source-point values and edge endpoints are copied exactly. Interior
+  interpolation preserves NaN and signed-infinity semantics and uses
+  sign-aware f64 arithmetic for finite values.
+- `ScalarRange::from_values` supports automatic ranges over transferred
+  values; explicit range and invalid-color behavior reuse scalar
+  visualization semantics.
+- Renderer exposes
+  `SceneRenderer::new_with_mapped_isosurface`. It consumes prepared mesh
+  positions, indices, and colors only; f64-to-f32 conversion remains at the
+  renderer boundary.
+- Explorer adds `--colored-isosurface` with a distinct point-associated
+  `temperature` field and Viridis mapping. The original `--isosurface`
+  mode remains unchanged. Source dataset, extracted isosurface, and mapped
+  result are retained CPU-side.
 
-M8.2 has no implementation changes yet. Review the finalized contract before
-creating the implementation branch.
+User-reported Windows validation (2026-11-09):
+- PR #20 core validation: 226 tests passed (204 core, 15 Explorer,
+  7 renderer).
+- After renderer/Explorer integration, PR #21 validation: 228 tests passed
+  (204 core, 17 Explorer, 7 renderer).
+- The user visually confirmed that `--colored-isosurface` output matched
+  the expected mapped-color rendering.
+- The user explicitly authorized merging PR #21 after validation.
+- A `cargo check --workspace` result was not included in the final PR #21
+  validation report and is therefore not recorded as passed here.
 
+M8.2 implementation, user-reported Windows test validation, visual
+acceptance, and merge are complete.
+
+## Current project state and next planning step
+
+M0–M8.2 are implemented and merged to `main`. The next milestone has not
+yet been selected. Before implementation, review the current architecture,
+remaining design constraints, and desired scientific workflows; then define
+one focused increment with an explicit design contract and testable acceptance
+criteria. Do not infer or silently begin an M8.3 scope.
