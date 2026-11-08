@@ -1,6 +1,6 @@
 # M6.5 — Unstructured boundary surface representation
 
-Status: design approved for implementation planning; no implementation or local validation is claimed.
+Status: implementation committed on this branch; local Windows validation is pending.
 
 ## Objective
 
@@ -16,7 +16,7 @@ silently convert quadrilaterals into triangles or transfer source fields.
 Add a sibling module, `crates/svf-core/src/boundary_surface.rs`, exported from
 `svf_core`.
 
-The exact API should be kept small:
+Implemented API:
 
 - `UnstructuredGrid3::boundary_surface() -> Result<BoundarySurface3, BoundarySurfaceError>`
 - `BoundarySurface3::points() -> &[WorldPoint3]`
