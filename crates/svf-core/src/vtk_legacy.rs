@@ -464,7 +464,7 @@ VECTORS flux float
 
     #[test]
     fn preserves_non_finite_field_values_and_float32_semantics() {
-        let text = MIXED.replace("0 1 2 3 4 5 6 7", "NaN Inf -Inf 0.1 4 5 6 7");
+        let text = MIXED.replace("SCALARS temperature float 1\nLOOKUP_TABLE default\n0 1 2 3 4 5 6 7\nVECTORS velocity", "SCALARS temperature float 1\nLOOKUP_TABLE default\nNaN Inf -Inf 0.1 4 5 6 7\nVECTORS velocity");
         let dataset = parse_legacy_ascii_unstructured_grid(&text).unwrap();
         let values = dataset.scalar_field("temperature").unwrap().values();
         assert_eq!(values[0], SampleValue::from_f64(f64::NAN));
