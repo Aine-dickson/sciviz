@@ -9,6 +9,7 @@ pub mod ray;
 pub mod sampling;
 pub mod spatial;
 pub mod unstructured;
+pub mod unstructured_topology;
 
 /// Human-readable project name.
 pub const PROJECT_NAME: &str = "Scientific Visualization Framework";
