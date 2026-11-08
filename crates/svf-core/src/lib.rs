@@ -3,6 +3,7 @@
 
 pub mod boundary_surface;
 pub mod camera;
+pub mod camera_navigation;
 pub mod geometry;
 pub mod fields;
 pub mod dataset;
