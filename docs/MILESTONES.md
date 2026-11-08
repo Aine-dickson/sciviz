@@ -698,41 +698,55 @@ remains consistent. The only reported compiler warning is the pre-existing
 
 ## M8.2 — Provenance-based scalar transfer onto derived isosurfaces
 
-Design proposal: `docs/isosurface-field-transfer.md`.
+Design contract: `docs/isosurface-field-transfer.md`.
 
-Status: proposed; design review required before implementation.
+Status: design finalized; implementation not started.
 
-Objective: transfer a selected point-associated scalar field from the
-unchanged source dataset onto the vertices of an extracted `Isosurface3`,
-using its explicit source-point/source-edge provenance. This is the next
-step toward coloring and inspecting derived scientific surfaces without
-inventing source point IDs or mutating source data.
+Objective: transfer a point-associated scalar field from the exact source
+dataset onto M8.1 isosurface vertices using source-point/source-edge
+provenance, then map and render the derived surface without inventing source
+point identities.
 
-Proposed contract:
-- A source-point intersection copies the selected field value at that
-  source point.
-- A source-edge intersection interpolates the selected field's endpoint
-  values using the isosurface provenance parameter `t`, which is measured
-  from the lower source point ID to the higher ID.
-- The transferred values are ordered exactly like
-  `Isosurface3::mesh().vertices()` and are a derived field, not a field
-  attached to or written back into the source dataset.
-- Initially support point-associated scalar fields only. Cell-associated
-  transfer requires a separate policy because a generated vertex may lie
-  on edges shared by multiple source cells.
-- Define explicit behavior for non-finite source values and numerically
-  unrepresentable interpolation; never silently substitute zero or clamp.
-- Preserve source dataset, isosurface geometry, and provenance unchanged.
-- Reuse existing scalar range and color-map semantics where possible, while
-  avoiding false claims that an interpolated edge vertex is one source point.
-- Keep all transfer and mapping calculations in `svf-core`; renderer
-  consumes prepared colored geometry only.
+Finalized decisions:
+- The API accepts only an unstructured source dataset and point-associated
+  scalar fields. The caller must supply the exact dataset used for extraction;
+  M8.1 currently has no globally unique dataset identity, so the API can
+  validate counts and provenance bounds but cannot prove dataset identity.
+- Source-point provenance copies the complete `SampleValue` unchanged.
+- Source-edge provenance requires canonical ascending point IDs and finite
+  `t` in [0, 1]. Endpoints are copied exactly at t=0/1.
+- Interior NaN propagates to NaN; one or same-sign infinities propagate
+  their infinity; opposing infinities produce NaN. Non-finite samples affect
+  only their corresponding output vertex and receive the configured invalid
+  color later.
+- Finite interpolation uses same-sign `a + (b-a)*t` and opposite-sign
+  `a*(1-t)+b*t` branches to avoid avoidable overflow. An unexpected
+  non-finite result from finite inputs is an explicit error.
+- `TransferredScalarField3` owns the exact `Isosurface3`, field metadata,
+  and values in mesh-vertex order. `MappedIsosurface3` retains that object,
+  one color per unique vertex, and the resolved range.
+- Automatic color range uses finite transferred values on the extracted
+  surface. Explicit ranges, constant-range midpoint behavior, and invalid
+  colors reuse existing scalar visualization semantics.
+- Add `ScalarRange::from_values`; retain existing `MappedSurface3`
+  unchanged.
+- Renderer accepts prepared mapped isosurface geometry and colors only;
+  f64-to-f32 conversion remains at the GPU boundary.
+- Add separate Explorer `--colored-isosurface` mode using a second
+  point-associated field. Existing `--isosurface` and all previous modes
+  remain unchanged.
 
-Design review must settle invalid-value propagation, stable interpolation
-for extreme finite values, output metadata/provenance, and how the derived
-colored-surface type fits the existing renderer input without weakening
-the current source-provenance contracts.
+Implementation checklist:
+- [ ] Add core transfer module, types, validation, and numerical policy
+- [ ] Add shared scalar-range-from-values support
+- [ ] Add derived isosurface color mapping and focused tests
+- [ ] Add renderer adapter and f32-boundary validation
+- [ ] Add Explorer `--colored-isosurface` fixture/mode
+- [ ] Run Windows focused tests, workspace tests, and workspace check
+- [ ] Visually validate mapped colors, camera navigation, hover/picking,
+  resize, minimize, and restore
+- [ ] Regression-test all existing Explorer modes
 
-Explicit non-goals for M8.2: structured-grid or hexahedral isosurface
-extraction, cell-associated transfer, vector/tensor transfer, general
-dataset-to-dataset resampling, volume rendering, and GPU-side transfer.
+Explicit non-goals: cell/dataset/vector/tensor transfer, structured or
+hexahedral extraction, general resampling, volume rendering, GPU-side
+interpolation, and general material/legend systems.
