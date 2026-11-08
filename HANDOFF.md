@@ -887,13 +887,17 @@ M7.1 is complete. Preserve its scope boundaries: no field coloring,
 unstructured picking UI, orientation repair, lighting, camera controls,
 volume rendering, or file I/O was added in M7.1.
 
-## Current work — M7.2 reusable scalar visualization
+## M7.2 — Reusable scalar visualization (complete)
 
-Branch: `m7-2-scalar-visualization`, created from `main` after M7.1.
+Merged to `main` through PR #7 on 2026-11-08.
+
+Merge commit: `09c99da4eb4f36d09fad20facb987fde76d2e588`.
+
+Feature branch: `m7-2-scalar-visualization`.
 
 Design contract: `docs/scalar-visualization.md`.
 
-The M7.2 core pipeline is implemented and user-validated on Windows.
+The M7.2 core pipeline is implemented, merged, and user-validated on Windows.
 
 Core implementation:
 - `crates/svf-core/src/scalar_visualization.rs` provides
@@ -956,9 +960,8 @@ Windows validation completed (user-reported, 2026-11-08):
 - No formatting routine was run.
 
 M7.2 implementation, automated Windows validation, numerical edge-case
-validation, and visual acceptance are complete on this feature branch.
-Final compare against main: 31 commits ahead, 0 behind. Next: open a PR
-for user review. Do not merge without the user's approval.
+validation, and visual acceptance are complete. PR #7 is merged to `main`
+(commit `09c99da`). The feature branch is no longer the active work branch.
 
 Do not add implicit interpolation for generated points without explicit
 source weights. Keep scalar range calculation, palette interpolation, and
