@@ -20,14 +20,16 @@ library during development.
 - **M6 — Scientific datasets and unstructured surfaces:** M6.1–M6.6 are
   implemented and merged to `main`; M6.6 passed Windows validation with
   153 workspace tests (148 core, 1 Explorer, 4 renderer).
-
-M7.1 — Unstructured boundary-surface rendering: implemented, merged to
-`main`, and user-validated on Windows (2026-11-08). The optional mixed
-hexahedron/tetrahedron mode renders 16 provenance-mapped triangles; the
-workspace passes 159 tests (148 core, 7 Explorer, 4 renderer).
-
-M7.2 is now in design on branch `m7-2-scalar-visualization`: a reusable
-scalar-to-color mapping pipeline for structured and unstructured surfaces.
+- **M7.1 — Unstructured boundary rendering:** merged and user-validated;
+  mixed hexahedron/tetrahedron fixture renders 16 provenance-mapped triangles.
+- **M7.2 — Reusable scalar visualization:** merged and user-validated;
+  structured point and unstructured cell scalar fields render through the
+  common core mapping pipeline.
+- **M7.3 — Vector field visualization:** merged and user-validated;
+  core resolves point/cell vectors and builds provenance-preserving glyphs,
+  while Explorer `--vectors` demonstrates point-associated vectors.
+- **M7.4 — Structured cell-associated vectors:** design prepared; next
+  increment adds a dedicated `--cell-vectors` demonstration.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
