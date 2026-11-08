@@ -240,7 +240,6 @@ pub fn prepare_imported_scene_with_options(
         .collect();
     let mesh = TriangleMesh3::new(surface.points().to_vec(), indices)
         .map_err(|error| format!("could not construct render mesh: {error}"))?;
-    validate_render_mesh(&mesh)?;
 
     let isosurface = if let Some(name) = isosurface_field_name {
         let field = match dataset.field(name) {
