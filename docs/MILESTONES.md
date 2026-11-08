@@ -592,24 +592,25 @@ M7.4 will use a sparser structured-cell fixture and an explicit display length.
 
 Design contract: `docs/cell-vector-visualization.md`.
 
-Status: design prepared on branch `m7-4-cell-vector-visualization`;
-implementation has not started.
+Status: initial implementation in PR #11 on branch
+`m7-4-structured-cell-vectors`; Windows validation pending.
 
 Objective: demonstrate cell-associated vector fields on a structured graph
 surface, using source-cell vertex-average anchors and the existing prepared
 glyph renderer path.
 
-- [ ] Build a dataset whose geometry is the same `StructuredGrid2D` used to
+- [x] Build a dataset whose geometry is the same `StructuredGrid2D` used to
   generate the displayed graph surface
-- [ ] Attach a cell-associated, world-basis `VectorField3` with matching
+- [x] Attach a cell-associated, world-basis `VectorField3` with matching
   logical-cell cardinality
-- [ ] Resolve each vector to its source cell ID and arithmetic-mean four-corner
+- [x] Resolve each vector to its source cell ID and arithmetic-mean four-corner
   graph-surface anchor
-- [ ] Generate deterministic finite, nonzero vectors with varying directions
-- [ ] Use a sparse fixture and explicit uniform glyph length for legibility
-- [ ] Add core integration and Explorer mode-selection/demo tests
-- [ ] Add optional `--cell-vectors` without changing existing modes
-- [ ] Retain source dataset and glyph result on the CPU
+- [x] Generate deterministic finite, nonzero vectors with varying directions
+- [x] Use a sparse 8 × 8 cell fixture and explicit 1.0-world-unit uniform
+  glyph length for legibility
+- [x] Add Explorer fixture, source-anchor, cardinality, glyph, and mode-selection tests
+- [x] Add optional `--cell-vectors` without changing existing modes
+- [x] Retain source dataset and glyph result on the CPU
 - [ ] Verify workspace tests and checks on Windows
 - [ ] Visually verify arrow direction, arrowheads, correct depth occlusion,
   and resize/minimize/restore
