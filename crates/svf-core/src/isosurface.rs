@@ -7,7 +7,6 @@ use crate::{
     dataset::{Dataset, DatasetGeometry},
     fields::{FieldAssociation, FieldError, ScalarField},
     geometry::{GeometryError, TriangleMesh3},
-    sampling::SampleValue,
     spatial::WorldPoint3,
     unstructured::{CellType3, UnstructuredGrid3},
 };
@@ -480,7 +479,7 @@ fn normalize(a: [f64; 3]) -> Option<[f64; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fields::FieldMetadata;
+    use crate::{fields::FieldMetadata, sampling::SampleValue};
 
     fn point(x: f64, y: f64, z: f64) -> WorldPoint3 { WorldPoint3::new(x, y, z) }
 
