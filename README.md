@@ -31,8 +31,9 @@ library during development.
 - **M7.4 — Structured cell-associated vectors:** merged and user-validated
   on Windows; adds a 64-cell structured-grid demo with explicit-length glyphs.
   Visual depth occlusion remains inconclusive from the fixed camera.
-- **M7.5 — Interactive 3D camera navigation:** design proposed; orbit, pan,
-  and zoom are not yet implemented.
+- **M7.5 — Interactive 3D camera navigation:** implemented, user-validated
+  on Windows, and merged through PR #13; orbit, pan, and wheel zoom work
+  across all six Explorer modes.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
