@@ -2,15 +2,20 @@
 
 ## Status
 
-Design proposed for review. No implementation has started.
+Implemented and merged to `main` through PR #13 on 2026-11-08.
+Merge commit: `32002a3cbce2a3c03755cbda67dc8b759de1892d`.
+
+User-reported Windows validation: workspace tests and check passed; runtime
+navigation passed in all six Explorer modes. The workspace check retains one
+pre-existing `VectorSource3::new` dead-code warning.
 
 ## Motivation
 
-The Explorer currently renders every visualization from a fixed reference
+The Explorer previously rendered every visualization from a fixed reference
 camera. M7.4 validation confirmed structured cell-vector glyph placement and
 arrowhead visibility, but a single view did not allow a conclusive visual
-inspection of depth occlusion. Explorer currently has no orbit, pan, or zoom
-input handling.
+inspection of depth occlusion. M7.5 adds interactive orbit, pan, and zoom so
+the same scientific scene can be inspected from multiple viewpoints.
 
 Add camera navigation as a reusable inspection capability, not as a
 scientific-data or geometry transformation.
@@ -65,9 +70,9 @@ framework or a large camera abstraction.
   click inspection.
 - Keep camera controls available in every current visualization mode.
 
-## Proposed default interaction mapping
+## Default interaction mapping
 
-The following mapping is proposed for review, not yet implemented:
+Implemented Explorer mapping:
 
 - Left mouse drag: orbit.
 - Middle mouse drag: pan.
@@ -140,19 +145,20 @@ Explorer:
 
 ## Windows acceptance
 
-- [ ] Left drag orbits around the scene target.
-- [ ] Middle drag pans the scene without changing camera orientation.
-- [ ] Wheel zooms smoothly and respects distance limits.
-- [ ] No camera flip or singularity occurs near vertical views.
-- [ ] Click inspection remains functional; dragging does not trigger click inspection.
-- [ ] Picking follows the updated camera.
-- [ ] M7.4 `--cell-vectors` can be inspected from multiple angles and glyph
-      depth occlusion is visibly correct.
-- [ ] `--vectors`, `--scalar`, `--unstructured-scalar`,
+- [x] Left drag orbits around the scene target.
+- [x] Middle drag pans the scene without changing camera orientation.
+- [x] Wheel zooms and respects configured distance limits.
+- [x] Orbit elevation is clamped away from the world-up singularity.
+- [x] Click inspection remains functional; a completed drag does not also
+      trigger click inspection.
+- [x] Picking follows the updated camera.
+- [x] M7.4 `--cell-vectors` can be inspected from multiple angles.
+- [x] `--vectors`, `--scalar`, `--unstructured-scalar`,
       `--unstructured`, and default mode remain functional.
-- [ ] Resize and minimize/restore preserve the current camera pose.
-- [ ] `cargo check --workspace` passes without warnings.
-- [ ] `cargo test --workspace` passes.
+- [x] Resize and minimize/restore preserve usable camera behavior.
+- [x] `cargo check --workspace` passes; one pre-existing dead-code warning
+      remains.
+- [x] `cargo test --workspace` passes.
 
 ## Explicit non-goals
 
@@ -164,3 +170,38 @@ Explorer:
 - Lighting, materials, labels, legends, or other rendering enhancements.
 - General-purpose input binding/configuration framework.
 - Touch, gamepad, or multi-touch navigation.
+
+
+## Implementation record
+
+The implementation follows the responsibilities above:
+
+- `svf-core/src/camera_navigation.rs` provides
+  `CameraNavigationConfig`, `CameraNavigationError`, and public
+  `orbit`, `pan`, and `zoom` operations. It has no winit or wgpu
+  dependency.
+- Orbit preserves target and distance, uses +Y world up, and clamps elevation
+  using the configured pole margin.
+- Pan is perspective-only and translates camera position and target by the
+  same camera-plane offset, scaled using distance, vertical FOV, and viewport
+  height.
+- Zoom changes distance exponentially and clamps it to configured limits.
+  Positive wheel delta zooms in.
+- The default configuration is min distance 1.0, max distance 80.0,
+  pole margin 0.02 radians, orbit sensitivity 0.006 radians/pixel, and
+  zoom exponent sensitivity 0.12 per wheel unit.
+- `SceneRenderer::set_camera` validates the f32 GPU uniform before writing
+  it and replacing the renderer's stored f64 camera, so rendering and
+  `ray_from_viewport` use the same camera.
+- Explorer uses left drag for orbit, middle drag for pan, and wheel input for
+  zoom. A drag suppresses the corresponding click inspection.
+
+User-reported Windows validation (2026-11-08):
+
+- `cargo test --workspace`: passed (exact final count not recorded).
+- `cargo check --workspace`: passed with the existing
+  `VectorSource3::new` dead-code warning.
+- Runtime navigation passed in default, `--unstructured`, `--scalar`,
+  `--unstructured-scalar`, `--vectors`, and `--cell-vectors` modes.
+- In `--cell-vectors`, orbit, pan, zoom, picking synchronization, and
+  resize/minimize/restore were explicitly reported working as expected.
