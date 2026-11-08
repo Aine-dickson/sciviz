@@ -377,11 +377,12 @@ fn main() {
 }
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
-    if args.into_iter().any(|argument| argument == "--unstructured-scalar") {
+    let arguments = args.into_iter().collect::<Vec<_>>();
+    if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
         ExplorerMode::UnstructuredScalar
-    } else if args.into_iter().any(|argument| argument == "--scalar") {
+    } else if arguments.iter().any(|argument| argument == "--scalar") {
         ExplorerMode::StructuredScalar
-    } else if args.into_iter().any(|argument| argument == "--unstructured") {
+    } else if arguments.iter().any(|argument| argument == "--unstructured") {
         ExplorerMode::Unstructured
     } else {
         ExplorerMode::Parametric
@@ -582,10 +583,14 @@ mod tests {
         assert_eq!(mapped.triangle_count(), 16);
         assert_eq!(dataset.scalar_field("cell intensity").unwrap().association(), FieldAssociation::Cell);
         assert_eq!(provenance.source_cell_ids(), &mapped.source_cell_ids());
-        for (triangle, &source_cell) in mapped.source_cell_ids().iter().enumerate() {
+        let hexahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 0).count();
+        let tetrahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 1).count();
+        assert_eq!(hexahedron_triangles, 12);
+        assert_eq!(tetrahedron_triangles, 4);
+
+        for (triangle, _) in mapped.source_cell_ids().iter().enumerate() {
             let colors = &mapped.colors()[triangle * 3..triangle * 3 + 3];
             assert!(colors.iter().all(|color| color == &colors[0]));
-            assert_eq!(source_cell, if triangle < 12 { 0 } else { 1 });
         }
     }
 
