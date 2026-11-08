@@ -875,7 +875,15 @@ Rendering reuses the existing indexed mesh pipeline, depth target, fixed
 unlit color, and no-cull behavior. No field coloring, unstructured picking,
 orientation repair, lighting, camera controls, or file I/O is included.
 
-The contract and branch have been created, but **M7.1 implementation and
-Windows validation have not started**. Do not report the fixture as rendered
-until the user confirms the Windows runtime check. Preserve the user's
-preference not to run formatting routines.
+The contract is committed. The Explorer implementation now adds an optional
+`--unstructured` mode while keeping the parametric mode as the default.
+It constructs one hexahedron and one disconnected tetrahedron, derives the
+boundary and triangulated surfaces through existing `svf-core` APIs, adapts
+the result to `TriangleMesh3`, and retains the triangulated surface (including
+provenance) on the CPU.
+
+Five focused tests currently cover fixture structure, boundary polygon counts,
+triangle/provenance counts, render-mesh conversion/index validity, and mode
+selection. These are implementation claims based on code inspection only:
+**no build, tests, or Windows runtime validation have been run yet**. The
+formatting routine remains intentionally unused.
