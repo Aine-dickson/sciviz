@@ -374,8 +374,11 @@ Scope excludes rendering, file importers, higher-order cells, variable-arity pol
 
 ### M6.4 — Unstructured volume boundary extraction
 
-Implementation committed and user-validated on Windows (2026-11-08).
-The feature branch is ready for pull-request review; it is not yet merged.
+Implementation committed, user-validated on Windows, and merged through
+PR #3 on 2026-11-08.
+
+- PR: https://github.com/Aine-dickson/sciviz/pull/3
+- Merge commit: `d4e78c1bb73c44945ee4258d87e5f69e477a7a94`.
 
 - [x] Define deterministic face identity from canonical point IDs
 - [x] Extract triangular faces from `Tetrahedron4`
