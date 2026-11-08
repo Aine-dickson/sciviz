@@ -8,6 +8,7 @@ use svf_core::{
     },
     geometry::{PointSet3, TriangleMesh3},
     isosurface::{extract_tetrahedral_isosurface, Isosurface3},
+    isosurface_field_transfer::{map_transferred_scalar_field, transfer_point_scalar_field, MappedIsosurface3},
     sampling::{
         Domain1D, Domain2D, SampleValue, SampledSurface3, SamplingSpec2D, StructuredGrid2D,
         sample_scalar_2d,
@@ -47,6 +48,7 @@ enum ExplorerMode {
     Vectors,
     CellVectors,
     Isosurface,
+    ColoredIsosurface,
 }
 
 impl ExplorerMode {
@@ -72,6 +74,9 @@ impl ExplorerMode {
             Self::Isosurface => {
                 "Scientific Visualization Framework — tetrahedral isosurface (iso=0)".to_owned()
             }
+            Self::ColoredIsosurface => {
+                "Scientific Visualization Framework — colored tetrahedral isosurface".to_owned()
+            }
         }
     }
 }
@@ -90,6 +95,7 @@ struct Explorer {
     _vector_glyphs: Option<VectorGlyphSet3>,
     _isosurface_dataset: Option<Dataset>,
     _isosurface: Option<Isosurface3>,
+    _mapped_isosurface: Option<MappedIsosurface3>,
     cursor_position: Option<[f64; 2]>,
     active_drag: Option<MouseButton>,
     drag_origin: Option<[f64; 2]>,
@@ -119,6 +125,7 @@ impl Explorer {
             _vector_glyphs: None,
             _isosurface_dataset: None,
             _isosurface: None,
+            _mapped_isosurface: None,
             cursor_position: None,
             active_drag: None,
             drag_origin: None,
@@ -364,6 +371,17 @@ impl ApplicationHandler for Explorer {
                     self._isosurface = Some(isosurface);
                     Ok(renderer)
                 }
+                ExplorerMode::ColoredIsosurface => {
+                    let (dataset, isosurface, mapped) = demo_colored_tetrahedral_isosurface()?;
+                    let renderer = pollster::block_on(SceneRenderer::new_with_mapped_isosurface(
+                        window.clone(),
+                        &mapped,
+                    ))?;
+                    self._isosurface_dataset = Some(dataset);
+                    self._isosurface = Some(isosurface);
+                    self._mapped_isosurface = Some(mapped);
+                    Ok(renderer)
+                }
             }
         })();
 
@@ -527,6 +545,8 @@ fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
         ExplorerMode::CellVectors
     } else if arguments.iter().any(|argument| argument == "--vectors") {
         ExplorerMode::Vectors
+    } else if arguments.iter().any(|argument| argument == "--colored-isosurface") {
+        ExplorerMode::ColoredIsosurface
     } else if arguments.iter().any(|argument| argument == "--isosurface") {
         ExplorerMode::Isosurface
     } else if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
@@ -770,6 +790,30 @@ fn demo_tetrahedral_isosurface(
     Ok((dataset, isosurface))
 }
 
+fn demo_colored_tetrahedral_isosurface(
+) -> Result<(Dataset, Isosurface3, MappedIsosurface3), Box<dyn std::error::Error>> {
+    let (mut dataset, isosurface) = demo_tetrahedral_isosurface()?;
+    dataset.add_scalar_field(ScalarField::new(
+        FieldMetadata::new("temperature", Some("relative units".to_owned()))?,
+        FieldAssociation::Point,
+        vec![
+            SampleValue::Finite(-2.0),
+            SampleValue::Finite(2.0),
+            SampleValue::Finite(0.0),
+            SampleValue::Finite(4.0),
+            SampleValue::Finite(-4.0),
+        ],
+    )?)?;
+    let transferred = transfer_point_scalar_field(&dataset, &isosurface, "temperature")?;
+    let mapped = map_transferred_scalar_field(
+        transferred,
+        ScalarRangeMode::Automatic,
+        &ColorMap::viridis(),
+        invalid_color()?,
+    )?;
+    Ok((dataset, isosurface, mapped))
+}
+
 fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMapError> {
     ColorRgba::new(0.35, 0.05, 0.22, 1.0)
 }
@@ -806,6 +850,26 @@ mod tests {
         assert_eq!(isosurface.vertex_provenance().len(), isosurface.mesh().vertex_count());
         assert!(isosurface.metadata().unsupported_cells().is_empty());
         assert!(isosurface.metadata().skipped_cells().is_empty());
+    }
+
+    #[test]
+    fn colored_isosurface_demo_transfers_and_maps_a_distinct_point_scalar_field() {
+        let (dataset, isosurface, mapped) = demo_colored_tetrahedral_isosurface().unwrap();
+        assert_eq!(dataset.point_count(), 5);
+        assert_eq!(isosurface.mesh().triangle_count(), 3);
+        assert_eq!(mapped.isosurface().mesh().indices(), isosurface.mesh().indices());
+        assert_eq!(mapped.colors().len(), isosurface.mesh().vertex_count());
+        assert_eq!(mapped.transferred().metadata().name(), "temperature");
+        assert_eq!(mapped.scalar_range().minimum(), -2.0);
+        assert_eq!(mapped.scalar_range().maximum(), 3.0);
+    }
+
+    #[test]
+    fn colored_isosurface_mode_is_selected_from_command_line() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--colored-isosurface".to_owned()]),
+            ExplorerMode::ColoredIsosurface
+        );
     }
 
     #[test]
