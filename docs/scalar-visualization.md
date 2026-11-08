@@ -2,12 +2,13 @@
 
 ## Status
 
-The reusable core mapping and renderer RGBA integration are implemented
-and user-validated on Windows. On 2026-11-08, `cargo test --workspace`
-passed (175 tests: 163 core, 7 Explorer, 5 renderer; doc-tests passed) and
-`cargo check --workspace` passed without warnings. The Explorer structured
-point-field and unstructured cell-field demonstrations are now implemented;
-their Windows compile/test and visual validation remain pending.
+The reusable core mapping, renderer RGBA integration, and Explorer
+demonstrations are implemented and user-validated on Windows (2026-11-08).
+`cargo test --workspace` passed (177 tests: 163 core, 9 Explorer,
+5 renderer; doc-tests passed), and `cargo check --workspace` passed
+without warnings. All four Explorer modes were visually rechecked, including
+both scalar demonstrations, resize, and minimize/restore. Final branch review
+and PR creation remain.
 
 Branch: `m7-2-scalar-visualization`, based on `main` after M7.1.
 
@@ -245,8 +246,10 @@ replacement for M7.1 behavior.
 
 ## Acceptance criteria
 
-M7.2 is complete when one reusable core mapping path colors both structured
-and unstructured surface representations, supports point/cell/dataset
-associations with the declared provenance semantics, preserves source data,
-renders per-corner colors without cell-boundary bleeding, passes focused
-Windows workspace tests, and is visually validated in both demonstrations.
+M7.2 acceptance is satisfied on the feature branch: one reusable
+core mapping path colors structured and unstructured surface representations,
+supports point/cell/dataset associations with the declared provenance
+semantics, preserves source data, renders per-corner colors without
+cell-boundary bleeding, passes Windows workspace tests, and is visually
+validated in both demonstrations. The default parametric and original
+unstructured flat-color modes were also rechecked for regressions.
