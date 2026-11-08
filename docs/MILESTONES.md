@@ -458,7 +458,7 @@ GPU buffers authoritative.
 
 Design contract: `docs/unstructured-rendering.md`.
 
-Status: implementation committed to this feature branch; local validation pending.
+Status: complete; PR #6 merged to main on 2026-11-08. Windows validation user-reported.
 
 - [x] Add an optional `--unstructured` Explorer mode; keep the existing
   parametric-surface mode as the default
@@ -472,14 +472,22 @@ Status: implementation committed to this feature branch; local validation pendin
 - [x] Reuse the existing indexed renderer, depth testing, and no-cull policy
 - [x] Add tests for fixture counts, polygon arities, triangle counts,
   per-cell provenance, render-mesh conversion, and index validity
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test -p svf-core` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
-- [ ] Visually verify both volume-cell surfaces, depth behavior, and
+- [x] Verify `cargo check --workspace` on Windows (passed without warnings)
+- [x] Verify core tests as part of `cargo test --workspace` (148 passed)
+- [x] Verify `cargo test --workspace` on Windows (159 passed: 148 core, 7 Explorer, 4 renderer; doc-tests passed)
+- [x] Visually verify both volume-cell surfaces, depth behavior, and
   resize/minimize/restore in unstructured mode
-- [ ] Re-run the default Explorer and verify parametric amplitude controls
+- [x] Re-run the default Explorer and verify parametric amplitude controls
   and sampled-surface picking remain functional
 
 Scope excludes field coloring/transfer, unstructured picking UI, normals,
 lighting, materials, orientation repair, volume rendering, import/export,
 and new cell types.
+
+
+M7.1 Windows validation and merge completed (2026-11-08):
+- PR #6 merged to `main`; merge commit `1d34ee1`.
+- User confirmed both visual modes, existing interactions, and resize/minimize/restore behavior.
+- `cargo check --workspace` passed without warnings.
+- `cargo test --workspace` passed (159 tests: 148 core, 7 Explorer, 4 renderer); doc-tests passed.
+- No formatting routine was run.
