@@ -8,7 +8,7 @@ use std::{error::Error, fmt};
 use glam::DVec3;
 
 use crate::{
-    camera::{Camera3, CameraError, LookAtCamera, PerspectiveProjection, Projection3},
+    camera::{Camera3, CameraError, LookAtCamera, Projection3},
     spatial::{WorldPoint3, WorldVector3},
 };
 
