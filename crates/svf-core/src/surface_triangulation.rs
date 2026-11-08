@@ -191,6 +191,7 @@ mod tests {
                 BoundaryFaceVertices3::Triangle(ids) => ids,
                 BoundaryFaceVertices3::Quad(_) => panic!("tetrahedron face must be triangular"),
             });
+            assert_eq!(triangle.source_face_index(), source_face.source_face_index());
             assert_eq!(triangle.source_cell_index(), source_face.source_cell_index());
             assert_eq!(triangle.source_local_face_index(), source_face.source_local_face_index());
             assert_eq!(triangle.source_triangle_index(), 0);
@@ -236,7 +237,7 @@ mod tests {
     #[test]
     fn diagonal_policy_reads_original_source_point_ids() {
         let source = cube_surface();
-        for face in source.faces() {
+        for (boundary_face_index, face) in source.faces().iter().enumerate() {
             if let BoundaryFaceVertices3::Quad(ids) = face.vertices() {
                 let source_ids = source.source_point_ids();
                 let pair02 = canonical_pair(source_ids[ids[0] as usize], source_ids[ids[2] as usize]);
@@ -247,8 +248,7 @@ mod tests {
                     [[ids[0], ids[1], ids[3]], [ids[1], ids[2], ids[3]]]
                 };
                 let generated: Vec<_> = source.triangulate().triangles().iter()
-                    .filter(|t| t.boundary_face_index() == source.faces().iter()
-                        .position(|candidate| std::ptr::eq(candidate, face)).unwrap())
+                    .filter(|t| t.boundary_face_index() == boundary_face_index)
                     .map(TriangulatedSurfaceTriangle3::vertices)
                     .collect();
                 assert_eq!(generated, expected);
