@@ -828,8 +828,6 @@ remain unchanged.
 
 No outward orientation certification, geometry-dependent diagonal choice,
 quality filtering, field transfer, or renderer integration is in scope.
-The first implementation pass is present on the feature branch; code review
-and Windows validation remain pending.
 
 
 M6.6 implementation is now present on the feature branch:
@@ -848,5 +846,8 @@ M6.6 implementation is now present on the feature branch:
   boundary extraction to exercise tetrahedra, hexahedra, both diagonal
   choices, mixed cell types, provenance, determinism, immutability, and
   geometric degeneracy.
-- No formatter, local build, or local test has been run. Review and Windows
-  validation remain pending.
+- User validated on Windows: `cargo check --workspace` passed;
+  `cargo test -p svf-core` passed (148 tests); `cargo test --workspace`
+  passed (153 tests: 148 core, 1 Explorer, 4 renderer). Doc-tests passed.
+- No formatter was run.
+- Code/API review completed; M6.6 is ready for PR review.
