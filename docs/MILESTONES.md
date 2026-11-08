@@ -351,32 +351,22 @@ outside M6.2.
 
 ### M6.3 — Unstructured topology foundations
 
-Implementation in progress on branch `m6-3-unstructured-topology`.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
+
 Design decisions are recorded in `docs/unstructured-topology.md`.
 
-Objective: add validated unstructured source-cell connectivity to
-`svf-core` and integrate it with `Dataset`, while keeping source cells
-distinct from generated render primitives.
-
-Implemented so far:
 - [x] Define CSR connectivity with stable source point/cell array ordering
-- [x] Define initial linear cell types: Line2, Triangle3, Quad4,
-  Tetrahedron4, and Hexahedron8
+- [x] Define initial linear cell types: Line2, Triangle3, Quad4, Tetrahedron4, and Hexahedron8
 - [x] Permit mixed cell types and topological dimensions
-- [x] Validate finite points, offsets, fixed cell arity, point-index bounds,
-  and repeated point indices
+- [x] Validate finite points, offsets, fixed cell arity, point-index bounds, and repeated point indices
 - [x] Preserve structurally valid geometric degeneracy and input ordering
 - [x] Add `UnstructuredGrid3` to `DatasetGeometry` point/cell counts
 - [x] Add a dataset field-cardinality integration test
-- [x] Add unit tests for mixed cells, ordering, empty/default grids, and
-  connectivity validation
+- [x] Add unit tests for mixed cells, ordering, empty/default grids, and connectivity validation
+- [x] Review the complete implementation and public API
+- [x] Verify `cargo check --workspace` on Windows (passed)
+- [x] Verify `cargo test --workspace` on Windows (117 passed: 112 core, 1 Explorer, 4 renderer)
 
-Still required:
-- [ ] Review the complete implementation and public API
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
-- [ ] Record exact user-reported results before marking M6.3 validated
+User-reported validation completed on Windows (2026-11-08). No formatting command was run for this increment.
 
-Scope excludes rendering, file importers, higher-order cells, variable-arity
-polygons, mesh repair, quality metrics, and general unstructured adjacency.
-
+Scope excludes rendering, file importers, higher-order cells, variable-arity polygons, mesh repair, quality metrics, and general unstructured adjacency.
