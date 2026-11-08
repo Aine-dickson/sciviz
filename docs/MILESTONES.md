@@ -147,8 +147,7 @@ Implementation committed; user-reported Windows validation completed on 2026-11-
 - [x] Preserve source coordinates and sample indices in every record
 - [x] Define deterministic row-major 2D order with X varying fastest
 - [x] Represent finite, NaN, positive-infinity, and negative-infinity results explicitly
-- [x] Retain non-finite results without dropping samples or shifting indices
-- [x] Add checked 2D sample-count multiplication and fallible result allocation
+- [x] Retain non-finite results without dropping samples or shifting indices- [x] Add checked 2D sample-count multiplication and fallible result allocation
 - [x] Test endpoint inclusion, coordinate mapping, finite values, non-finite classification, random access, and overflow
 - [x] Verify formatting and workspace check on Windows
 - [x] Verify core tests on Windows (58 passed)
@@ -297,8 +296,7 @@ validation completed (94 tests passed: 89 core, 1 Explorer, 4 renderer).
 - [x] Add explicit point, cell, and dataset field associations
 - [x] Add field metadata with a non-empty name and optional descriptive units
 - [x] Add scalar fields retaining finite and non-finite `SampleValue` entries
-- [x] Add three-component vector fields with independently classified components
-- [x] Declare vector coordinate basis explicitly (world basis in this increment)
+- [x] Add three-component vector fields with independently classified components- [x] Declare vector coordinate basis explicitly (world basis in this increment)
 - [x] Enforce exactly one value for dataset-associated fields
 - [x] Provide point/cell cardinality validation against supplied dataset counts
 - [x] Preserve field value order and avoid implicit association conversion
@@ -445,7 +443,6 @@ Design contract: `docs/surface-triangulation.md`.
 
 Scope excludes renderer integration, field transfer, orientation repair,
 geometric quality optimization, and file import/export.
-
 
 
 ## M7 — Unstructured volume visualization
@@ -597,8 +594,7 @@ Status: complete and merged to `main` through PR #11 on 2026-11-08
 User-reported Windows workspace tests passed.
 
 Objective: demonstrate cell-associated vector fields on a structured graph
-surface, using source-cell vertex-average anchors and the existing prepared
-glyph renderer path.
+surface, using source-cell vertex-average anchors and the existing preparedglyph renderer path.
 
 - [x] Build a dataset whose geometry is the same `StructuredGrid2D` used to
   generate the displayed graph surface
@@ -744,3 +740,29 @@ reported validation explicitly confirms the test suite and visual output.
 Explicit non-goals remain: cell/dataset/vector/tensor transfer, structured
 or hexahedral extraction, general resampling, volume rendering, GPU-side
 interpolation, and general material/legend systems.
+
+
+## M9 — Scientific dataset import
+
+### M9.1 — VTK legacy ASCII unstructured-grid import (complete; merged 2026-11-09)
+
+Design contract: `docs/vtk-legacy-ascii-import.md`.
+
+PR #23: https://github.com/Aine-dickson/sciviz/pull/23  
+Merge commit: `efa1cdbd59c09ca97a67a7e674f5c5483cc948c8`  
+Feature head: `fd48c4b10900f19558eca59d681c7fde6cb3068f`.
+
+- [x] Add a pure, graphics-independent VTK legacy ASCII `UNSTRUCTURED_GRID` parser to `svf-core`
+- [x] Preserve supported mixed-cell topology, point/cell ordering, and point/cell scalar/vector field associations
+- [x] Support LINE, TRIANGLE, QUAD, TETRA, and HEXAHEDRON cells
+- [x] Parse supported numeric types, float32 widening, non-finite field values, optional scalar metadata, and inline lookup-table definitions
+- [x] Validate the positional file envelope, counts, connectivity, indices, numeric types (including empty arrays), duplicate records/fields, and unsupported attributes
+- [x] Return categorized errors and never expose a partially constructed dataset
+- [x] Keep binary VTK, unsupported cell/attribute types, dataset fields, and Explorer file loading out of scope
+- [x] Review implementation and public API
+- [x] Verify focused importer tests on Windows (12 passed)
+- [x] Verify `cargo test --workspace` on Windows (240 passed: 216 core, 17 Explorer, 7 renderer; doc-tests passed)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Merge PR #23
+
+The only reported compiler warning is the pre-existing `VectorSource3::new` dead-code warning. M9.1 is complete. M9.2 will address user-facing Explorer file loading while keeping parsing and scientific data ownership in `svf-core`.
