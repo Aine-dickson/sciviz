@@ -173,7 +173,12 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
     let dataset = parse_legacy_ascii_unstructured_grid(&input).map_err(|error| {
         format!("could not import VTK file '{}': {error}", config.path.display())
     })?;
-    prepare_imported_scene(dataset, config.scalar_field.as_deref()).map_err(|error| {
+    prepare_imported_scene_with_options(
+        dataset,
+        config.scalar_field.as_deref(),
+        config.isosurface_field.as_deref(),
+        config.isovalue,
+    ).map_err(|error| {
         format!("could not prepare VTK file '{}': {error}", config.path.display())
     })
 }
@@ -182,6 +187,21 @@ pub fn prepare_imported_scene(
     dataset: Dataset,
     scalar_field_name: Option<&str>,
 ) -> Result<ImportedScene, String> {
+    prepare_imported_scene_with_options(dataset, scalar_field_name, None, None)
+}
+
+pub fn prepare_imported_scene_with_options(
+    dataset: Dataset,
+    scalar_field_name: Option<&str>,
+    isosurface_field_name: Option<&str>,
+    isovalue: Option<f64>,
+) -> Result<ImportedScene, String> {
+    if isosurface_field_name.is_some() != isovalue.is_some() {
+        return Err("isosurface field and isovalue must be supplied together".to_owned());
+    }
+    if scalar_field_name.is_some() && isosurface_field_name.is_some() {
+        return Err("scalar mapping and isosurface extraction are mutually exclusive".to_owned());
+    }
     let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else {
         return Err("VTK importer returned a non-unstructured dataset".to_owned());
     };
@@ -211,7 +231,38 @@ pub fn prepare_imported_scene(
         .map_err(|error| format!("could not construct render mesh: {error}"))?;
     validate_render_mesh(&mesh)?;
 
-    let camera = fit_camera(&mesh, 1280.0 / 800.0)?;
+    let isosurface = if let Some(name) = isosurface_field_name {
+        let field = match dataset.field(name) {
+            None => return Err(format!("field '{name}' was not found in the imported dataset")),
+            Some(DatasetField::Vector3(_)) => {
+                return Err(format!("field '{name}' is a vector field; isosurface extraction requires a point-associated scalar field"));
+            }
+            Some(DatasetField::Scalar(field)) => field,
+        };
+        if field.association() != FieldAssociation::Point {
+            return Err(format!(
+                "scalar field '{name}' has {:?} association; isosurface extraction requires Point association",
+                field.association()
+            ));
+        }
+        let value = isovalue.ok_or_else(|| "isosurface isovalue is required".to_owned())?;
+        let extracted = extract_tetrahedral_isosurface(&dataset, name, value)
+            .map_err(|error| format!("could not extract isosurface for field '{name}': {error}"))?;
+        if extracted.mesh().triangle_count() == 0 {
+            return Err(format!(
+                "isosurface extraction for field '{name}' at {value} produced no triangles ({} unsupported cells, {} skipped cells)",
+                extracted.metadata().unsupported_cells().len(),
+                extracted.metadata().skipped_cells().len(),
+            ));
+        }
+        Some(extracted)
+    } else {
+        None
+    };
+
+    let render_mesh = isosurface.as_ref().map_or(&mesh, Isosurface3::mesh);
+    validate_render_mesh(render_mesh)?;
+    let camera = fit_camera(render_mesh, 1280.0 / 800.0)?;
 
     let (provenance, mapped_surface) = if let Some(name) = scalar_field_name {
         let field = match dataset.field(name) {
@@ -247,12 +298,14 @@ pub fn prepare_imported_scene(
     Ok(ImportedScene {
         dataset,
         surface,
-        mesh,
+        mesh: render_mesh.clone(),
         camera,
         _provenance: provenance,
         mapped_surface,
         omitted_lower_dimension_cells,
         scalar_field_name: scalar_field_name.map(str::to_owned),
+        isosurface,
+        isosurface_field_name: isosurface_field_name.map(str::to_owned),
     })
 }
 
