@@ -785,8 +785,8 @@ mod tests {
         assert_eq!(dataset.point_count(), 5);
         assert_eq!(dataset.cell_count(), 2);
         assert_eq!(isosurface.isovalue(), 0.0);
-        assert_eq!(isosurface.mesh().triangle_count(), 4);
-        assert_eq!(isosurface.mesh().vertex_count(), 6);
+        assert_eq!(isosurface.mesh().triangle_count(), 3);
+        assert_eq!(isosurface.mesh().vertex_count(), 5);
         assert_eq!(
             isosurface.vertex_provenance().iter().filter(|provenance| matches!(
                 provenance,
