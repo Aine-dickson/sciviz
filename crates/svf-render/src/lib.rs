@@ -11,6 +11,7 @@ use bytemuck::{Pod, Zeroable};
 use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     geometry::TriangleMesh3,
+    scalar_visualization::ColorMap,
     spatial::{WorldPoint3, WorldVector3},
 };
 use wgpu::{CurrentSurfaceTexture, Surface, SurfaceConfiguration, util::DeviceExt};
@@ -76,7 +77,7 @@ struct LineVertex {
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct MeshVertex {
     position: [f32; 3],
-    color: [f32; 3],
+    color: [f32; 4],
 }
 
 #[repr(C)]
@@ -127,6 +128,24 @@ impl SceneRenderer {
 
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+    }
+
+    /// Initialize the renderer with a scalar-mapped surface produced by svf-core.
+    pub async fn new_with_mapped_surface(
+        window: Arc<Window>,
+        surface: &svf_core::scalar_visualization::MappedSurface3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+    }
+
+    async fn new_with_mesh_data(
+        window: Arc<Window>,
+        mesh_vertices: Vec<MeshVertex>,
+        mesh_indices: Vec<u32>,
+    ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -255,7 +274,7 @@ impl SceneRenderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("mesh.wgsl").into()),
         });
         const MESH_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
         let mesh_layout = wgpu::VertexBufferLayout {
             array_stride: size_of::<MeshVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -288,7 +307,6 @@ impl SceneRenderer {
             cache: None,
         });
 
-        let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
         let mesh_vertex_count =
             u32::try_from(mesh_vertices.len()).map_err(|_| RenderError::MeshConversion)?;
         let mesh_index_count =
@@ -522,11 +540,36 @@ fn convert_mesh(mesh: &TriangleMesh3) -> Result<(Vec<MeshVertex>, Vec<u32>), Ren
             }
             Ok(MeshVertex {
                 position,
-                color: [0.18, 0.62, 0.88],
+                color: [0.18, 0.62, 0.88, 1.0],
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((vertices, mesh.indices().to_vec()))
+}
+
+fn convert_mapped_surface(
+    surface: &svf_core::scalar_visualization::MappedSurface3,
+) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
+    if surface.positions().len() != surface.colors().len()
+        || surface.indices().len() % 3 != 0
+        || surface.indices().iter().any(|&index| index as usize >= surface.positions().len())
+    {
+        return Err(RenderError::MeshConversion);
+    }
+
+    let vertices = surface.positions().iter().zip(surface.colors()).map(|(point, color)| {
+        let p = point.to_array();
+        let position = [p[0] as f32, p[1] as f32, p[2] as f32];
+        let color = color.channels().map(|channel| channel as f32);
+        if !position.iter().all(|value| value.is_finite())
+            || !color.iter().all(|value| value.is_finite())
+        {
+            return Err(RenderError::MeshConversion);
+        }
+        Ok(MeshVertex { position, color })
+    }).collect::<Result<Vec<_>, _>>()?;
+
+    Ok((vertices, surface.indices().to_vec()))
 }
 
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
@@ -628,6 +671,40 @@ mod tests {
         .unwrap();
         let (vertices, indices) = convert_mesh(&mesh).unwrap();
         assert_eq!(vertices[1].position, [1.0, 1.0, 2.0]);
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn mapped_surface_conversion_preserves_positions_indices_and_rgba() {
+        use svf_core::{
+            fields::{FieldAssociation, FieldMetadata, ScalarField},
+            sampling::SampleValue,
+            scalar_visualization::{ColorRgba, ScalarRangeMode, SurfaceProvenance3, map_scalar_field},
+        };
+
+        let mesh = TriangleMesh3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+            ],
+            vec![0, 1, 2],
+        ).unwrap();
+        let surface = SurfaceProvenance3::from_triangle_mesh(&mesh).unwrap();
+        let field = ScalarField::new(
+            FieldMetadata::new("temperature", Some("K".to_owned())).unwrap(),
+            FieldAssociation::Point,
+            vec![SampleValue::Finite(0.0), SampleValue::Finite(0.5), SampleValue::Finite(1.0)],
+        ).unwrap();
+        let mapped = map_scalar_field(
+            &surface, &field, 3, 1, ScalarRangeMode::Automatic,
+            &ColorMap::viridis(), ColorRgba::new(1.0, 0.0, 1.0, 1.0).unwrap(),
+        ).unwrap();
+
+        let (vertices, indices) = convert_mapped_surface(&mapped).unwrap();
+        assert_eq!(vertices.len(), 3);
+        assert_eq!(vertices[2].position, [0.0, 1.0, 0.0]);
+        assert_eq!(vertices[1].color, mapped.colors()[1].channels().map(|channel| channel as f32));
         assert_eq!(indices, vec![0, 1, 2]);
     }
 
