@@ -276,20 +276,19 @@ fn mean_point(points: &[WorldPoint3]) -> WorldPoint3 {
         return WorldPoint3::ORIGIN;
     }
 
+    // Divide each coordinate before summing. Every term is bounded by
+    // scale / n, so the sum cannot overflow; this also avoids an extra
+    // scale multiplication that can introduce avoidable rounding error.
     let divisor = points.len() as f64;
-    let mut sum = [0.0; 3];
+    let mut mean = [0.0; 3];
     for point in points {
         let coordinates = point.to_array();
         for axis in 0..3 {
-            sum[axis] += coordinates[axis] / scale;
+            mean[axis] += (coordinates[axis] / scale) / divisor;
         }
     }
 
-    WorldPoint3::new(
-        (sum[0] / divisor) * scale,
-        (sum[1] / divisor) * scale,
-        (sum[2] / divisor) * scale,
-    )
+    WorldPoint3::new(mean[0] * scale, mean[1] * scale, mean[2] * scale)
 }
 
 #[cfg(test)]
