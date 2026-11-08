@@ -893,28 +893,42 @@ Branch: `m7-2-scalar-visualization`, created from `main` after M7.1.
 
 Design contract: `docs/scalar-visualization.md`.
 
-M7.2 is designed as a reusable scalar-to-color mapping pipeline for surface
-representations derived from both structured and unstructured datasets. It
-connects the M6 `Dataset`/`ScalarField` model to the M7 renderer while keeping
-scientific values and association semantics authoritative in `svf-core`.
+The M7.2 core pipeline is implemented and user-validated on Windows.
 
-The common surface input carries a triangle mesh, one source point ID per
-render vertex, and one source logical cell ID per render triangle. Initial
-adapters cover `SampledSurface3`, `TriangulatedSurface3`, and identity mapping
-for `TriangleMesh3`. Point, cell, and dataset field associations are all in
-scope. Cell coloring uses triangle-corner expansion so shared indexed vertices
-cannot blend colors across source-cell boundaries.
+Core implementation:
+- `crates/svf-core/src/scalar_visualization.rs` provides
+  `SurfaceProvenance3` adapters for structured sampled surfaces,
+  unstructured triangulated surfaces, and identity-mapped triangle meshes.
+- `MappedSurface3` expands each triangle into three corners and retains
+  per-corner source point IDs plus per-triangle source cell IDs.
+- Point, cell, and dataset scalar associations are mapped without mutating
+  source geometry or fields.
+- Automatic and explicit ranges, finite/non-finite handling, constant-field
+  midpoint behavior, clamping, validated RGBA colors, and continuous color
+  maps are implemented.
+- User-reported Windows validation: `cargo test -p svf-core` passed
+  (163 tests); `cargo check --workspace` passed without warnings.
 
-The mapping contract defines automatic and explicit scalar ranges, finite
-value handling, constant-field behavior, clamping, invalid-value color, and a
-continuous configurable color map. The mapped surface remains graphics-
-independent; `svf-render` only uploads positions and per-corner colors. The
-resolved range and palette metadata are retained for a future legend, but
-on-screen text/legend UI is explicitly deferred.
+Current renderer integration (implemented on this branch; Windows validation
+pending):
+- `svf-render` now has `SceneRenderer::new_with_mapped_surface`.
+- Mapped positions and linear-light RGBA values convert to f32 at the GPU
+  boundary; the mesh vertex layout and WGSL shader accept RGBA.
+- The existing `SceneRenderer::new(window, &TriangleMesh3)` path remains,
+  using its existing flat color with alpha 1.0.
+- A focused renderer conversion test exercises the real core mapping API.
+- Do not claim renderer validation until the user pulls and runs the tests.
 
-M7.2 implementation has not started. The next step is to review the design
-contract, then implement the core provenance adapter and scalar mapping before
-renderer integration. Do not add interpolation for generated points without
-explicit source weights. Preserve the default parametric demo and M7.1
-unstructured flat-color mode.
+Next:
+1. Pull and validate the renderer integration on Windows.
+2. Fix any reported compile/test issues without running formatters.
+3. Add the Explorer structured point-field and unstructured cell-field
+   demonstrations while retaining the default parametric and existing
+   `--unstructured` flat-color modes.
+4. Validate both scalar demos visually, including resize/minimize/restore.
+5. Review and complete documentation, then open a PR for user review.
 
+Do not add implicit interpolation for generated points without explicit
+source weights. Keep scalar range calculation, palette interpolation, and
+field association lookup in `svf-core`; the renderer must remain a consumer
+of mapped geometry and colors.
