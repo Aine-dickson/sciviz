@@ -3,7 +3,7 @@
 //! File access and startup configuration live here; parsing, topology,
 //! provenance, and scalar mapping remain in svf-core.
 
-use std::{error::Error, fs, path::{Path, PathBuf}};
+use std::{fs, path::PathBuf};
 
 use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
@@ -34,6 +34,7 @@ pub struct ImportedScene {
     pub dataset: Dataset,
     pub surface: TriangulatedSurface3,
     pub mesh: TriangleMesh3,
+    pub camera: Camera3,
     pub provenance: Option<SurfaceProvenance3>,
     pub mapped_surface: Option<MappedSurface3>,
     pub omitted_lower_dimension_cells: usize,
@@ -167,6 +168,8 @@ pub fn prepare_imported_scene(
     let mesh = TriangleMesh3::new(surface.points().to_vec(), indices)
         .map_err(|error| format!("could not construct render mesh: {error}"))?;
 
+    let camera = fit_camera(&mesh, 1280.0 / 800.0)?;
+
     let (provenance, mapped_surface) = if let Some(name) = scalar_field_name {
         let field = match dataset.field(name) {
             None => return Err(format!("scalar field '{name}' was not found in the imported dataset")),
@@ -202,6 +205,7 @@ pub fn prepare_imported_scene(
         dataset,
         surface,
         mesh,
+        camera,
         provenance,
         mapped_surface,
         omitted_lower_dimension_cells,
@@ -348,7 +352,7 @@ LOOKUP_TABLE default
 
     #[test]
     fn prepares_uncolored_volume_and_counts_omitted_lower_dimensional_cells() {
-        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
         let grid = match dataset.geometry() {
             DatasetGeometry::UnstructuredGrid3(grid) => grid,
             _ => unreachable!(),
