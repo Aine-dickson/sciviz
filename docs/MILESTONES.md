@@ -592,8 +592,9 @@ M7.4 will use a sparser structured-cell fixture and an explicit display length.
 
 Design contract: `docs/cell-vector-visualization.md`.
 
-Status: initial implementation in PR #11 on branch
-`m7-4-structured-cell-vectors`; Windows validation pending.
+Status: complete and merged to `main` through PR #11 on 2026-11-08
+(merge commit `082fc5e18db8a7e40e1655dff70950af2fcc1e03`).
+User-reported Windows workspace tests passed.
 
 Objective: demonstrate cell-associated vector fields on a structured graph
 surface, using source-cell vertex-average anchors and the existing prepared
@@ -611,11 +612,37 @@ glyph renderer path.
 - [x] Add Explorer fixture, source-anchor, cardinality, glyph, and mode-selection tests
 - [x] Add optional `--cell-vectors` without changing existing modes
 - [x] Retain source dataset and glyph result on the CPU
-- [ ] Verify workspace tests and checks on Windows
-- [ ] Visually verify arrow direction, arrowheads, correct depth occlusion,
-  and resize/minimize/restore
-- [ ] Re-run `--vectors` and default mode for regression coverage
+- [x] Verify workspace tests on Windows (user-reported: all passed)
+- [x] Verify glyph placement, grid/axes, and resize/minimize/restore visually
+- [ ] Conclusively inspect depth occlusion from multiple camera angles (deferred:
+  Explorer has no orbit/pan/zoom controls yet)
 
-Unstructured volume-cell glyphs are deliberately excluded: their arithmetic
+Visual feedback: the glyph pattern is structured and arrowheads are visible,
+but many glyphs remain small/crowded. The fixed camera prevents a conclusive
+visual depth-occlusion check. This limitation motivates M7.5; it does not
+invalidate the source-anchor or geometry tests.
+
+Unstructured volume-cell glyphs remain deliberately excluded: their arithmetic
 cell centers lie inside opaque volume boundaries and are not usefully visible
-without a separate volume/visibility representation design.
+without a separate visibility/representation design.
+
+## M7.5 — Interactive 3D camera navigation
+
+Design contract: `docs/camera-navigation.md`.
+
+Status: design proposed; awaiting review before implementation.
+
+Objective: add reusable orbit, pan, and zoom navigation to the Explorer so
+users can inspect scientific geometry and depth relationships from multiple
+viewpoints.
+
+- [ ] Define reusable, input-independent camera navigation semantics
+- [ ] Add validated orbit, pan, and zoom operations with explicit limits
+- [ ] Expose camera replacement/update in `svf-render` and synchronize the
+  GPU uniform
+- [ ] Map Explorer pointer and wheel gestures to camera operations
+- [ ] Keep camera picking rays synchronized with the rendered view
+- [ ] Test pole/degeneracy handling, zoom limits, pan stability, and invalid input
+- [ ] Verify all existing modes, depth occlusion, picking, resize, and
+  minimize/restore on Windows
+
