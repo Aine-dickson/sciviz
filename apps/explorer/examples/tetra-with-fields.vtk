@@ -1,0 +1,24 @@
+# vtk DataFile Version 3.0
+SVF Explorer M9.2 smoke-test fixture: tetrahedron plus an omitted line cell
+ASCII
+DATASET UNSTRUCTURED_GRID
+POINTS 5 double
+0 0 0
+1 0 0
+0 1 0
+0 0 1
+2 0 0
+CELLS 2 7
+4 0 1 2 3
+2 0 4
+CELL_TYPES 2
+10
+3
+POINT_DATA 5
+SCALARS temperature double
+LOOKUP_TABLE default
+10 20 30 40 50
+CELL_DATA 2
+SCALARS density double 1
+LOOKUP_TABLE default
+7 100
