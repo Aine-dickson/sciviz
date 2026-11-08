@@ -10,6 +10,7 @@ use crate::{
     fields::{FieldError, FieldMetadata, ScalarField, VectorField3},
     geometry::{PointSet3, Polyline3, TriangleMesh3},
     sampling::StructuredGrid2D,
+    unstructured::UnstructuredGrid3,
 };
 
 /// Geometry variants currently supported as source datasets.
@@ -23,6 +24,8 @@ pub enum DatasetGeometry {
     TriangleMesh3(TriangleMesh3),
     /// A two-dimensional structured grid whose cells are grid intervals.
     StructuredGrid2D(StructuredGrid2D),
+    /// An unstructured collection of source cells with explicit connectivity.
+    UnstructuredGrid3(UnstructuredGrid3),
 }
 
 impl DatasetGeometry {
@@ -34,6 +37,7 @@ impl DatasetGeometry {
             Self::Polyline3(line) => line.len(),
             Self::TriangleMesh3(mesh) => mesh.vertex_count(),
             Self::StructuredGrid2D(grid) => grid.sample_count(),
+            Self::UnstructuredGrid3(grid) => grid.point_count(),
         }
     }
 
@@ -50,6 +54,7 @@ impl DatasetGeometry {
             Self::StructuredGrid2D(grid) => {
                 (grid.x_sample_count() - 1) * (grid.y_sample_count() - 1)
             }
+            Self::UnstructuredGrid3(grid) => grid.cell_count(),
         }
     }
 }
@@ -75,6 +80,12 @@ impl From<TriangleMesh3> for DatasetGeometry {
 impl From<StructuredGrid2D> for DatasetGeometry {
     fn from(value: StructuredGrid2D) -> Self {
         Self::StructuredGrid2D(value)
+    }
+}
+
+impl From<UnstructuredGrid3> for DatasetGeometry {
+    fn from(value: UnstructuredGrid3) -> Self {
+        Self::UnstructuredGrid3(value)
     }
 }
 
@@ -244,9 +255,10 @@ mod tests {
         fields::{FieldAssociation, VectorBasis3, VectorValue3},
         geometry::GeometryError,
         sampling::{
-            Domain1D, Domain2D, SamplingSpec2D, SampleValue, sample_scalar_2d,
+            Domain1D, Domain2D, SampleValue, SamplingSpec2D, sample_scalar_2d,
         },
         spatial::WorldPoint3,
+        unstructured::{CellType3, UnstructuredGrid3},
     };
 
     fn metadata(name: &str) -> FieldMetadata {
@@ -443,6 +455,51 @@ mod tests {
             .unwrap();
         dataset.add_scalar_field(field).unwrap();
         assert_eq!(dataset.scalar_field("empty_measurement").unwrap().len(), 0);
+    }
+
+    #[test]
+    fn unstructured_dataset_uses_source_cell_count_for_field_cardinality() {
+        let grid = UnstructuredGrid3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+                WorldPoint3::new(0.0, 0.0, 1.0),
+            ],
+            vec![CellType3::Triangle3, CellType3::Tetrahedron4],
+            vec![0, 3, 7],
+            vec![0, 1, 2, 0, 1, 2, 3],
+        )
+        .unwrap();
+        let mut dataset = Dataset::new(grid);
+        assert_eq!((dataset.point_count(), dataset.cell_count()), (4, 2));
+
+        let cell_field = ScalarField::new(
+            metadata("cell_measure"),
+            FieldAssociation::Cell,
+            vec![SampleValue::Finite(1.0), SampleValue::Finite(2.0)],
+        )
+        .unwrap();
+        dataset.add_scalar_field(cell_field).unwrap();
+        assert_eq!(dataset.scalar_field("cell_measure").unwrap().len(), 2);
+
+        let invalid = ScalarField::new(
+            metadata("wrong_cell_measure"),
+            FieldAssociation::Cell,
+            vec![SampleValue::Finite(1.0)],
+        )
+        .unwrap();
+        assert_eq!(
+            dataset.add_scalar_field(invalid),
+            Err(DatasetError::InvalidField(
+                FieldError::CardinalityMismatch {
+                    association: FieldAssociation::Cell,
+                    expected: 2,
+                    actual: 1,
+                }
+            ))
+        );
+        assert_eq!(dataset.fields().len(), 1);
     }
 
     #[test]

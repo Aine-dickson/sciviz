@@ -54,12 +54,17 @@ Supported source geometry variants:
 - `Polyline3`: ordered points; one logical cell per consecutive segment.
 - `TriangleMesh3`: indexed vertices; one logical cell per source triangle.
 - `StructuredGrid2D`: row-major samples; one logical cell per grid rectangle.
+- `UnstructuredGrid3`: ordered points plus CSR connectivity and an explicit
+  linear cell type per source cell; mixed cell types/dimensions are allowed.
 
 Point fields contain one value per source point/sample. Cell fields contain
 one value per logical source cell. Dataset fields contain exactly one value.
 For structured grids, a rectangle remains one source cell even if a later
 surface representation emits two render triangles for that rectangle.
-Derived render geometry never changes source dataset cardinality.
+For unstructured grids, cell-field values follow source cell-array order.
+Any later tessellation or triangulation must preserve the originating source
+cell ID for picking and field lookup. Derived render geometry never changes
+source dataset cardinality.
 
 Geometry is immutable through the dataset API, so attached field cardinality
 cannot be invalidated by in-place topology edits. Geometry changes produce a

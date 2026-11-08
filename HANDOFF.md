@@ -683,34 +683,60 @@ association cardinality, unique field names, insertion order, and
 failure-atomic field attachment. The geometry accessors expose immutable
 references, so topology cannot be mutated through `Dataset`.
 
-The user's local feature branch was synchronized to `dfb27c9` before merge.
-The user's local `main` has not yet been confirmed to contain merge commit
-`9b4fc41`; sync it with `git pull --ff-only origin main` after switching
-to `main`. Do not overwrite or blindly pop the preserved formatting stash.
-The M6.1 formatting-only changes remain separate and must be handled
-deliberately if they are ever reapplied.
+The user subsequently reported completing the local switch to `main` and
+fast-forward pull after the merge. Exact command output was not included.
+Do not overwrite or blindly pop the preserved formatting stash. The M6.1
+formatting-only changes remain separate and must be handled deliberately if
+they are ever reapplied.
 
-## Next milestone — M6.3: Unstructured topology foundations
+## M6.3 — Unstructured topology foundations: implementation validated
 
-M6.3 should introduce explicit unstructured source-cell topology without
-conflating source cells with render triangles. Before implementation, define
-and document the minimal cell model and invariants.
+Development branch: `m6-3-unstructured-topology`, based on `main` at
+`db6bd11`. The feature is validated locally on Windows but is not yet merged.
 
-Design questions to resolve:
-- Supported initial cell types and their minimum node counts.
-- Connectivity storage and deterministic cell/node ordering.
-- Validation of offsets/connectivity, node-index bounds, and cell arity.
-- How point and cell counts integrate with the existing `Dataset` API.
-- Whether mixed cell types are supported immediately or deferred.
-- How source-cell identity survives later triangulation/tessellation.
-- How degenerate but structurally valid cells are treated separately from
-  invalid connectivity.
+Design decision record: `docs/unstructured-topology.md`.
 
-Keep M6.3 graphics-independent in `svf-core`. Do not add a renderer,
-file-format importer, mesh repair, interpolation, or broad generic topology
-framework as part of the first increment. The first goal is a validated
-unstructured dataset representation that can attach the existing scalar and
-vector fields using the same point/cell association rules.
+New module: `crates/svf-core/src/unstructured.rs`, exposed as
+`svf_core::unstructured`.
+
+API and contract:
+- `CellType3::{Line2, Triangle3, Quad4, Tetrahedron4, Hexahedron8}`
+  describes supported linear cells embedded in 3D world space.
+- `CellType3::node_count()` and `topological_dimension()` expose fixed
+  arity and dimension.
+- `UnstructuredGrid3` stores finite `WorldPoint3` points, cell types,
+  CSR-style `usize` cell offsets, and flattened `u32` point connectivity.
+- Cell and point IDs are stable positions in their respective source arrays;
+  the constructor preserves input order.
+- Mixed cell types and topological dimensions are allowed.
+- Validation covers finite coordinates, offset count/start/monotonicity/end,
+  fixed cell arity, point-index bounds, and repeated indices within a cell.
+- Empty grids use offsets `[0]`; points without cells are valid.
+- Structurally valid geometric degeneracy is retained; orientation is not
+  normalized or certified.
+- `DatasetGeometry::UnstructuredGrid3` integrates source point and cell
+  counts with existing field cardinality checks.
+
+A dataset integration test attaches a cell scalar field to a mixed triangle
+and tetrahedron grid and checks that incorrect cardinality is rejected.
+
+User-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test --workspace`: 117 passed, 0 failed
+  (112 core, 1 Explorer, 4 renderer).
+- The feature branch was checked out locally from its remote tracking branch.
+- No formatting command was run for M6.3.
+
+The branch is 17 commits ahead of and 0 behind `main`; it has not been
+merged. No pull request has been opened yet.
+
+M6.3 deliberately excludes rendering/tessellation, file importers,
+higher-order cells, variable-arity polygons, mesh repair, quality metrics,
+and general unstructured adjacency. Future render-derived primitives must
+retain their source cell IDs.
+
+No formatter should be run just to normalize source layout. Preserve the
+user's M6.1 formatting-only stash; do not pop or discard it.
 
 The user prefers focused implementation increments, exact Windows commands,
 no routine formatting churn, and a concise handoff update at each milestone.

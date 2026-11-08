@@ -351,22 +351,22 @@ outside M6.2.
 
 ### M6.3 — Unstructured topology foundations
 
-Planned; design must be settled before implementation.
+Implementation committed; user-reported Windows validation completed on 2026-11-08.
 
-Objective: add validated unstructured source-cell connectivity to
-`svf-core`, then make it usable as dataset geometry without confusing
-scientific source cells with generated render primitives.
+Design decisions are recorded in `docs/unstructured-topology.md`.
 
-Design and implementation questions:
-- Select the initial supported cell types and define their minimum arity.
-- Define deterministic connectivity and cell ordering.
-- Validate cell offsets/connectivity, node-index bounds, and cell arity.
-- Decide whether mixed cell types belong in the first increment.
-- Integrate point/cell counts with existing `Dataset` field validation.
-- Preserve source-cell identity through later rendering tessellation.
-- Keep structural validity distinct from geometric degeneracy/quality.
+- [x] Define CSR connectivity with stable source point/cell array ordering
+- [x] Define initial linear cell types: Line2, Triangle3, Quad4, Tetrahedron4, and Hexahedron8
+- [x] Permit mixed cell types and topological dimensions
+- [x] Validate finite points, offsets, fixed cell arity, point-index bounds, and repeated point indices
+- [x] Preserve structurally valid geometric degeneracy and input ordering
+- [x] Add `UnstructuredGrid3` to `DatasetGeometry` point/cell counts
+- [x] Add a dataset field-cardinality integration test
+- [x] Add unit tests for mixed cells, ordering, empty/default grids, and connectivity validation
+- [x] Review the complete implementation and public API
+- [x] Verify `cargo check --workspace` on Windows (passed)
+- [x] Verify `cargo test --workspace` on Windows (117 passed: 112 core, 1 Explorer, 4 renderer)
 
-Initial scope excludes rendering, file importers, mesh repair, interpolation,
-and broad generic topology abstractions. The first deliverable is a
-graphics-independent validated unstructured dataset representation that
-reuses the existing scalar/vector field association rules.
+User-reported validation completed on Windows (2026-11-08). No formatting command was run for this increment.
+
+Scope excludes rendering, file importers, higher-order cells, variable-arity polygons, mesh repair, quality metrics, and general unstructured adjacency.
