@@ -787,3 +787,18 @@ No M6.5 implementation or local validation is claimed yet. Next: implement the
 contract in a new `svf-core` module, add focused tests, then ask the user to
 pull and validate on Windows. Do not run formatting routines or disturb
 existing stashes/local formatting changes.
+
+
+M6.5 implementation is now present on the branch:
+- New `crates/svf-core/src/boundary_surface.rs`, exported by `lib.rs`.
+- Public API: `BoundarySurface3`, `BoundarySurfaceFace3`,
+  `BoundaryFaceVertices3`, and `BoundarySurfaceError`.
+- `UnstructuredGrid3::boundary_surface()` derives compact boundary geometry.
+- Thirteen unit tests cover tetrahedra, hexahedra, adjacent cells, mixed
+  arities, non-manifold exclusion, lower-dimensional cells, compact point
+  mapping, provenance/local cycles, determinism, source immutability,
+  coordinate identity, empty input, and geometric degeneracy.
+- Compact source point IDs are ascending and unique; face order follows M6.4.
+  Quads remain quads. Only one-incidence faces are included.
+- No formatter, local build, or local test has been run for M6.5. Windows
+  validation remains pending from the user.
