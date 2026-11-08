@@ -2,8 +2,10 @@ use std::sync::Arc;
 
 use svf_core::{
     dataset::Dataset,
-    fields::{FieldAssociation, FieldMetadata, ScalarField},
-    geometry::TriangleMesh3,
+    fields::{
+        FieldAssociation, FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3,
+    },
+    geometry::{PointSet3, TriangleMesh3},
     sampling::{
         Domain1D, Domain2D, SampleValue, SampledSurface3, SamplingSpec2D, StructuredGrid2D,
         sample_scalar_2d,
@@ -14,6 +16,8 @@ use svf_core::{
     },
     spatial::WorldPoint3,
     surface_triangulation::TriangulatedSurface3,
+    vector_glyphs::{build_vector_glyphs, VectorGlyphSet3, VectorScalePolicy3},
+    vector_visualization::{analyze_vector_sources, resolve_vector_sources},
     unstructured::{CellType3, UnstructuredGrid3},
 };
 use svf_render::SceneRenderer;
@@ -38,6 +42,7 @@ enum ExplorerMode {
     Unstructured,
     StructuredScalar,
     UnstructuredScalar,
+    Vectors,
 }
 
 impl ExplorerMode {
@@ -54,6 +59,9 @@ impl ExplorerMode {
             Self::UnstructuredScalar => {
                 "Scientific Visualization Framework — Unstructured cell scalar".to_owned()
             }
+            Self::Vectors => {
+                "Scientific Visualization Framework — 3D vector field glyphs".to_owned()
+            }
         }
     }
 }
@@ -68,6 +76,8 @@ struct Explorer {
     _scalar_dataset: Option<Dataset>,
     _surface_provenance: Option<SurfaceProvenance3>,
     _mapped_surface: Option<MappedSurface3>,
+    _vector_dataset: Option<Dataset>,
+    _vector_glyphs: Option<VectorGlyphSet3>,
     cursor_position: Option<[f64; 2]>,
 }
 
@@ -89,6 +99,8 @@ impl Explorer {
             _scalar_dataset: None,
             _surface_provenance: None,
             _mapped_surface: None,
+            _vector_dataset: None,
+            _vector_glyphs: None,
             cursor_position: None,
         }
     }
@@ -266,6 +278,19 @@ impl ApplicationHandler for Explorer {
                     self._mapped_surface = Some(mapped);
                     Ok(renderer)
                 }
+                ExplorerMode::Vectors => {
+                    let surface = demo_surface(self.amplitude)?;
+                    let (dataset, glyphs) = demo_vector_glyphs()?;
+                    let renderer = pollster::block_on(SceneRenderer::new_with_vector_glyphs(
+                        window.clone(),
+                        surface.mesh(),
+                        &glyphs,
+                    ))?;
+                    self.surface = Some(surface);
+                    self._vector_dataset = Some(dataset);
+                    self._vector_glyphs = Some(glyphs);
+                    Ok(renderer)
+                }
             }
         })();
 
@@ -378,7 +403,9 @@ fn main() {
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
     let arguments = args.into_iter().collect::<Vec<_>>();
-    if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
+    if arguments.iter().any(|argument| argument == "--vectors") {
+        ExplorerMode::Vectors
+    } else if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
         ExplorerMode::UnstructuredScalar
     } else if arguments.iter().any(|argument| argument == "--scalar") {
         ExplorerMode::StructuredScalar
@@ -404,6 +431,36 @@ fn demo_surface(
         amplitude * x.sin() * y.cos()
     })?;
     Ok(StructuredGrid2D::from_samples(samples).to_surface_mesh()?)
+}
+
+/// Builds a small point-associated vector field over deterministic world-space anchors.
+fn demo_vector_glyphs() -> Result<(Dataset, VectorGlyphSet3), Box<dyn std::error::Error>> {
+    let mut points = Vec::new();
+    let mut values = Vec::new();
+    for z_index in 0..7 {
+        for x_index in 0..7 {
+            let x = -4.0 + (x_index as f64 * 8.0 / 6.0);
+            let z = -4.0 + (z_index as f64 * 8.0 / 6.0);
+            let y = x.sin() * z.cos();
+            points.push(WorldPoint3::new(x, y, z));
+            values.push(VectorValue3::from_f64(-0.25 * z, 0.4, 0.25 * x));
+        }
+    }
+
+    let mut dataset = Dataset::new(PointSet3::new(points)?);
+    dataset.add_vector_field3(VectorField3::new(
+        FieldMetadata::new("velocity", Some("world units / time".to_owned()))?,
+        FieldAssociation::Point,
+        VectorBasis3::World,
+        values,
+    )?)?;
+    let sources = resolve_vector_sources(&dataset, "velocity")?;
+    let analyses = analyze_vector_sources(&sources)?;
+    let glyphs = build_vector_glyphs(
+        &analyses,
+        VectorScalePolicy3::UniformLength { length: 0.8 },
+    )?;
+    Ok((dataset, glyphs))
 }
 
 fn demo_structured_scalar_surface(
@@ -519,6 +576,23 @@ fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMap
 mod tests {
     use super::*;
     use svf_core::boundary_surface::BoundaryFaceVertices3;
+
+    #[test]
+    fn vector_demo_builds_a_point_associated_field_and_glyphs() {
+        let (dataset, glyphs) = demo_vector_glyphs().unwrap();
+        assert_eq!(dataset.point_count(), 49);
+        assert_eq!(glyphs.entries().len(), 49);
+        assert!(glyphs.entries().iter().all(|entry| entry.segments().is_some()));
+        assert!(glyphs.entries().iter().all(|entry| entry.display_length() == Some(0.8)));
+    }
+
+    #[test]
+    fn vectors_mode_is_selected_from_command_line() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--vectors".to_owned()]),
+            ExplorerMode::Vectors
+        );
+    }
 
     #[test]
     fn amplitude_scales_surface_height_without_changing_topology() {
