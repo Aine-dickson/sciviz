@@ -6,6 +6,7 @@ use crate::boundary_surface::{BoundaryFaceVertices3, BoundarySurface3};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TriangulatedSurfaceTriangle3 {
     vertices: [u32; 3],
+    boundary_face_index: usize,
     source_face_index: usize,
     source_cell_index: usize,
     source_local_face_index: usize,
@@ -17,7 +18,11 @@ impl TriangulatedSurfaceTriangle3 {
     #[must_use]
     pub const fn vertices(&self) -> [u32; 3] { self.vertices }
 
-    /// Returns the source boundary-surface face index.
+    /// Returns the face's index in the input BoundarySurface3 face array.
+    #[must_use]
+    pub const fn boundary_face_index(&self) -> usize { self.boundary_face_index }
+
+    /// Returns the original M6.4 topology face index retained by M6.5.
     #[must_use]
     pub const fn source_face_index(&self) -> usize { self.source_face_index }
 
@@ -91,7 +96,8 @@ impl BoundarySurface3 {
             let mut push_triangle = |vertices, source_triangle_index| {
                 triangles.push(TriangulatedSurfaceTriangle3 {
                     vertices,
-                    source_face_index,
+                    boundary_face_index: source_face_index,
+                    source_face_index: face.source_face_index(),
                     source_cell_index,
                     source_local_face_index,
                     source_triangle_index,
@@ -180,7 +186,7 @@ mod tests {
         assert_eq!(result.triangle_count(), 4);
 
         for triangle in result.triangles() {
-            let source_face = &source.faces()[triangle.source_face_index()];
+            let source_face = &source.faces()[triangle.boundary_face_index()];
             assert_eq!(triangle.vertices(), match source_face.vertices() {
                 BoundaryFaceVertices3::Triangle(ids) => ids,
                 BoundaryFaceVertices3::Quad(_) => panic!("tetrahedron face must be triangular"),
@@ -241,7 +247,7 @@ mod tests {
                     [[ids[0], ids[1], ids[3]], [ids[1], ids[2], ids[3]]]
                 };
                 let generated: Vec<_> = source.triangulate().triangles().iter()
-                    .filter(|t| t.source_face_index() == source.faces().iter()
+                    .filter(|t| t.boundary_face_index() == source.faces().iter()
                         .position(|candidate| std::ptr::eq(candidate, face)).unwrap())
                     .map(TriangulatedSurfaceTriangle3::vertices)
                     .collect();
@@ -276,10 +282,11 @@ mod tests {
 
         let mut previous_face = 0;
         for triangle in result.triangles() {
-            assert!(triangle.source_face_index() >= previous_face);
-            previous_face = triangle.source_face_index();
-            assert_eq!(triangle.source_cell_index(),
-                source.faces()[triangle.source_face_index()].source_cell_index());
+            assert!(triangle.boundary_face_index() >= previous_face);
+            previous_face = triangle.boundary_face_index();
+            let source_face = &source.faces()[triangle.boundary_face_index()];
+            assert_eq!(triangle.source_face_index(), source_face.source_face_index());
+            assert_eq!(triangle.source_cell_index(), source_face.source_cell_index());
         }
     }
 
@@ -288,7 +295,8 @@ mod tests {
         let source = cube_surface();
         let result = source.triangulate();
         for triangle in result.triangles() {
-            let source_face = &source.faces()[triangle.source_face_index()];
+            let source_face = &source.faces()[triangle.boundary_face_index()];
+            assert_eq!(triangle.source_face_index(), source_face.source_face_index());
             assert_eq!(triangle.source_cell_index(), source_face.source_cell_index());
             assert_eq!(triangle.source_local_face_index(), source_face.source_local_face_index());
             match source_face.vertices() {
