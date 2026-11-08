@@ -17,9 +17,13 @@ library during development.
   run reported 94 passing tests.
 - **M6.2 — Dataset containers and attribute attachment:** merged to `main`;
   user-reported Windows validation passed (103 workspace tests).
-- **M6.3 — Unstructured topology foundations:** implemented on branch
-  `m6-3-unstructured-topology`; user-reported Windows validation passed
-  (117 workspace tests: 112 core, 1 Explorer, 4 renderer).
+- **M6 — Scientific datasets and unstructured surfaces:** M6.1–M6.6 are
+  implemented and merged to `main`; M6.6 passed Windows validation with
+  153 workspace tests (148 core, 1 Explorer, 4 renderer).
+
+M7.1 is now defined: optional rendering of a mixed tetrahedron/hexahedron
+boundary surface while preserving the existing parametric demo. Its design
+contract is committed; implementation and Windows validation are pending.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
