@@ -2,8 +2,9 @@
 
 ## Status
 
-Design contract recorded on the feature branch. No implementation or local
-validation is claimed yet.
+Design contract approved and merged into main. Core source-location resolution
+is implemented in PR #9; Windows validation is pending. Arrow construction,
+scaling, renderer integration, and Explorer integration remain unimplemented.
 
 ## Objective
 
@@ -147,3 +148,23 @@ dataset vectors without explicit anchors, non-world basis transforms,
 automatic scaling/normalization, adaptive density or decimation, overlap
 avoidance, scalar glyph coloring, legends/labels, lighting/materials,
 file import/export, and field interpolation/transfer.
+
+
+## Implementation progress
+
+### Core source-location resolution
+
+Implemented on branch `m7-3-core-vector-locations` (PR #9):
+- Resolves point-associated vectors to exact source point coordinates and IDs.
+- Resolves cell-associated vectors to documented vertex-average anchors for
+  polylines, triangle meshes, structured grids, and unstructured cells.
+- Preserves original classified vector components and source ordering.
+- Rejects dataset association rather than inventing an anchor.
+- Reports structured-grid samples without finite graph-surface coordinates
+  as missing world-space locations.
+- Uses scaled accumulation for vertex averages to avoid avoidable overflow.
+
+Local Windows compilation and test results are pending. Remaining M7.3 work
+starts with vector magnitude/direction/status classification, followed by
+arrow geometry and explicit scale policies, renderer integration, and the
+Explorer demonstration.
