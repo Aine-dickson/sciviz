@@ -232,6 +232,7 @@ impl<'a> Parser<'a> {
                     }
                     let name = tokens[1];
                     let data_type = tokens[2];
+                    validate_numeric_type(data_type, line_number)?;
                     let components = if tokens.len() == 4 { parse_usize(tokens[3], line_number, "SCALARS component count")? } else { 1 };
                     if components != 1 { return Err(VtkLegacyError::new(VtkLegacyErrorKind::UnsupportedAttribute, Some(line_number), "only one-component SCALARS are supported")); }
                     let lookup = self.peek_nonempty_line();
@@ -250,6 +251,7 @@ impl<'a> Parser<'a> {
                 }
                 "VECTORS" => {
                     if tokens.len() != 3 { return Err(VtkLegacyError::new(VtkLegacyErrorKind::InvalidHeader, Some(line_number), "expected 'VECTORS name dataType'")); }
+                    validate_numeric_type(tokens[2], line_number)?;
                     let values_count = tuple_count.checked_mul(3).ok_or_else(|| VtkLegacyError::new(VtkLegacyErrorKind::CountOverflow, Some(line_number), "VECTORS component count overflows usize"))?;
                     let values = self.read_numbers(values_count, tokens[2], false)?;
                     let vectors = values.chunks_exact(3).map(|v| VectorValue3::from_f64(v[0], v[1], v[2])).collect();
@@ -385,7 +387,19 @@ fn parse_header_count_type(line: &str, expected: &str, line_number: usize) -> Re
     if tokens.len() != 3 || !tokens[0].eq_ignore_ascii_case(expected) {
         return Err(VtkLegacyError::new(VtkLegacyErrorKind::InvalidHeader, Some(line_number), format!("expected '{expected} n dataType'")));
     }
+    validate_numeric_type(tokens[2], line_number)?;
     Ok((parse_usize(tokens[1], line_number, "record count")?, tokens[2].to_ascii_lowercase()))
+}
+
+fn validate_numeric_type(data_type: &str, line: usize) -> Result<(), VtkLegacyError> {
+    match data_type.to_ascii_lowercase().as_str() {
+        "float" | "double" | "short" | "unsigned_short" | "int" | "unsigned_int" | "unsigned_char" => Ok(()),
+        other => Err(VtkLegacyError::new(
+            VtkLegacyErrorKind::UnsupportedNumericType,
+            Some(line),
+            format!("unsupported numeric type '{other}'"),
+        )),
+    }
 }
 
 fn parse_usize(token: &str, line: usize, label: &str) -> Result<usize, VtkLegacyError> {
@@ -393,6 +407,7 @@ fn parse_usize(token: &str, line: usize, label: &str) -> Result<usize, VtkLegacy
 }
 
 fn parse_typed_number(token: &str, data_type: &str, line: usize) -> Result<f64, VtkLegacyError> {
+    validate_numeric_type(data_type, line)?;
     let invalid = || VtkLegacyError::new(VtkLegacyErrorKind::InvalidNumber, Some(line), format!("invalid {data_type} value '{token}'"));
     match data_type.to_ascii_lowercase().as_str() {
         "float" => token.parse::<f32>().map(|v| v as f64).map_err(|_| invalid()),
@@ -577,6 +592,27 @@ VECTORS flux float
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&trailing).unwrap_err().kind(),
             &VtkLegacyErrorKind::UnexpectedRecord
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_numeric_types_for_empty_arrays() {
+        let unsupported_coordinates = "# vtk DataFile Version 3.0\nempty\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 0 long\nCELLS 0 0\nCELL_TYPES 0\n";
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(unsupported_coordinates).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedNumericType
+        );
+
+        let unsupported_scalar = "# vtk DataFile Version 3.0\nempty\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 0 double\nCELLS 0 0\nCELL_TYPES 0\nPOINT_DATA 0\nSCALARS empty long\n";
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(unsupported_scalar).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedNumericType
+        );
+
+        let unsupported_vector = "# vtk DataFile Version 3.0\nempty\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 0 double\nCELLS 0 0\nCELL_TYPES 0\nPOINT_DATA 0\nVECTORS empty long\n";
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(unsupported_vector).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedNumericType
         );
     }
 
