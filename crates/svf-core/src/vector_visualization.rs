@@ -289,6 +289,7 @@ fn mean_point(points: &[WorldPoint3]) -> WorldPoint3 {
     }
 
     WorldPoint3::new(mean[0], mean[1], mean[2])
+}
 
 #[cfg(test)]
 mod tests {
