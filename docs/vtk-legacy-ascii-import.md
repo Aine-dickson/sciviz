@@ -129,18 +129,25 @@ Supported records:
 
 ```
 SCALARS name dataType [numComponents]
-LOOKUP_TABLE tableName
+[LOOKUP_TABLE tableName]
 values...
 ```
 
 - Accept only one component. The component count may be omitted or equal 1.
-- Accept the standard `LOOKUP_TABLE tableName` declaration associated with
-  the scalar record. Lookup-table colors do not override SVF's visual mapping.
-- A separate lookup-table definition (table name, entry count, then RGBA
-  entries) may be consumed and ignored; it is presentation metadata, not a
-  scientific field.
+- The `LOOKUP_TABLE tableName` declaration immediately following the scalar
+  header is optional, as permitted by the VTK format. If present, consume it;
+  lookup-table colors do not override SVF's visual mapping.
+- A separate lookup-table definition (`LOOKUP_TABLE tableName size`, followed
+  by `size * 4` RGBA values) may be consumed and ignored; it is presentation
+  metadata, not a scientific field.
 - Construct a `ScalarField` with `Point` or `Cell` association according
   to the containing section.
+
+Record headers (`POINTS`, `CELLS`, `CELL_TYPES`, `SCALARS`, `VECTORS`,
+`POINT_DATA`, `CELL_DATA`, and `LOOKUP_TABLE`) occupy their own lines in the
+accepted subset. Numeric payloads may span any number of subsequent lines.
+This line-aware rule makes the optional scalar component count unambiguous
+while still accepting arbitrary whitespace within data arrays.
 
 ### Vectors
 
@@ -180,8 +187,7 @@ those requires explicit model semantics and is outside this increment.
   explicitly defines their merge semantics.
 - Reject unknown keywords, unsupported attribute records, and unexplained
   trailing tokens with an UnsupportedRecord or UnexpectedToken error.
-- Reject a field before its association section, a missing SCALARS lookup
-  declaration if required by the accepted grammar, and any tuple-count
+- Reject a field before its association section and any tuple-count
   mismatch.
 - Report the section and useful record/tuple index for malformed data.
 - Do not impose arbitrary dataset-size limits in this first design, but avoid
