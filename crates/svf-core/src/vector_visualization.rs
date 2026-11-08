@@ -277,15 +277,19 @@ fn mean_point(points: &[WorldPoint3]) -> WorldPoint3 {
     }
 
     let divisor = points.len() as f64;
-    let mut mean = [0.0; 3];
+    let mut sum = [0.0; 3];
     for point in points {
         let coordinates = point.to_array();
         for axis in 0..3 {
-            mean[axis] += (coordinates[axis] / scale) / divisor;
+            sum[axis] += coordinates[axis] / scale;
         }
     }
 
-    WorldPoint3::new(mean[0] * scale, mean[1] * scale, mean[2] * scale)
+    WorldPoint3::new(
+        (sum[0] / divisor) * scale,
+        (sum[1] / divisor) * scale,
+        (sum[2] / divisor) * scale,
+    )
 }
 
 #[cfg(test)]
