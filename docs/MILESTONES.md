@@ -497,29 +497,33 @@ M7.1 Windows validation and merge completed (2026-11-08):
 
 Design contract: `docs/scalar-visualization.md`.
 
-Status: design recorded on branch `m7-2-scalar-visualization`; implementation
-has not started.
+Status: core mapping is implemented and user-validated on Windows;
+renderer RGBA integration is implemented and awaiting Windows validation.
+Explorer scalar demonstrations remain pending.
 
-- [ ] Define a common surface representation with source point IDs per render
+- [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
-- [ ] Adapt structured `SampledSurface3`, unstructured
+- [x] Adapt structured `SampledSurface3`, unstructured
   `TriangulatedSurface3`, and identity-mapped `TriangleMesh3`
-- [ ] Implement reusable scalar range resolution and continuous color maps in
+- [x] Implement reusable scalar range resolution and continuous color maps in
   graphics-independent `svf-core`
-- [ ] Support point-, cell-, and dataset-associated scalar fields
-- [ ] Define finite/non-finite, constant-field, explicit-range, and clamping
+- [x] Support point-, cell-, and dataset-associated scalar fields
+- [x] Define finite/non-finite, constant-field, explicit-range, and clamping
   semantics
-- [ ] Expand triangle corners for mapped output so cell colors remain constant
+- [x] Expand triangle corners for mapped output so cell colors remain constant
   per triangle and do not bleed across shared indexed vertices
-- [ ] Preserve source point/cell provenance and never mutate source fields or
+- [x] Preserve source point/cell provenance and never mutate source fields or
   geometry
-- [ ] Add a colored-surface renderer input path while preserving the existing
-  uncolored mesh path
+- [x] Add a colored-surface renderer input path while preserving the existing
+  flat-color mesh path
 - [ ] Demonstrate the same mapping API on a structured point field and an
   unstructured cell field
-- [ ] Add focused core, representation, renderer, and Explorer tests
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
+- [x] Add focused core and renderer conversion tests; Explorer tests remain
+  pending
+- [x] Verify `cargo check --workspace` on Windows for the core stages
+- [x] Verify `cargo test -p svf-core` on Windows (163 passed)
+- [ ] Verify `cargo check --workspace` on Windows after renderer integration
+- [ ] Verify `cargo test --workspace` on Windows after renderer integration
 - [ ] Visually verify both scalar demonstrations and resize/minimize/restore
 
 Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
