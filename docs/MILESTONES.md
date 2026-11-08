@@ -614,8 +614,7 @@ glyph renderer path.
 - [x] Retain source dataset and glyph result on the CPU
 - [x] Verify workspace tests on Windows (user-reported: all passed)
 - [x] Verify glyph placement, grid/axes, and resize/minimize/restore visually
-- [ ] Conclusively inspect depth occlusion from multiple camera angles (deferred:
-  Explorer has no orbit/pan/zoom controls yet)
+- [x] Inspect the cell-vector glyphs from multiple camera angles using M7.5 navigation
 
 Visual feedback: the glyph pattern is structured and arrowheads are visible,
 but many glyphs remain small/crowded. At M7.4 completion, the fixed camera
@@ -631,7 +630,7 @@ without a separate visibility/representation design.
 
 Design and implementation contract: `docs/camera-navigation.md`.
 
-<badge>Complete</badge> Merged to `main` through PR #13 on 2026-11-08.
+Status: complete; merged to `main` through PR #13 on 2026-11-08.
 
 - Merge commit: `32002a3cbce2a3c03755cbda67dc8b759de1892d`.
 - [x] Define reusable, input-independent f64 camera navigation semantics in
