@@ -166,6 +166,7 @@ pub fn prepare_imported_scene(
         .collect();
     let mesh = TriangleMesh3::new(surface.points().to_vec(), indices)
         .map_err(|error| format!("could not construct render mesh: {error}"))?;
+    validate_render_mesh(&mesh)?;
 
     let camera = fit_camera(&mesh, 1280.0 / 800.0)?;
 
@@ -210,6 +211,21 @@ pub fn prepare_imported_scene(
         omitted_lower_dimension_cells,
         scalar_field_name: scalar_field_name.map(str::to_owned),
     })
+}
+
+/// Reject render inputs that the existing f32 GPU buffers cannot represent,
+/// before Explorer creates a native window.
+fn validate_render_mesh(mesh: &TriangleMesh3) -> Result<(), String> {
+    u32::try_from(mesh.vertices().len())
+        .map_err(|_| "render mesh exceeds the renderer's u32 vertex limit".to_owned())?;
+    u32::try_from(mesh.indices().len())
+        .map_err(|_| "render mesh exceeds the renderer's u32 index limit".to_owned())?;
+    if mesh.vertices().iter().any(|point| {
+        point.to_array().iter().any(|coordinate| !(*coordinate as f32).is_finite())
+    }) {
+        return Err("render mesh coordinates exceed the renderer's finite f32 range".to_owned());
+    }
+    Ok(())
 }
 
 /// Fit a perspective camera to the actual render-mesh bounds using a
@@ -278,7 +294,13 @@ pub fn fit_camera(mesh: &TriangleMesh3, aspect_ratio: f64) -> Result<Camera3, St
     ).map_err(|error| format!("camera fit failed: {error}"))?;
     let projection = PerspectiveProjection::new(FIT_VERTICAL_FOV, aspect_ratio, near, far)
         .map_err(|error| format!("camera projection fit failed: {error}"))?;
-    Ok(Camera3::new(pose, Projection3::Perspective(projection)))
+    let camera = Camera3::new(pose, Projection3::Perspective(projection));
+    if camera.view_projection_matrix().to_cols_array().iter()
+        .any(|value| !(*value as f32).is_finite())
+    {
+        return Err("fitted camera matrix exceeds the renderer's finite f32 uniform range".to_owned());
+    }
+    Ok(camera)
 }
 
 #[cfg(test)]
