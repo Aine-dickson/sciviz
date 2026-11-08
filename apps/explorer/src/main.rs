@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use svf_core::{
+    camera_navigation::{self, CameraNavigationConfig},
     dataset::Dataset,
     fields::{
         FieldAssociation, FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3,
@@ -24,7 +25,7 @@ use svf_render::SceneRenderer;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
-    event::{ElementState, MouseButton, WindowEvent},
+    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowId},
@@ -83,6 +84,10 @@ struct Explorer {
     _vector_dataset: Option<Dataset>,
     _vector_glyphs: Option<VectorGlyphSet3>,
     cursor_position: Option<[f64; 2]>,
+    active_drag: Option<MouseButton>,
+    drag_origin: Option<[f64; 2]>,
+    last_drag_position: Option<[f64; 2]>,
+    drag_moved: bool,
 }
 
 impl Default for Explorer {
@@ -106,6 +111,10 @@ impl Explorer {
             _vector_dataset: None,
             _vector_glyphs: None,
             cursor_position: None,
+            active_drag: None,
+            drag_origin: None,
+            last_drag_position: None,
+            drag_moved: false,
         }
     }
 
@@ -193,6 +202,35 @@ impl Explorer {
                 }
             }
         }
+    }
+
+    fn navigate_camera(
+        &mut self,
+        button: Option<MouseButton>,
+        delta_x: f64,
+        delta_y: f64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let Some(renderer) = self.renderer.as_mut() else {
+            return Ok(());
+        };
+        let camera = *renderer.camera();
+        let config = CameraNavigationConfig::default();
+        let updated = match button {
+            Some(MouseButton::Left) => {
+                camera_navigation::orbit(&camera, delta_x, delta_y, config)?
+            }
+            Some(MouseButton::Middle) => {
+                let height = self.window.as_ref().map_or(0, |window| window.inner_size().height);
+                camera_navigation::pan(&camera, delta_x, delta_y, height)?
+            }
+            None => camera_navigation::zoom(&camera, delta_y, config)?,
+            _ => return Ok(()),
+        };
+        renderer.set_camera(updated)?;
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
+        }
+        Ok(())
     }
 
     fn adjust_amplitude(&mut self, delta: f64) -> Result<(), Box<dyn std::error::Error>> {
@@ -354,16 +392,63 @@ impl ApplicationHandler for Explorer {
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor_position = Some([position.x, position.y]);
-                self.inspect_cursor_position(false);
+                let next = [position.x, position.y];
+                self.cursor_position = Some(next);
+                if let Some(button) = self.active_drag {
+                    if let Some(previous) = self.drag_origin {
+                        let total_x = next[0] - previous[0];
+                        let total_y = next[1] - previous[1];
+                        if total_x.hypot(total_y) > 3.0 {
+                            self.drag_moved = true;
+                        }
+                    }
+                    let previous = self.last_drag_position.replace(next).unwrap_or(next);
+                    let delta_x = next[0] - previous[0];
+                    let delta_y = next[1] - previous[1];
+                    if let Err(error) = self.navigate_camera(Some(button), delta_x, delta_y) {
+                        eprintln!("Camera navigation failed: {error}");
+                    }
+                } else {
+                    self.inspect_cursor_position(false);
+                }
             }
 
-            WindowEvent::MouseInput {
-                state: ElementState::Pressed,
-                button: MouseButton::Left,
-                ..
-            } => {
-                self.inspect_cursor_position(true);
+            WindowEvent::MouseInput { state, button, .. } => match state {
+                ElementState::Pressed => {
+                    self.active_drag = Some(button);
+                    self.drag_origin = self.cursor_position;
+                    self.last_drag_position = self.cursor_position;
+                    self.drag_moved = false;
+                }
+                ElementState::Released => {
+                    let was_click = self.active_drag == Some(MouseButton::Left)
+                        && button == MouseButton::Left
+                        && !self.drag_moved;
+                    self.active_drag = None;
+                    self.drag_origin = None;
+                    self.last_drag_position = None;
+                    self.drag_moved = false;
+                    if was_click {
+                        self.inspect_cursor_position(true);
+                    }
+                }
+            },
+
+            WindowEvent::MouseWheel { delta, .. } => {
+                let wheel_delta = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => f64::from(y),
+                    MouseScrollDelta::PixelDelta(position) => position.y / 100.0,
+                };
+                if let Err(error) = self.navigate_camera(None, 0.0, wheel_delta) {
+                    eprintln!("Camera zoom failed: {error}");
+                }
+            }
+
+            WindowEvent::Focused(false) | WindowEvent::CursorLeft { .. } => {
+                self.active_drag = None;
+                self.drag_origin = None;
+                self.last_drag_position = None;
+                self.drag_moved = false;
             }
 
             WindowEvent::KeyboardInput { event, .. }

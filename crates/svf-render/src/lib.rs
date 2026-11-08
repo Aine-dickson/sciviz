@@ -36,6 +36,7 @@ pub enum RenderError {
     MeshConversion,
     MeshBufferSizeChanged,
     VectorGlyphConversion,
+    InvalidCameraUniform,
 }
 
 impl fmt::Display for RenderError {
@@ -65,6 +66,10 @@ impl fmt::Display for RenderError {
             Self::VectorGlyphConversion => write!(
                 f,
                 "vector glyph geometry cannot be represented by the renderer's f32 line-vertex format"
+            ),
+            Self::InvalidCameraUniform => write!(
+                f,
+                "camera view-projection matrix cannot be represented by the renderer's f32 uniform format"
             ),
         }
     }
@@ -132,6 +137,24 @@ impl SceneRenderer {
     #[must_use]
     pub const fn camera(&self) -> &Camera3 {
         &self.camera
+    }
+
+    /// Replaces the camera used by rendering and CPU-side picking.
+    ///
+    /// The GPU uniform is validated and written before the stored camera is
+    /// replaced, so an unrepresentable matrix cannot leave the two out of sync.
+    pub fn set_camera(&mut self, camera: Camera3) -> Result<(), RenderError> {
+        let uniform = CameraUniform::from_camera(&camera);
+        if !uniform.view_projection.iter().flatten().all(|value| value.is_finite()) {
+            return Err(RenderError::InvalidCameraUniform);
+        }
+        self.queue.write_buffer(
+            &self.camera_uniform_buffer,
+            0,
+            bytemuck::bytes_of(&uniform),
+        );
+        self.camera = camera;
+        Ok(())
     }
 
     /// Initialize wgpu and create the reference-scene pipeline.
