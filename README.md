@@ -103,3 +103,6 @@ framework is included in the initial workspace.
 
 The initial graphics dependencies are wgpu, winit, and pollster (for blocking
 the asynchronous renderer initialization during this small native bootstrap).
+
+
+- **M9.1 — VTK legacy ASCII unstructured-grid import:** implemented and merged through PR #23. Adds a graphics-independent `svf-core` parser for supported mixed-cell unstructured grids and point/cell scalar/vector fields. User-validated on Windows: 12 focused tests, 240 workspace tests, and `cargo check --workspace` passed. Explorer file loading is deferred to M9.2.
