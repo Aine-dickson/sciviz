@@ -934,8 +934,10 @@ Explorer scalar demonstrations are implemented on this branch:
 - Explorer unit tests cover mode selection and both mapped demo datasets.
 
 Windows validation completed (user-reported, 2026-11-08):
-- Pulled branch through `899579e`.
-- `cargo test --workspace`: 177 passed (163 core, 9 Explorer,
+- Pulled branch through `b104bf1`, including the extreme-range
+  normalization fix.
+- `cargo test -p svf-core scalar_visualization`: 16 passed.
+- `cargo test --workspace`: 178 passed (164 core, 9 Explorer,
   5 renderer); doc-tests passed.
 - `cargo check --workspace`: passed without warnings.
 - `--scalar`: structured surface displayed a smooth visible gradient;
@@ -948,11 +950,15 @@ Windows validation completed (user-reported, 2026-11-08):
 - Default parametric and original `--unstructured` flat-color modes still
   rendered and behaved as before.
 - All four modes handled resize and minimize/restore consistently.
+- Regression test confirms normalization remains finite and correctly
+  maps endpoints and midpoint for extreme finite ranges, including
+  [-f64::MAX, f64::MAX].
 - No formatting routine was run.
 
-M7.2 implementation, automated Windows validation, and visual acceptance
-are complete on this feature branch. Next: perform the final branch review
-and open a PR for user review. Do not merge without the user's approval.
+M7.2 implementation, automated Windows validation, numerical edge-case
+validation, and visual acceptance are complete on this feature branch.
+Final compare against main: 31 commits ahead, 0 behind. Next: open a PR
+for user review. Do not merge without the user's approval.
 
 Do not add implicit interpolation for generated points without explicit
 source weights. Keep scalar range calculation, palette interpolation, and
