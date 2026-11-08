@@ -828,7 +828,8 @@ remain unchanged.
 
 No outward orientation certification, geometry-dependent diagonal choice,
 quality filtering, field transfer, or renderer integration is in scope.
-Implementation and Windows validation are pending.
+The first implementation pass is present on the feature branch; code review
+and Windows validation remain pending.
 
 
 M6.6 implementation is now present on the feature branch:
