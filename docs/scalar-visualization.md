@@ -4,11 +4,14 @@
 
 The reusable core mapping, renderer RGBA integration, and Explorer
 demonstrations are implemented and user-validated on Windows (2026-11-08).
-`cargo test --workspace` passed (177 tests: 163 core, 9 Explorer,
-5 renderer; doc-tests passed), and `cargo check --workspace` passed
-without warnings. All four Explorer modes were visually rechecked, including
-both scalar demonstrations, resize, and minimize/restore. Final branch review
-and PR creation remain.
+The final `cargo test -p svf-core scalar_visualization` run passed
+(16 tests); `cargo test --workspace` passed (178 tests: 164 core,
+9 Explorer, 5 renderer; doc-tests passed); and `cargo check --workspace`
+passed without warnings. Extreme finite-range normalization, including
+[-f64::MAX, f64::MAX], has a passing regression test. All four Explorer
+modes were visually rechecked, including both scalar demonstrations,
+resize, and minimize/restore. The feature branch has been reviewed against
+main and a PR opened for user review.
 
 Branch: `m7-2-scalar-visualization`, based on `main` after M7.1.
 
