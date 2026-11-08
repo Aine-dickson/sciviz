@@ -909,24 +909,37 @@ Core implementation:
 - User-reported Windows validation: `cargo test -p svf-core` passed
   (163 tests); `cargo check --workspace` passed without warnings.
 
-Current renderer integration (implemented on this branch; Windows validation
-pending):
-- `svf-render` now has `SceneRenderer::new_with_mapped_surface`.
+Current renderer integration is implemented and user-validated on
+Windows (2026-11-08):
+- `svf-render` provides `SceneRenderer::new_with_mapped_surface`.
 - Mapped positions and linear-light RGBA values convert to f32 at the GPU
   boundary; the mesh vertex layout and WGSL shader accept RGBA.
 - The existing `SceneRenderer::new(window, &TriangleMesh3)` path remains,
   using its existing flat color with alpha 1.0.
-- A focused renderer conversion test exercises the real core mapping API.
-- Do not claim renderer validation until the user pulls and runs the tests.
+- User-reported `cargo test --workspace`: 175 passed (163 core,
+  7 Explorer, 5 renderer); doc-tests passed.
+- User-reported `cargo check --workspace`: passed without warnings.
+- User visually confirmed the existing unstructured flat-color mode still
+  renders correctly and handles resize/minimize/restore.
+
+Explorer scalar demonstrations are implemented on this branch:
+- `--scalar`: structured grid with a point-associated height field.
+- `--unstructured-scalar`: existing hexahedron/tetrahedron fixture with a
+  cell-associated field.
+- Both modes construct a source `Dataset`, create a provenance-aware surface,
+  call the same `map_scalar_field` API, and pass the resulting
+  `MappedSurface3` to the renderer.
+- Source dataset, provenance, and mapped surface are retained CPU-side.
+- Existing default parametric and `--unstructured` flat-color modes remain.
+- Explorer unit tests cover mode selection and both mapped demo datasets.
 
 Next:
-1. Pull and validate the renderer integration on Windows.
-2. Fix any reported compile/test issues without running formatters.
-3. Add the Explorer structured point-field and unstructured cell-field
-   demonstrations while retaining the default parametric and existing
-   `--unstructured` flat-color modes.
-4. Validate both scalar demos visually, including resize/minimize/restore.
-5. Review and complete documentation, then open a PR for user review.
+1. Pull the latest branch and compile/test the Explorer implementation on
+   Windows; fix any reported issues without running formatters.
+2. Launch both scalar modes and visually verify their color mapping and
+   resize/minimize/restore behavior.
+3. Re-run default and `--unstructured` modes to confirm no regression.
+4. Complete documentation, review the branch, and open a PR for user review.
 
 Do not add implicit interpolation for generated points without explicit
 source weights. Keep scalar range calculation, palette interpolation, and
