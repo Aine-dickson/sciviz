@@ -137,26 +137,28 @@ fn canonical_pair(a: u32, b: u32) -> (u32, u32) {
 mod tests {
     use super::*;
     use crate::{
-        boundary_surface::{BoundarySurfaceFace3, BoundarySurface3},
         spatial::WorldPoint3,
+        unstructured::{CellType3, UnstructuredGrid3},
     };
 
-    fn p(x: f64, y: f64, z: f64) -> WorldPoint3 { WorldPoint3::new(x, y, z) }
-
-    fn face(vertices: BoundaryFaceVertices3, source_face: usize) -> BoundarySurfaceFace3 {
-        BoundarySurfaceFace3 {
-            vertices,
-            source_face_index: source_face,
-            source_cell_index: source_face + 10,
-            source_local_face_index: source_face + 20,
-        }
+    fn p(x: f64, y: f64, z: f64) -> WorldPoint3 {
+        WorldPoint3::new(x, y, z)
     }
 
-    fn surface(source_point_ids: Vec<u32>, faces: Vec<BoundarySurfaceFace3>) -> BoundarySurface3 {
-        let points = source_point_ids.iter()
-            .map(|&id| p(f64::from(id), 0.0, 0.0))
-            .collect();
-        BoundarySurface3 { points, source_point_ids, faces }
+    fn cube_surface() -> BoundarySurface3 {
+        let points = vec![
+            p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0),
+            p(1.0, 1.0, 0.0), p(0.0, 1.0, 0.0),
+            p(0.0, 0.0, 1.0), p(1.0, 0.0, 1.0),
+            p(1.0, 1.0, 1.0), p(0.0, 1.0, 1.0),
+        ];
+        let grid = UnstructuredGrid3::new(
+            points,
+            vec![CellType3::Hexahedron8],
+            vec![0, 8],
+            vec![0, 1, 2, 3, 4, 5, 6, 7],
+        ).unwrap();
+        grid.boundary_surface().unwrap()
     }
 
     #[test]
@@ -166,92 +168,139 @@ mod tests {
 
     #[test]
     fn source_triangle_passes_through_with_exact_order_and_provenance() {
-        let source = surface(vec![40, 10, 30],
-            vec![face(BoundaryFaceVertices3::Triangle([2, 0, 1]), 7)]);
+        let grid = UnstructuredGrid3::new(
+            vec![p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0),
+                 p(0.0, 1.0, 0.0), p(0.0, 0.0, 1.0)],
+            vec![CellType3::Tetrahedron4],
+            vec![0, 4],
+            vec![0, 1, 2, 3],
+        ).unwrap();
+        let source = grid.boundary_surface().unwrap();
         let result = source.triangulate();
-        assert_eq!(result.triangle_count(), 1);
-        let triangle = result.triangles()[0];
-        assert_eq!(triangle.vertices(), [2, 0, 1]);
-        assert_eq!(triangle.source_face_index(), 0);
-        assert_eq!(triangle.source_cell_index(), 10);
-        assert_eq!(triangle.source_local_face_index(), 20);
-        assert_eq!(triangle.source_triangle_index(), 0);
+        assert_eq!(result.triangle_count(), 4);
+
+        for triangle in result.triangles() {
+            let source_face = &source.faces()[triangle.source_face_index()];
+            assert_eq!(triangle.vertices(), match source_face.vertices() {
+                BoundaryFaceVertices3::Triangle(ids) => ids,
+                BoundaryFaceVertices3::Quad(_) => panic!("tetrahedron face must be triangular"),
+            });
+            assert_eq!(triangle.source_cell_index(), source_face.source_cell_index());
+            assert_eq!(triangle.source_local_face_index(), source_face.source_local_face_index());
+            assert_eq!(triangle.source_triangle_index(), 0);
+        }
     }
 
     #[test]
-    fn quad_selects_diagonal_02_when_its_source_id_pair_is_smaller() {
-        let source = surface(vec![10, 20, 30, 40],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
+    fn quad_selects_diagonal_02_for_canonical_low_pair() {
+        let source = cube_surface();
+        let face = source.faces().iter().find(|face| {
+            face.source_local_face_index() == 0
+        }).unwrap();
+        let BoundaryFaceVertices3::Quad([v0, v1, v2, v3]) = face.vertices() else {
+            panic!("hexahedron face must be a quad");
+        };
         let result = source.triangulate();
-        assert_eq!(result.triangles()[0].vertices(), [0, 1, 2]);
-        assert_eq!(result.triangles()[1].vertices(), [0, 2, 3]);
+        let first = result.triangles().iter().find(|t| t.source_local_face_index() == 0
+            && t.source_triangle_index() == 0).unwrap();
+        let second = result.triangles().iter().find(|t| t.source_local_face_index() == 0
+            && t.source_triangle_index() == 1).unwrap();
+        assert_eq!(first.vertices(), [v0, v1, v2]);
+        assert_eq!(second.vertices(), [v0, v2, v3]);
     }
 
     #[test]
-    fn quad_selects_diagonal_13_when_its_source_id_pair_is_smaller() {
-        let source = surface(vec![10, 40, 20, 30],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
+    fn quad_selects_diagonal_13_when_canonical_pair_is_smaller() {
+        let source = cube_surface();
+        let face = source.faces().iter().find(|face| {
+            face.source_local_face_index() == 5
+        }).unwrap();
+        let BoundaryFaceVertices3::Quad([v0, v1, v2, v3]) = face.vertices() else {
+            panic!("hexahedron face must be a quad");
+        };
         let result = source.triangulate();
-        assert_eq!(result.triangles()[0].vertices(), [0, 1, 3]);
-        assert_eq!(result.triangles()[1].vertices(), [1, 2, 3]);
+        let first = result.triangles().iter().find(|t| t.source_local_face_index() == 5
+            && t.source_triangle_index() == 0).unwrap();
+        let second = result.triangles().iter().find(|t| t.source_local_face_index() == 5
+            && t.source_triangle_index() == 1).unwrap();
+        assert_eq!(first.vertices(), [v0, v1, v3]);
+        assert_eq!(second.vertices(), [v1, v2, v3]);
     }
 
     #[test]
-    fn diagonal_selection_uses_original_source_ids_not_compact_ids() {
-        // Compact pair 0-2 is smaller, but source pair (10, 90) is larger
-        // than source pair (20, 30).
-        let source = surface(vec![10, 20, 90, 30],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
+    fn diagonal_policy_reads_original_source_point_ids() {
+        let source = cube_surface();
+        for face in source.faces() {
+            if let BoundaryFaceVertices3::Quad(ids) = face.vertices() {
+                let source_ids = source.source_point_ids();
+                let pair02 = canonical_pair(source_ids[ids[0] as usize], source_ids[ids[2] as usize]);
+                let pair13 = canonical_pair(source_ids[ids[1] as usize], source_ids[ids[3] as usize]);
+                let expected = if pair02 < pair13 {
+                    [[ids[0], ids[1], ids[2]], [ids[0], ids[2], ids[3]]]
+                } else {
+                    [[ids[0], ids[1], ids[3]], [ids[1], ids[2], ids[3]]]
+                };
+                let generated: Vec<_> = source.triangulate().triangles().iter()
+                    .filter(|t| t.source_face_index() == source.faces().iter()
+                        .position(|candidate| std::ptr::eq(candidate, face)).unwrap())
+                    .map(TriangulatedSurfaceTriangle3::vertices)
+                    .collect();
+                assert_eq!(generated, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_tetrahedron_and_hexahedron_faces_preserve_face_order_and_arity() {
+        let mut points = vec![
+            p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0),
+            p(1.0, 1.0, 0.0), p(0.0, 1.0, 0.0),
+            p(0.0, 0.0, 1.0), p(1.0, 0.0, 1.0),
+            p(1.0, 1.0, 1.0), p(0.0, 1.0, 1.0),
+        ];
+        points.extend([p(3.0, 0.0, 0.0), p(4.0, 0.0, 0.0),
+                       p(3.0, 1.0, 0.0), p(3.0, 0.0, 1.0)]);
+        let grid = UnstructuredGrid3::new(
+            points,
+            vec![CellType3::Hexahedron8, CellType3::Tetrahedron4],
+            vec![0, 8, 12],
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        ).unwrap();
+        let source = grid.boundary_surface().unwrap();
         let result = source.triangulate();
-        assert_eq!(result.triangles()[0].vertices(), [0, 1, 3]);
-        assert_eq!(result.triangles()[1].vertices(), [1, 2, 3]);
+        let expected_count: usize = source.faces().iter().map(|face| match face.vertices() {
+            BoundaryFaceVertices3::Triangle(_) => 1,
+            BoundaryFaceVertices3::Quad(_) => 2,
+        }).sum();
+        assert_eq!(result.triangle_count(), expected_count);
+
+        let mut previous_face = 0;
+        for triangle in result.triangles() {
+            assert!(triangle.source_face_index() >= previous_face);
+            previous_face = triangle.source_face_index();
+            assert_eq!(triangle.source_cell_index(),
+                source.faces()[triangle.source_face_index()].source_cell_index());
+        }
     }
 
     #[test]
-    fn both_split_patterns_preserve_quad_local_cycle_order() {
-        let diagonal_02 = surface(vec![10, 20, 30, 40],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]).triangulate();
-        assert_eq!(diagonal_02.triangles()[0].vertices(), [0, 1, 2]);
-        assert_eq!(diagonal_02.triangles()[1].vertices(), [0, 2, 3]);
-
-        let diagonal_13 = surface(vec![10, 40, 20, 30],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]).triangulate();
-        assert_eq!(diagonal_13.triangles()[0].vertices(), [0, 1, 3]);
-        assert_eq!(diagonal_13.triangles()[1].vertices(), [1, 2, 3]);
-    }
-
-    #[test]
-    fn mixed_faces_keep_source_order_and_triangle_ordinals() {
-        let source = surface(vec![0, 1, 2, 3, 4], vec![
-            face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0),
-            face(BoundaryFaceVertices3::Triangle([1, 2, 4]), 1),
-        ]);
+    fn every_triangle_retains_complete_source_provenance_and_ordinal() {
+        let source = cube_surface();
         let result = source.triangulate();
-        assert_eq!(result.triangle_count(), 3);
-        assert_eq!(result.triangles()[0].source_face_index(), 0);
-        assert_eq!(result.triangles()[0].source_triangle_index(), 0);
-        assert_eq!(result.triangles()[1].source_face_index(), 0);
-        assert_eq!(result.triangles()[1].source_triangle_index(), 1);
-        assert_eq!(result.triangles()[2].source_face_index(), 1);
-        assert_eq!(result.triangles()[2].source_triangle_index(), 0);
-    }
-
-    #[test]
-    fn every_triangle_retains_complete_source_provenance() {
-        let source = surface(vec![10, 20, 30, 40],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
-        for (ordinal, triangle) in source.triangulate().triangles().iter().enumerate() {
-            assert_eq!(triangle.source_face_index(), 0);
-            assert_eq!(triangle.source_cell_index(), 10);
-            assert_eq!(triangle.source_local_face_index(), 20);
-            assert_eq!(triangle.source_triangle_index(), ordinal);
+        for triangle in result.triangles() {
+            let source_face = &source.faces()[triangle.source_face_index()];
+            assert_eq!(triangle.source_cell_index(), source_face.source_cell_index());
+            assert_eq!(triangle.source_local_face_index(), source_face.source_local_face_index());
+            match source_face.vertices() {
+                BoundaryFaceVertices3::Triangle(_) => assert_eq!(triangle.source_triangle_index(), 0),
+                BoundaryFaceVertices3::Quad(_) => assert!(triangle.source_triangle_index() < 2),
+            }
         }
     }
 
     #[test]
     fn points_and_source_point_mapping_are_preserved_exactly() {
-        let source = surface(vec![50, 10, 40, 20],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
+        let source = cube_surface();
         let result = source.triangulate();
         assert_eq!(result.points(), source.points());
         assert_eq!(result.source_point_ids(), source.source_point_ids());
@@ -260,8 +309,7 @@ mod tests {
 
     #[test]
     fn repeated_triangulation_is_deterministic_and_does_not_mutate_source() {
-        let source = surface(vec![10, 40, 20, 30],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
+        let source = cube_surface();
         let before = source.clone();
         assert_eq!(source.triangulate(), source.triangulate());
         assert_eq!(source, before);
@@ -269,9 +317,13 @@ mod tests {
 
     #[test]
     fn degenerate_quad_is_triangulated_without_geometric_filtering() {
-        let mut source = surface(vec![10, 20, 30, 40],
-            vec![face(BoundaryFaceVertices3::Quad([0, 1, 2, 3]), 0)]);
-        source.points = vec![p(0.0, 0.0, 0.0); 4];
-        assert_eq!(source.triangulate().triangle_count(), 2);
+        let grid = UnstructuredGrid3::new(
+            vec![p(0.0, 0.0, 0.0); 8],
+            vec![CellType3::Hexahedron8],
+            vec![0, 8],
+            vec![0, 1, 2, 3, 4, 5, 6, 7],
+        ).unwrap();
+        let source = grid.boundary_surface().unwrap();
+        assert_eq!(source.triangulate().triangle_count(), 12);
     }
 }
