@@ -313,11 +313,7 @@ impl ApplicationHandler for Explorer {
 }
 
 fn main() {
-    let mode = if std::env::args().any(|argument| argument == "--unstructured") {
-        ExplorerMode::Unstructured
-    } else {
-        ExplorerMode::Parametric
-    };
+    let mode = mode_from_args(std::env::args());
 
     let event_loop = match EventLoop::new() {
         Ok(event_loop) => event_loop,
@@ -333,6 +329,14 @@ fn main() {
     let mut app = Explorer::new(mode);
     if let Err(error) = event_loop.run_app(&mut app) {
         eprintln!("SVF Explorer terminated with an event-loop error: {error}");
+    }
+}
+
+fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
+    if args.into_iter().any(|argument| argument == "--unstructured") {
+        ExplorerMode::Unstructured
+    } else {
+        ExplorerMode::Parametric
     }
 }
 
@@ -533,6 +537,22 @@ mod tests {
             .iter()
             .all(|&index| (index as usize) < mesh.vertex_count()));
         assert!(mesh.vertices().iter().all(|point| point.to_vector().is_finite()));
+    }
+
+    #[test]
+    fn command_line_selects_unstructured_mode_only_for_exact_flag() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned()]),
+            ExplorerMode::Parametric
+        );
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--unstructured".to_owned()]),
+            ExplorerMode::Unstructured
+        );
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--unstructured-extra".to_owned()]),
+            ExplorerMode::Parametric
+        );
     }
 
     #[test]
