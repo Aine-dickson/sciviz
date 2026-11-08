@@ -2,7 +2,11 @@
 
 ## Status
 
-Design contract for M7.2. Implementation has not started.
+Design contract and core scalar-mapping stages are implemented. The user
+validated the core on Windows: `cargo test -p svf-core` passed (163 tests)
+and `cargo check --workspace` passed without warnings. Renderer RGBA input
+integration is now implemented on the feature branch and awaits Windows
+validation. Explorer scalar demonstration modes are still pending.
 
 Branch: `m7-2-scalar-visualization`, based on `main` after M7.1.
 
