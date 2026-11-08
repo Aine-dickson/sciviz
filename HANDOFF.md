@@ -883,7 +883,38 @@ Windows validation was user-reported on 2026-11-08:
 - Both modes handled resize and minimize/restore correctly.
 - No formatting routine was run.
 
-M7.1 is complete. Next: synchronize the local `main` branch and begin
-planning M7.2. Preserve the existing scope boundaries: no field coloring,
+M7.1 is complete. Preserve its scope boundaries: no field coloring,
 unstructured picking UI, orientation repair, lighting, camera controls,
 volume rendering, or file I/O was added in M7.1.
+
+## Current work — M7.2 reusable scalar visualization
+
+Branch: `m7-2-scalar-visualization`, created from `main` after M7.1.
+
+Design contract: `docs/scalar-visualization.md`.
+
+M7.2 is designed as a reusable scalar-to-color mapping pipeline for surface
+representations derived from both structured and unstructured datasets. It
+connects the M6 `Dataset`/`ScalarField` model to the M7 renderer while keeping
+scientific values and association semantics authoritative in `svf-core`.
+
+The common surface input carries a triangle mesh, one source point ID per
+render vertex, and one source logical cell ID per render triangle. Initial
+adapters cover `SampledSurface3`, `TriangulatedSurface3`, and identity mapping
+for `TriangleMesh3`. Point, cell, and dataset field associations are all in
+scope. Cell coloring uses triangle-corner expansion so shared indexed vertices
+cannot blend colors across source-cell boundaries.
+
+The mapping contract defines automatic and explicit scalar ranges, finite
+value handling, constant-field behavior, clamping, invalid-value color, and a
+continuous configurable color map. The mapped surface remains graphics-
+independent; `svf-render` only uploads positions and per-corner colors. The
+resolved range and palette metadata are retained for a future legend, but
+on-screen text/legend UI is explicitly deferred.
+
+M7.2 implementation has not started. The next step is to review the design
+contract, then implement the core provenance adapter and scalar mapping before
+renderer integration. Do not add interpolation for generated points without
+explicit source weights. Preserve the default parametric demo and M7.1
+unstructured flat-color mode.
+
