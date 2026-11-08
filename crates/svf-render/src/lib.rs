@@ -12,6 +12,7 @@ use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     geometry::TriangleMesh3,
     spatial::{WorldPoint3, WorldVector3},
+    vector_glyphs::VectorGlyphSet3,
 };
 use wgpu::{CurrentSurfaceTexture, Surface, SurfaceConfiguration, util::DeviceExt};
 use winit::{dpi::PhysicalSize, window::Window};
@@ -21,6 +22,7 @@ const GRID_COLOR: [f32; 3] = [0.19, 0.22, 0.28];
 const X_AXIS_COLOR: [f32; 3] = [0.95, 0.25, 0.22];
 const Y_AXIS_COLOR: [f32; 3] = [0.28, 0.88, 0.38];
 const Z_AXIS_COLOR: [f32; 3] = [0.25, 0.52, 0.98];
+const VECTOR_GLYPH_COLOR: [f32; 3] = [0.98, 0.72, 0.20];
 
 /// Errors raised while initializing or using the rendering infrastructure.
 #[derive(Debug)]
@@ -33,6 +35,7 @@ pub enum RenderError {
     SurfaceValidation,
     MeshConversion,
     MeshBufferSizeChanged,
+    VectorGlyphConversion,
 }
 
 impl fmt::Display for RenderError {
@@ -58,6 +61,10 @@ impl fmt::Display for RenderError {
             Self::MeshBufferSizeChanged => write!(
                 f,
                 "updated scientific mesh must preserve the existing vertex and index counts"
+            ),
+            Self::VectorGlyphConversion => write!(
+                f,
+                "vector glyph geometry cannot be represented by the renderer's f32 line-vertex format"
             ),
         }
     }
@@ -112,6 +119,8 @@ pub struct SceneRenderer {
     vertex_count: u32,
     mesh_vertex_buffer: wgpu::Buffer,
     mesh_index_buffer: wgpu::Buffer,
+    vector_vertex_buffer: wgpu::Buffer,
+    vector_vertex_count: u32,
     mesh_vertex_count: u32,
     mesh_index_count: u32,
     _depth_texture: wgpu::Texture,
@@ -128,7 +137,29 @@ impl SceneRenderer {
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+    }
+
+    /// Initialize the renderer with a mesh and prepared vector glyphs from svf-core.
+    pub async fn new_with_vector_glyphs(
+        window: Arc<Window>,
+        mesh: &TriangleMesh3,
+        glyphs: &VectorGlyphSet3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
+        let vector_vertices = convert_vector_glyphs(glyphs)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+    }
+
+    /// Initialize the renderer with a scalar-mapped surface and prepared vector glyphs.
+    pub async fn new_with_mapped_surface_and_vectors(
+        window: Arc<Window>,
+        surface: &svf_core::scalar_visualization::MappedSurface3,
+        glyphs: &VectorGlyphSet3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
+        let vector_vertices = convert_vector_glyphs(glyphs)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
     }
 
     /// Initialize the renderer with a scalar-mapped surface produced by svf-core.
@@ -137,13 +168,14 @@ impl SceneRenderer {
         surface: &svf_core::scalar_visualization::MappedSurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
     }
 
     async fn new_with_mesh_data(
         window: Arc<Window>,
         mesh_vertices: Vec<MeshVertex>,
         mesh_indices: Vec<u32>,
+        vector_vertices: Vec<LineVertex>,
     ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
@@ -320,6 +352,22 @@ impl SceneRenderer {
             contents: bytemuck::cast_slice(&mesh_indices),
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
+        let vector_vertex_count =
+            u32::try_from(vector_vertices.len()).map_err(|_| RenderError::VectorGlyphConversion)?;
+        let vector_vertex_buffer = if vector_vertices.is_empty() {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("svf-vector-glyph-vertex-buffer"),
+                size: size_of::<LineVertex>() as u64,
+                usage: wgpu::BufferUsages::VERTEX,
+                mapped_at_creation: false,
+            })
+        } else {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("svf-vector-glyph-vertex-buffer"),
+                contents: bytemuck::cast_slice(&vector_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        };
 
         tracing_adapter_info(&adapter);
 
@@ -339,6 +387,8 @@ impl SceneRenderer {
             vertex_count,
             mesh_vertex_buffer,
             mesh_index_buffer,
+            vector_vertex_buffer,
+            vector_vertex_count,
             mesh_vertex_count,
             mesh_index_count,
             _depth_texture: depth_texture,
@@ -466,6 +516,9 @@ impl SceneRenderer {
             pass.set_pipeline(&self.pipeline);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.draw(0..self.vertex_count, 0..1);
+
+            pass.set_vertex_buffer(0, self.vector_vertex_buffer.slice(..));
+            pass.draw(0..self.vector_vertex_count, 0..1);
         }
 
         self.queue.submit([encoder.finish()]);
@@ -571,6 +624,42 @@ fn convert_mapped_surface(
     Ok((vertices, surface.indices().to_vec()))
 }
 
+fn convert_vector_glyphs(
+    glyphs: &VectorGlyphSet3,
+) -> Result<Vec<LineVertex>, RenderError> {
+    let capacity = glyphs
+        .entries()
+        .len()
+        .checked_mul(6)
+        .ok_or(RenderError::VectorGlyphConversion)?;
+    let mut vertices = Vec::new();
+    vertices
+        .try_reserve_exact(capacity)
+        .map_err(|_| RenderError::VectorGlyphConversion)?;
+
+    for entry in glyphs.entries() {
+        let Some(segments) = entry.segments() else {
+            continue;
+        };
+
+        for segment in segments {
+            for point in [segment.start(), segment.end()] {
+                let coordinates = point.to_array();
+                let position = coordinates.map(|value| value as f32);
+                if !position.iter().all(|value| value.is_finite()) {
+                    return Err(RenderError::VectorGlyphConversion);
+                }
+                vertices.push(LineVertex {
+                    position,
+                    color: VECTOR_GLYPH_COLOR,
+                });
+            }
+        }
+    }
+
+    Ok(vertices)
+}
+
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
     let pose = LookAtCamera::new(
         WorldPoint3::new(14.0, 12.0, 18.0),
@@ -656,6 +745,77 @@ fn tracing_adapter_info(adapter: &wgpu::Adapter) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use svf_core::{
+        dataset::Dataset,
+        fields::{FieldAssociation, FieldMetadata, VectorBasis3, VectorField3, VectorValue3},
+        geometry::PointSet3,
+        vector_glyphs::{build_vector_glyphs, VectorScalePolicy3},
+        vector_visualization::{analyze_vector_sources, resolve_vector_sources},
+    };
+
+    fn vector_glyphs(points: Vec<WorldPoint3>, values: Vec<VectorValue3>) -> VectorGlyphSet3 {
+        vector_glyphs_with_length(points, values, 2.0)
+    }
+
+    fn vector_glyphs_with_length(
+        points: Vec<WorldPoint3>,
+        values: Vec<VectorValue3>,
+        length: f64,
+    ) -> VectorGlyphSet3 {
+        let mut dataset = Dataset::new(PointSet3::new(points).unwrap());
+        let field = VectorField3::new(
+            FieldMetadata::new("velocity", None).unwrap(),
+            FieldAssociation::Point,
+            VectorBasis3::World,
+            values,
+        )
+        .unwrap();
+        dataset.add_vector_field3(field).unwrap();
+        let sources = resolve_vector_sources(&dataset, "velocity").unwrap();
+        let analyses = analyze_vector_sources(&sources).unwrap();
+        build_vector_glyphs(
+            &analyses,
+            VectorScalePolicy3::UniformLength { length },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn vector_glyph_conversion_flattens_segments_and_skips_entries_without_geometry() {
+        let glyphs = vector_glyphs(
+            vec![
+                WorldPoint3::new(1.0, 2.0, 3.0),
+                WorldPoint3::new(4.0, 5.0, 6.0),
+                WorldPoint3::new(7.0, 8.0, 9.0),
+            ],
+            vec![
+                VectorValue3::from_f64(1.0, 0.0, 0.0),
+                VectorValue3::from_f64(0.0, 0.0, 0.0),
+                VectorValue3::from_f64(f64::NAN, 1.0, 0.0),
+            ],
+        );
+
+        let vertices = convert_vector_glyphs(&glyphs).unwrap();
+        assert_eq!(vertices.len(), 6);
+        assert_eq!(vertices[0].position, [1.0, 2.0, 3.0]);
+        assert_eq!(vertices[1].position, [3.0, 2.0, 3.0]);
+        assert!(vertices.iter().all(|vertex| vertex.color == VECTOR_GLYPH_COLOR));
+    }
+
+    #[test]
+    fn vector_glyph_conversion_rejects_positions_outside_f32_range() {
+        // The arrow must be representable in f64 before the renderer
+        // rejects its world coordinates at the f32 GPU boundary.
+        let glyphs = vector_glyphs_with_length(
+            vec![WorldPoint3::new(1.0e100, 0.0, 0.0)],
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0)],
+            1.0e90,
+        );
+        assert!(matches!(
+            convert_vector_glyphs(&glyphs),
+            Err(RenderError::VectorGlyphConversion)
+        ));
+    }
 
     #[test]
     fn mesh_conversion_preserves_indices_and_converts_positions() {
