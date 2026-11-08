@@ -255,6 +255,7 @@ pub fn extract_tetrahedral_isosurface(
             metadata.skipped_cells.push(SkippedIsosurfaceCell3 {
                 cell_id, reason: IsosurfaceSkipReason3::DegenerateOutputTriangle,
             });
+            continue;
         }
 
         for triangle in accepted {
@@ -320,7 +321,7 @@ fn exact_face_owners(
     }
     faces.into_iter().map(|(face, entries)| {
         let low = entries.iter().any(|entry| entry.side < 0);
-        let high = entries.iter().any(|entry| entry.side > 0);
+        let high = entries.iter().any(|entry| entry.side >= 0);
         let owner = if entries.len() == 1 && low {
             entries.first().map(|entry| entry.cell_id)
         } else if low && high {
@@ -571,6 +572,41 @@ mod tests {
         let result = extract_tetrahedral_isosurface(&source, "value", 0.5).unwrap();
         assert_eq!(result.mesh().triangle_count(), 1);
         assert_eq!(result.triangle_source_cells(), &[0]);
+    }
+
+    #[test]
+    fn exact_shared_face_between_low_and_equal_tetrahedra_is_emitted_once() {
+        let grid = UnstructuredGrid3::new(
+            vec![point(0.0,0.0,0.0), point(1.0,0.0,0.0), point(0.0,1.0,0.0),
+                 point(0.0,0.0,1.0), point(0.0,0.0,-1.0)],
+            vec![CellType3::Tetrahedron4, CellType3::Tetrahedron4],
+            vec![0,4,8], vec![0,1,2,3, 0,2,1,4],
+        ).unwrap();
+        let mut source = Dataset::new(grid);
+        source.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("value", None).unwrap(), FieldAssociation::Point,
+            vec![0.5,0.5,0.5,0.0,0.5].into_iter().map(SampleValue::Finite).collect(),
+        ).unwrap()).unwrap();
+        let result = extract_tetrahedral_isosurface(&source, "value", 0.5).unwrap();
+        assert_eq!(result.mesh().triangle_count(), 1);
+        assert_eq!(result.triangle_source_cells(), &[0]);
+    }
+
+    #[test]
+    fn exact_shared_face_with_both_tetrahedra_on_low_side_is_suppressed() {
+        let grid = UnstructuredGrid3::new(
+            vec![point(0.0,0.0,0.0), point(1.0,0.0,0.0), point(0.0,1.0,0.0),
+                 point(0.0,0.0,1.0), point(0.0,0.0,-1.0)],
+            vec![CellType3::Tetrahedron4, CellType3::Tetrahedron4],
+            vec![0,4,8], vec![0,1,2,3, 0,2,1,4],
+        ).unwrap();
+        let mut source = Dataset::new(grid);
+        source.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("value", None).unwrap(), FieldAssociation::Point,
+            vec![0.5,0.5,0.5,0.0,0.0].into_iter().map(SampleValue::Finite).collect(),
+        ).unwrap()).unwrap();
+        let result = extract_tetrahedral_isosurface(&source, "value", 0.5).unwrap();
+        assert!(result.mesh().is_empty());
     }
 
     #[test]
