@@ -30,7 +30,8 @@ library during development.
   while Explorer `--vectors` demonstrates point-associated vectors.
 - **M7.4 — Structured cell-associated vectors:** merged and user-validated
   on Windows; adds a 64-cell structured-grid demo with explicit-length glyphs.
-  Visual depth occlusion remains inconclusive from the fixed camera.
+  The initial fixed-camera occlusion check was inconclusive; M7.5 now
+  enables inspection from multiple camera angles.
 - **M7.5 — Interactive 3D camera navigation:** implemented, user-validated
   on Windows, and merged through PR #13; orbit, pan, and wheel zoom work
   across all six Explorer modes.
