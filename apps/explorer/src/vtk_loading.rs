@@ -290,6 +290,8 @@ mod tests {
         unstructured::{CellType3, UnstructuredGrid3},
     };
 
+    const EXAMPLE_VTK: &str = include_str!("../examples/tetra-with-fields.vtk");
+
     const TETRA_VTK: &str = "# vtk DataFile Version 3.0
 tetra test
 ASCII
@@ -312,6 +314,18 @@ LOOKUP_TABLE default
 
     fn config(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn committed_smoke_fixture_loads_and_reports_omitted_line_cell() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene(dataset, None).unwrap();
+        assert_eq!(scene.dataset.point_count(), 5);
+        assert_eq!(scene.dataset.cell_count(), 2);
+        assert_eq!(scene.surface.triangle_count(), 4);
+        assert_eq!(scene.omitted_lower_dimension_cells, 1);
+        assert!(scene.mapped_surface.is_none());
+        assert!(scene.summary().contains("omitted 1 lower-dimensional cells"));
     }
 
     #[test]
