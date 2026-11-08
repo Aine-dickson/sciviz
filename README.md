@@ -26,6 +26,9 @@ M7.1 — Unstructured boundary-surface rendering: implemented, merged to
 hexahedron/tetrahedron mode renders 16 provenance-mapped triangles; the
 workspace passes 159 tests (148 core, 7 Explorer, 4 renderer).
 
+M7.2 is now in design on branch `m7-2-scalar-visualization`: a reusable
+scalar-to-color mapping pipeline for structured and unstructured surfaces.
+
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
 
