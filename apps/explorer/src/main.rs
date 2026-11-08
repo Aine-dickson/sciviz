@@ -7,6 +7,7 @@ use svf_core::{
         FieldAssociation, FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3,
     },
     geometry::{PointSet3, TriangleMesh3},
+    isosurface::{extract_tetrahedral_isosurface, Isosurface3},
     sampling::{
         Domain1D, Domain2D, SampleValue, SampledSurface3, SamplingSpec2D, StructuredGrid2D,
         sample_scalar_2d,
@@ -45,6 +46,7 @@ enum ExplorerMode {
     UnstructuredScalar,
     Vectors,
     CellVectors,
+    Isosurface,
 }
 
 impl ExplorerMode {
@@ -67,6 +69,9 @@ impl ExplorerMode {
             Self::CellVectors => {
                 "Scientific Visualization Framework — structured cell vector glyphs".to_owned()
             }
+            Self::Isosurface => {
+                "Scientific Visualization Framework — tetrahedral isosurface (iso=0)".to_owned()
+            }
         }
     }
 }
@@ -83,6 +88,8 @@ struct Explorer {
     _mapped_surface: Option<MappedSurface3>,
     _vector_dataset: Option<Dataset>,
     _vector_glyphs: Option<VectorGlyphSet3>,
+    _isosurface_dataset: Option<Dataset>,
+    _isosurface: Option<Isosurface3>,
     cursor_position: Option<[f64; 2]>,
     active_drag: Option<MouseButton>,
     drag_origin: Option<[f64; 2]>,
@@ -110,6 +117,8 @@ impl Explorer {
             _mapped_surface: None,
             _vector_dataset: None,
             _vector_glyphs: None,
+            _isosurface_dataset: None,
+            _isosurface: None,
             cursor_position: None,
             active_drag: None,
             drag_origin: None,
@@ -345,6 +354,16 @@ impl ApplicationHandler for Explorer {
                     self._vector_glyphs = Some(glyphs);
                     Ok(renderer)
                 }
+                ExplorerMode::Isosurface => {
+                    let (dataset, isosurface) = demo_tetrahedral_isosurface()?;
+                    let renderer = pollster::block_on(SceneRenderer::new(
+                        window.clone(),
+                        isosurface.mesh(),
+                    ))?;
+                    self._isosurface_dataset = Some(dataset);
+                    self._isosurface = Some(isosurface);
+                    Ok(renderer)
+                }
             }
         })();
 
@@ -508,6 +527,8 @@ fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
         ExplorerMode::CellVectors
     } else if arguments.iter().any(|argument| argument == "--vectors") {
         ExplorerMode::Vectors
+    } else if arguments.iter().any(|argument| argument == "--isosurface") {
+        ExplorerMode::Isosurface
     } else if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
         ExplorerMode::UnstructuredScalar
     } else if arguments.iter().any(|argument| argument == "--scalar") {
@@ -716,6 +737,39 @@ fn demo_unstructured_scalar_surface(
     Ok((dataset, surface, provenance, mapped))
 }
 
+/// Two tetrahedra share a face. The point scalar field crosses that face,
+/// producing a connected isosurface patch on both sides of the shared face.
+fn demo_tetrahedral_isosurface(
+) -> Result<(Dataset, Isosurface3), Box<dyn std::error::Error>> {
+    let points = vec![
+        WorldPoint3::new(0.0, -2.0, -2.0),
+        WorldPoint3::new(0.0, 2.0, -2.0),
+        WorldPoint3::new(0.0, 0.0, 2.0),
+        WorldPoint3::new(3.0, 0.0, 0.0),
+        WorldPoint3::new(-3.0, 0.0, 0.0),
+    ];
+    let grid = UnstructuredGrid3::new(
+        points,
+        vec![CellType3::Tetrahedron4, CellType3::Tetrahedron4],
+        vec![0, 4, 8],
+        vec![0, 1, 2, 3, 0, 2, 1, 4],
+    )?;
+    let mut dataset = Dataset::new(grid);
+    dataset.add_scalar_field(ScalarField::new(
+        FieldMetadata::new("signed distance", Some("world units".to_owned()))?,
+        FieldAssociation::Point,
+        vec![
+            SampleValue::Finite(-1.0),
+            SampleValue::Finite(1.0),
+            SampleValue::Finite(-1.0),
+            SampleValue::Finite(1.0),
+            SampleValue::Finite(-1.0),
+        ],
+    )?)?;
+    let isosurface = extract_tetrahedral_isosurface(&dataset, "signed distance", 0.0)?;
+    Ok((dataset, isosurface))
+}
+
 fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMapError> {
     ColorRgba::new(0.35, 0.05, 0.22, 1.0)
 }
@@ -724,6 +778,43 @@ fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMap
 mod tests {
     use super::*;
     use svf_core::boundary_surface::BoundaryFaceVertices3;
+
+    #[test]
+    fn tetrahedral_isosurface_demo_builds_connected_provenance_mapped_geometry() {
+        let (dataset, isosurface) = demo_tetrahedral_isosurface().unwrap();
+        assert_eq!(dataset.point_count(), 5);
+        assert_eq!(dataset.cell_count(), 2);
+        assert_eq!(isosurface.isovalue(), 0.0);
+        assert_eq!(isosurface.mesh().triangle_count(), 3);
+        assert_eq!(isosurface.mesh().vertex_count(), 5);
+        assert_eq!(
+            isosurface.vertex_provenance().iter().filter(|provenance| matches!(
+                provenance,
+                svf_core::isosurface::IsosurfaceVertexProvenance3::SourceEdge { point_ids: [0, 1], .. }
+            )).count(),
+            1,
+        );
+        assert_eq!(
+            isosurface.vertex_provenance().iter().filter(|provenance| matches!(
+                provenance,
+                svf_core::isosurface::IsosurfaceVertexProvenance3::SourceEdge { point_ids: [1, 2], .. }
+            )).count(),
+            1,
+        );
+        assert_eq!(isosurface.triangle_source_cells().len(), isosurface.mesh().triangle_count());
+        assert!(isosurface.triangle_source_cells().iter().all(|cell| *cell < 2));
+        assert_eq!(isosurface.vertex_provenance().len(), isosurface.mesh().vertex_count());
+        assert!(isosurface.metadata().unsupported_cells().is_empty());
+        assert!(isosurface.metadata().skipped_cells().is_empty());
+    }
+
+    #[test]
+    fn isosurface_mode_is_selected_from_command_line() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--isosurface".to_owned()]),
+            ExplorerMode::Isosurface
+        );
+    }
 
     #[test]
     fn vector_demo_builds_a_point_associated_field_and_glyphs() {
