@@ -491,3 +491,38 @@ M7.1 Windows validation and merge completed (2026-11-08):
 - `cargo check --workspace` passed without warnings.
 - `cargo test --workspace` passed (159 tests: 148 core, 7 Explorer, 4 renderer); doc-tests passed.
 - No formatting routine was run.
+
+
+### M7.2 — Reusable scalar visualization
+
+Design contract: `docs/scalar-visualization.md`.
+
+Status: design recorded on branch `m7-2-scalar-visualization`; implementation
+has not started.
+
+- [ ] Define a common surface representation with source point IDs per render
+  vertex and source logical cell IDs per render triangle
+- [ ] Adapt structured `SampledSurface3`, unstructured
+  `TriangulatedSurface3`, and identity-mapped `TriangleMesh3`
+- [ ] Implement reusable scalar range resolution and continuous color maps in
+  graphics-independent `svf-core`
+- [ ] Support point-, cell-, and dataset-associated scalar fields
+- [ ] Define finite/non-finite, constant-field, explicit-range, and clamping
+  semantics
+- [ ] Expand triangle corners for mapped output so cell colors remain constant
+  per triangle and do not bleed across shared indexed vertices
+- [ ] Preserve source point/cell provenance and never mutate source fields or
+  geometry
+- [ ] Add a colored-surface renderer input path while preserving the existing
+  uncolored mesh path
+- [ ] Demonstrate the same mapping API on a structured point field and an
+  unstructured cell field
+- [ ] Add focused core, representation, renderer, and Explorer tests
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Visually verify both scalar demonstrations and resize/minimize/restore
+
+Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
+time-varying fields, implicit field transfer/interpolation, GPU-side scalar
+mapping, logarithmic/percentile ranges, materials/lighting, on-screen text
+legends, file import/export, and mesh repair.
