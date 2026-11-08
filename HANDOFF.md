@@ -882,7 +882,7 @@ boundary and triangulated surfaces through existing `svf-core` APIs, adapts
 the result to `TriangleMesh3`, and retains the triangulated surface (including
 provenance) on the CPU.
 
-Five focused tests currently cover fixture structure, boundary polygon counts,
+Six focused tests currently cover fixture structure, boundary polygon counts,
 triangle/provenance counts, render-mesh conversion/index validity, and mode
 selection. These are implementation claims based on code inspection only:
 **no build, tests, or Windows runtime validation have been run yet**. The
