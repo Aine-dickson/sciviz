@@ -220,8 +220,15 @@ impl ScalarRange {
     ///
     /// A constant field is valid and retains equal minimum/maximum endpoints.
     pub fn from_field(field: &ScalarField) -> Result<Self, ScalarRangeError> {
-        let mut finite = field.values()
-            .iter()
+        Self::from_values(field.values())
+    }
+
+    /// Computes the range from finite samples, including derived-field values.
+    ///
+    /// A constant collection is valid and retains equal minimum/maximum
+    /// endpoints. Non-finite samples are ignored.
+    pub fn from_values(values: &[crate::sampling::SampleValue]) -> Result<Self, ScalarRangeError> {
+        let mut finite = values.iter()
             .filter_map(|value| value.as_finite())
             .filter(|value| value.is_finite());
         let first = finite.next().ok_or(ScalarRangeError::NoFiniteValues)?;
