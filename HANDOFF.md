@@ -809,3 +809,45 @@ M6.5 validation and merge completed (2026-11-08):
 - User confirmed every test passes on their Windows environment, including the M6.5 validation run.
 - No formatter was run.
 - Next action: synchronize local `main`; M6.5 is complete.
+
+
+## M6.6 — Provenance-preserving boundary surface triangulation (in progress)
+
+Branch: `m6-6-surface-triangulation`, based on current `main` after M6.5.
+
+Design contract: `docs/surface-triangulation.md`.
+
+M6.6 derives an independent triangle-only surface from M6.5
+`BoundarySurface3`. Triangles pass through unchanged. Quads split into two
+triangles using a deterministic diagonal selected by lexicographically
+comparing sorted endpoint pairs of original source point IDs. Both split
+patterns preserve the source local cycle. Every output triangle retains
+source boundary-face, source volume-cell, source local-face, and per-face
+triangle ordinal provenance. The compact points and source-point mapping
+remain unchanged.
+
+No outward orientation certification, geometry-dependent diagonal choice,
+quality filtering, field transfer, or renderer integration is in scope.
+
+
+M6.6 implementation is now present on the feature branch:
+- New `crates/svf-core/src/surface_triangulation.rs`, exported from
+  `svf-core`.
+- Public API: `TriangulatedSurface3`,
+  `TriangulatedSurfaceTriangle3`, and
+  `BoundarySurface3::triangulate()`.
+- Source triangles pass through unchanged. Quads split using the
+  lexicographically smaller sorted pair of original source point IDs.
+- The output preserves compact f64 points and source point IDs.
+- Each triangle records both `boundary_face_index` (index into the M6.5
+  surface face array) and `source_face_index` (original M6.4 topology face
+  index), plus source cell, local face, and per-face triangle ordinal.
+- Ten focused unit tests use public UnstructuredGrid3 construction and
+  boundary extraction to exercise tetrahedra, hexahedra, both diagonal
+  choices, mixed cell types, provenance, determinism, immutability, and
+  geometric degeneracy.
+- User validated on Windows: `cargo check --workspace` passed;
+  `cargo test -p svf-core` passed (148 tests); `cargo test --workspace`
+  passed (153 tests: 148 core, 1 Explorer, 4 renderer). Doc-tests passed.
+- No formatter was run.
+- Code/API review completed; M6.6 is ready for PR review.

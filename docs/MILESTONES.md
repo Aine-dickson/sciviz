@@ -421,3 +421,28 @@ Design contract: `docs/boundary-surface.md`.
 
 Scope excludes quad triangulation, renderer integration, field transfer,
 orientation repair, geometric quality, and file import/export.
+
+
+### M6.6 — Provenance-preserving boundary surface triangulation
+
+Design contract: `docs/surface-triangulation.md`.
+
+- [x] Pass source triangle faces through unchanged
+- [x] Split each source quad into two triangles
+- [x] Select quad diagonals deterministically from sorted original source
+  point-ID endpoint pairs (lexicographically smaller pair wins)
+- [x] Preserve source local-cycle winding without claiming outward orientation
+- [x] Preserve boundary-face array index, original topology face index,
+  volume-cell, local-face, and per-face triangle ordinal provenance
+- [x] Preserve compact f64 points and source-point-ID mapping
+- [x] Add ten focused tests for both diagonal choices, explicit source-ID
+  selection, mixed face arities, provenance, determinism, immutability,
+  empty input, and geometric degeneracy
+- [x] Review public API and implementation
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (148 passed)
+- [x] Verify `cargo test --workspace` on Windows (153 passed: 148 core, 1 Explorer, 4 renderer)
+
+Scope excludes renderer integration, field transfer, orientation repair,
+geometric quality optimization, and file import/export.
+
