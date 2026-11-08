@@ -374,8 +374,8 @@ Scope excludes rendering, file importers, higher-order cells, variable-arity pol
 
 ### M6.4 — Unstructured volume boundary extraction
 
-Implementation committed on `m6-4-volume-boundary`; local Windows
-validation is pending.
+Implementation committed and user-validated on Windows (2026-11-08).
+The feature branch is ready for pull-request review; it is not yet merged.
 
 - [x] Define deterministic face identity from canonical point IDs
 - [x] Extract triangular faces from `Tetrahedron4`
@@ -387,9 +387,12 @@ validation is pending.
 - [x] Add tests for single cells, shared faces, non-manifold incidence,
   mixed volume types, source mapping, determinism, coordinate identity,
   empty input, and geometric degeneracy
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test -p svf-core` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
+- [x] Review implementation and public API
+- [x] Verify `cargo check --workspace` on Windows (passed)
+- [x] Verify `cargo test -p svf-core` on Windows (125 passed)
+- [x] Verify `cargo test --workspace` on Windows (130 passed: 125 core,
+  1 Explorer, 4 renderer)
 
-No formatting routine was run. Do not mark this milestone validated until
-the user reports successful local Windows checks and tests.
+User-reported validation completed on Windows (2026-11-08). No formatting
+routine was run; unrelated formatting changes and existing stashes remain
+untouched.
