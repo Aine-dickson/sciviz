@@ -263,7 +263,12 @@ impl<'a> Parser<'a> {
                     let values_count = count.checked_mul(4).ok_or_else(|| VtkLegacyError::new(VtkLegacyErrorKind::CountOverflow, Some(line_number), "lookup table value count overflows usize"))?;
                     let _ = self.read_numbers(values_count, "float", false)?;
                 }
-                unsupported => return Err(VtkLegacyError::new(VtkLegacyErrorKind::UnsupportedAttribute, Some(line_number), format!("unsupported attribute record '{unsupported}'"))),
+                unsupported @ ("COLOR_SCALARS" | "NORMALS" | "TEXTURE_COORDINATES" | "TENSORS" | "FIELD" | "METADATA") => {
+                    return Err(VtkLegacyError::new(VtkLegacyErrorKind::UnsupportedAttribute, Some(line_number), format!("unsupported attribute record '{unsupported}'")));
+                }
+                other => {
+                    return Err(VtkLegacyError::new(VtkLegacyErrorKind::UnexpectedRecord, Some(line_number), format!("unexpected record '{other}' in attribute section")));
+                }
             }
         }
     }
