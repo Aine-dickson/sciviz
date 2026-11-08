@@ -119,6 +119,8 @@ pub struct SceneRenderer {
     vertex_count: u32,
     mesh_vertex_buffer: wgpu::Buffer,
     mesh_index_buffer: wgpu::Buffer,
+    vector_vertex_buffer: wgpu::Buffer,
+    vector_vertex_count: u32,
     mesh_vertex_count: u32,
     mesh_index_count: u32,
     _depth_texture: wgpu::Texture,
@@ -135,7 +137,29 @@ impl SceneRenderer {
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+    }
+
+    /// Initialize the renderer with a mesh and prepared vector glyphs from svf-core.
+    pub async fn new_with_vector_glyphs(
+        window: Arc<Window>,
+        mesh: &TriangleMesh3,
+        glyphs: &VectorGlyphSet3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
+        let vector_vertices = convert_vector_glyphs(glyphs)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+    }
+
+    /// Initialize the renderer with a scalar-mapped surface and prepared vector glyphs.
+    pub async fn new_with_mapped_surface_and_vectors(
+        window: Arc<Window>,
+        surface: &svf_core::scalar_visualization::MappedSurface3,
+        glyphs: &VectorGlyphSet3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
+        let vector_vertices = convert_vector_glyphs(glyphs)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
     }
 
     /// Initialize the renderer with a scalar-mapped surface produced by svf-core.
@@ -144,13 +168,14 @@ impl SceneRenderer {
         surface: &svf_core::scalar_visualization::MappedSurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
     }
 
     async fn new_with_mesh_data(
         window: Arc<Window>,
         mesh_vertices: Vec<MeshVertex>,
         mesh_indices: Vec<u32>,
+        vector_vertices: Vec<LineVertex>,
     ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
@@ -327,6 +352,22 @@ impl SceneRenderer {
             contents: bytemuck::cast_slice(&mesh_indices),
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
+        let vector_vertex_count =
+            u32::try_from(vector_vertices.len()).map_err(|_| RenderError::VectorGlyphConversion)?;
+        let vector_vertex_buffer = if vector_vertices.is_empty() {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("svf-vector-glyph-vertex-buffer"),
+                size: size_of::<LineVertex>() as u64,
+                usage: wgpu::BufferUsages::VERTEX,
+                mapped_at_creation: false,
+            })
+        } else {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("svf-vector-glyph-vertex-buffer"),
+                contents: bytemuck::cast_slice(&vector_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        };
 
         tracing_adapter_info(&adapter);
 
@@ -346,6 +387,8 @@ impl SceneRenderer {
             vertex_count,
             mesh_vertex_buffer,
             mesh_index_buffer,
+            vector_vertex_buffer,
+            vector_vertex_count,
             mesh_vertex_count,
             mesh_index_count,
             _depth_texture: depth_texture,
@@ -473,6 +516,9 @@ impl SceneRenderer {
             pass.set_pipeline(&self.pipeline);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.draw(0..self.vertex_count, 0..1);
+
+            pass.set_vertex_buffer(0, self.vector_vertex_buffer.slice(..));
+            pass.draw(0..self.vector_vertex_count, 0..1);
         }
 
         self.queue.submit([encoder.finish()]);
