@@ -9,7 +9,6 @@ use svf_core::{
     spatial::WorldPoint3,
     surface_triangulation::TriangulatedSurface3,
     unstructured::{CellType3, UnstructuredGrid3},
-    boundary_surface::BoundaryFaceVertices3,
 };
 use svf_render::SceneRenderer;
 use winit::{
