@@ -310,11 +310,11 @@ mod tests {
         anchor: WorldPoint3,
         components: [f64; 3],
     ) -> VectorAnalysis3 {
-        let source = VectorSource3 {
+        let source = VectorSource3::new(
             entity,
             anchor,
-            value: VectorValue3::from_f64(components[0], components[1], components[2]),
-        };
+            VectorValue3::from_f64(components[0], components[1], components[2]),
+        );
         analyze_vector_sources(&[source]).unwrap()[0]
     }
 
