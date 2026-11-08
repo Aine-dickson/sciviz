@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use svf_core::{
+    camera_navigation::{self, CameraNavigationConfig},
     dataset::Dataset,
     fields::{
         FieldAssociation, FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3,
