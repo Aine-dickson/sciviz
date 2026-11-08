@@ -13,6 +13,7 @@ use crate::{
     sampling::{GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D},
     unstructured::UnstructuredGrid3,
     surface_triangulation::TriangulatedSurface3,
+    spatial::WorldPoint3,
 };
 
 
@@ -771,6 +772,7 @@ impl Error for SurfaceProvenanceError {}
 mod tests {
     use super::*;
     use crate::{
+        fields::FieldMetadata,
         sampling::{
             Domain1D, Domain2D, SamplingSpec2D, sample_scalar_2d,
         },
