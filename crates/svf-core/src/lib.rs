@@ -13,6 +13,7 @@ pub mod spatial;
 pub mod surface_triangulation;
 pub mod unstructured;
 pub mod unstructured_topology;
+pub mod vector_visualization;
 
 /// Human-readable project name.
 pub const PROJECT_NAME: &str = "Scientific Visualization Framework";
