@@ -811,7 +811,7 @@ M6.5 validation and merge completed (2026-11-08):
 - Next action: synchronize local `main`; M6.5 is complete.
 
 
-## M6.6 — Provenance-preserving boundary surface triangulation (in progress)
+## M6.6 — Provenance-preserving boundary surface triangulation (complete; merged to main 2026-11-08)
 
 Branch: `m6-6-surface-triangulation`, based on current `main` after M6.5.
 
@@ -850,4 +850,40 @@ M6.6 implementation is now present on the feature branch:
   `cargo test -p svf-core` passed (148 tests); `cargo test --workspace`
   passed (153 tests: 148 core, 1 Explorer, 4 renderer). Doc-tests passed.
 - No formatter was run.
-- Code/API review completed; M6.6 is ready for PR review.
+- Code/API review completed; PR #5 merged to `main` on 2026-11-08. User synchronized local `main` at `957d50e` with a clean working tree.
+
+
+## Current work — M7.1 unstructured boundary-surface rendering
+
+Branch: `m7-1-unstructured-rendering`, based on `main` at the M6.6 merge.
+
+Design contract: `docs/unstructured-rendering.md`.
+
+The approved direction is to render a derived exterior surface from a mixed
+unstructured volume fixture while preserving the existing parametric Explorer
+as the default mode. The pipeline is
+`UnstructuredGrid3 → BoundarySurface3 → TriangulatedSurface3 → TriangleMesh3 → SceneRenderer`.
+The original grid and triangulated provenance remain CPU-side; only a derived
+mesh is sent to the renderer.
+
+The fixture contains one disconnected `Hexahedron8` and one
+`Tetrahedron4`: 2 source cells, 10 boundary polygons, 12 compact boundary
+points, and 16 output triangles. The new mode is intended to run with
+`cargo run -p svf-explorer -- --unstructured`.
+
+Rendering reuses the existing indexed mesh pipeline, depth target, fixed
+unlit color, and no-cull behavior. No field coloring, unstructured picking,
+orientation repair, lighting, camera controls, or file I/O is included.
+
+The contract is committed. Draft PR #6 is open: https://github.com/Aine-dickson/sciviz/pull/6. The Explorer implementation now adds an optional
+`--unstructured` mode while keeping the parametric mode as the default.
+It constructs one hexahedron and one disconnected tetrahedron, derives the
+boundary and triangulated surfaces through existing `svf-core` APIs, adapts
+the result to `TriangleMesh3`, and retains the triangulated surface (including
+provenance) on the CPU.
+
+Six focused tests currently cover fixture structure, boundary polygon counts,
+triangle/provenance counts, render-mesh conversion/index validity, and mode
+selection. These are implementation claims based on code inspection only:
+**no build, tests, or Windows runtime validation have been run yet**. The
+formatting routine remains intentionally unused.

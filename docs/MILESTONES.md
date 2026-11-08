@@ -446,3 +446,40 @@ Design contract: `docs/surface-triangulation.md`.
 Scope excludes renderer integration, field transfer, orientation repair,
 geometric quality optimization, and file import/export.
 
+
+
+## M7 — Unstructured volume visualization
+
+Objective: take the graphics-independent unstructured volume geometry and
+provenance pipeline through to a visible native representation without making
+GPU buffers authoritative.
+
+### M7.1 — Unstructured boundary-surface rendering
+
+Design contract: `docs/unstructured-rendering.md`.
+
+Status: implementation committed to this feature branch; local validation pending.
+
+- [x] Add an optional `--unstructured` Explorer mode; keep the existing
+  parametric-surface mode as the default
+- [x] Build a deterministic fixture containing one `Hexahedron8` and one
+  disconnected `Tetrahedron4`
+- [x] Derive its `BoundarySurface3` and `TriangulatedSurface3` using
+  existing `svf-core` APIs
+- [x] Adapt triangulated f64 points/connectivity to `TriangleMesh3` without
+  reordering points or triangles
+- [x] Retain `TriangulatedSurface3` and source provenance on the CPU
+- [x] Reuse the existing indexed renderer, depth testing, and no-cull policy
+- [x] Add tests for fixture counts, polygon arities, triangle counts,
+  per-cell provenance, render-mesh conversion, and index validity
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test -p svf-core` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+- [ ] Visually verify both volume-cell surfaces, depth behavior, and
+  resize/minimize/restore in unstructured mode
+- [ ] Re-run the default Explorer and verify parametric amplitude controls
+  and sampled-surface picking remain functional
+
+Scope excludes field coloring/transfer, unstructured picking UI, normals,
+lighting, materials, orientation repair, volume rendering, import/export,
+and new cell types.
