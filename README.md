@@ -37,7 +37,7 @@ library during development.
   across all six Explorer modes.
 
 - **M8.1 — Tetrahedral isosurface extraction:** implemented, user-validated on Windows, and merged to `main` through PRs #16 and #17. Adds deterministic, provenance-preserving marching tetrahedra and the `--isosurface` Explorer mode.
-- **M8.2 — Provenance-based scalar transfer:** design proposed; transfers point-associated scalar values onto derived isosurface vertices using source-point/source-edge provenance.
+- **M8.2 — Provenance-based scalar transfer:** design finalized; implementation pending review. Adds provenance-safe scalar transfer and a colored-isosurface rendering path.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
