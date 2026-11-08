@@ -438,10 +438,10 @@ Design contract: `docs/surface-triangulation.md`.
 - [x] Add ten focused tests for both diagonal choices, explicit source-ID
   selection, mixed face arities, provenance, determinism, immutability,
   empty input, and geometric degeneracy
-- [ ] Review public API and implementation
-- [ ] Verify `cargo check --workspace` on Windows
-- [ ] Verify `cargo test -p svf-core` on Windows
-- [ ] Verify `cargo test --workspace` on Windows
+- [x] Review public API and implementation
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (148 passed)
+- [x] Verify `cargo test --workspace` on Windows (153 passed: 148 core, 1 Explorer, 4 renderer)
 
 Scope excludes renderer integration, field transfer, orientation repair,
 geometric quality optimization, and file import/export.
