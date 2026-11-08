@@ -239,8 +239,21 @@ impl<'a> Parser<'a> {
                     if let Some((_, line)) = lookup {
                         let parts: Vec<_> = line.split_whitespace().collect();
                         if parts.first().is_some_and(|part| part.eq_ignore_ascii_case("LOOKUP_TABLE")) {
-                            if parts.len() != 2 { return Err(VtkLegacyError::new(VtkLegacyErrorKind::InvalidHeader, Some(lookup.unwrap().0), "expected 'LOOKUP_TABLE tableName'")); }
-                            self.index += 1;
+                            match parts.len() {
+                                2 => self.index += 1,
+                                3 => {
+                                    let lookup_line = lookup.unwrap().0;
+                                    let count = parse_usize(parts[2], lookup_line, "lookup table size")?;
+                                    let values_count = count.checked_mul(4).ok_or_else(|| VtkLegacyError::new(
+                                        VtkLegacyErrorKind::CountOverflow,
+                                        Some(lookup_line),
+                                        "lookup table value count overflows usize",
+                                    ))?;
+                                    self.index += 1;
+                                    let _ = self.read_numbers(values_count, "float", false)?;
+                                }
+                                _ => return Err(VtkLegacyError::new(VtkLegacyErrorKind::InvalidHeader, Some(lookup.unwrap().0), "expected 'LOOKUP_TABLE tableName' or 'LOOKUP_TABLE tableName size'")),
+                            }
                         }
                     }
                     let values = self.read_numbers(tuple_count, data_type, false)?;
@@ -545,6 +558,19 @@ VECTORS flux float
         let dataset = parse_legacy_ascii_unstructured_grid(&reordered).unwrap();
         assert_eq!(dataset.scalar_field("pressure").unwrap().association(), FieldAssociation::Cell);
         assert_eq!(dataset.scalar_field("temperature").unwrap().association(), FieldAssociation::Point);
+    }
+
+    #[test]
+    fn consumes_inline_lookup_table_definitions() {
+        let text = MIXED.replace(
+            "SCALARS temperature float 1\nLOOKUP_TABLE default\n0 1 2 3 4 5 6 7",
+            "SCALARS temperature float 1\nLOOKUP_TABLE custom 2\n1 0 0 1\n0 1 0 1\n0 1 2 3 4 5 6 7"
+        );
+        let dataset = parse_legacy_ascii_unstructured_grid(&text).unwrap();
+        assert_eq!(
+            dataset.scalar_field("temperature").unwrap().values()[7],
+            SampleValue::Finite(7.0)
+        );
     }
 
     #[test]
