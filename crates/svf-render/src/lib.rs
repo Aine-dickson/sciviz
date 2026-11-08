@@ -11,7 +11,6 @@ use bytemuck::{Pod, Zeroable};
 use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     geometry::TriangleMesh3,
-    scalar_visualization::ColorMap,
     spatial::{WorldPoint3, WorldVector3},
 };
 use wgpu::{CurrentSurfaceTexture, Surface, SurfaceConfiguration, util::DeviceExt};
