@@ -388,7 +388,7 @@ LOOKUP_TABLE default
         let point_scene = prepare_imported_scene(dataset.clone(), Some("temperature")).unwrap();
         assert_eq!(point_scene.mapped_surface.as_ref().unwrap().triangle_count(), 4);
         assert_eq!(point_scene.mapped_surface.as_ref().unwrap().colors().len(), 12);
-        assert_eq!(point_scene.provenance.as_ref().unwrap().source_cell_ids(), &[0, 0, 0, 0]);
+        assert_eq!(point_scene._provenance.as_ref().unwrap().source_cell_ids(), &[0, 0, 0, 0]);
 
         let cell_scene = prepare_imported_scene(dataset, Some("density")).unwrap();
         assert_eq!(cell_scene.mapped_surface.as_ref().unwrap().triangle_count(), 4);
