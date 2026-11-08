@@ -659,3 +659,31 @@ Explorer modes. Exact test counts were not recorded in the final validation
 report. The only reported check warning is the pre-existing
 `VectorSource3::new` dead-code warning.
 
+
+
+## M8.1 — Tetrahedral isosurface extraction
+
+Design proposal: `docs/tetrahedral-isosurface.md`.
+
+Status: proposed; implementation has not started.
+
+Objective: derive a deterministic triangle isosurface from a point-associated
+scalar field on tetrahedral cells in an unstructured dataset, preserving
+source-cell identity and explicit source-edge interpolation provenance.
+
+- [ ] Finalize exact-isovalue and shared-face classification semantics
+- [ ] Finalize deterministic marching-tetrahedra case handling and quad split
+- [ ] Define consistent triangle winding relative to scalar gradient
+- [ ] Define explicit handling for non-finite values, degenerate tetrahedra,
+  zero-area triangles, and interpolation overflow
+- [ ] Implement f64 core extraction with canonical shared-edge vertex reuse
+- [ ] Preserve per-vertex source-point/source-edge provenance and per-triangle
+  source cell IDs
+- [ ] Add deterministic Explorer `--isosurface` demonstration
+- [ ] Verify continuity across adjacent tetrahedra and inspect the surface
+  with camera navigation
+- [ ] Run Windows workspace tests/checks and regression-test all existing modes
+
+The first increment is deliberately limited to `Tetrahedron4` cells and
+point-associated scalar fields. Hexahedra, structured-grid isosurfaces,
+field transfer, contour lines, and volume rendering require separate designs.
