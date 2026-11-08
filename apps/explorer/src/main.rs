@@ -544,7 +544,7 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name>]");
+            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name> | --vtk-isosurface <field-name> --vtk-isovalue <value>]");
             std::process::exit(2);
         }
     };
