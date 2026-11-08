@@ -370,3 +370,29 @@ Design decisions are recorded in `docs/unstructured-topology.md`.
 User-reported validation completed on Windows (2026-11-08). No formatting command was run for this increment.
 
 Scope excludes rendering, file importers, higher-order cells, variable-arity polygons, mesh repair, quality metrics, and general unstructured adjacency.
+
+
+### M6.4 — Unstructured volume boundary extraction
+
+Implementation committed and user-validated on Windows (2026-11-08).
+The feature branch is ready for pull-request review; it is not yet merged.
+
+- [x] Define deterministic face identity from canonical point IDs
+- [x] Extract triangular faces from `Tetrahedron4`
+- [x] Extract quadrilateral faces from `Hexahedron8`
+- [x] Preserve source cell IDs, local face indices, and local point ordering
+- [x] Classify faces by volume-cell incidence: boundary, interior, non-manifold
+- [x] Ignore lower-dimensional cells in volume topology queries
+- [x] Keep topology graphics-independent and preserve source data
+- [x] Add tests for single cells, shared faces, non-manifold incidence,
+  mixed volume types, source mapping, determinism, coordinate identity,
+  empty input, and geometric degeneracy
+- [x] Review implementation and public API
+- [x] Verify `cargo check --workspace` on Windows (passed)
+- [x] Verify `cargo test -p svf-core` on Windows (125 passed)
+- [x] Verify `cargo test --workspace` on Windows (130 passed: 125 core,
+  1 Explorer, 4 renderer)
+
+User-reported validation completed on Windows (2026-11-08). No formatting
+routine was run; unrelated formatting changes and existing stashes remain
+untouched.

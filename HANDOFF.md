@@ -689,54 +689,68 @@ Do not overwrite or blindly pop the preserved formatting stash. The M6.1
 formatting-only changes remain separate and must be handled deliberately if
 they are ever reapplied.
 
-## M6.3 — Unstructured topology foundations: implementation validated
+## M6.3 — Unstructured topology foundations: merged and validated
 
-Development branch: `m6-3-unstructured-topology`, based on `main` at
-`db6bd11`. The feature is validated locally on Windows but is not yet merged.
+M6.3 was implemented on `m6-3-unstructured-topology`, reviewed, validated
+on Windows by the user, and merged through PR #2.
 
-Design decision record: `docs/unstructured-topology.md`.
-
-New module: `crates/svf-core/src/unstructured.rs`, exposed as
-`svf_core::unstructured`.
-
-API and contract:
-- `CellType3::{Line2, Triangle3, Quad4, Tetrahedron4, Hexahedron8}`
-  describes supported linear cells embedded in 3D world space.
-- `CellType3::node_count()` and `topological_dimension()` expose fixed
-  arity and dimension.
-- `UnstructuredGrid3` stores finite `WorldPoint3` points, cell types,
-  CSR-style `usize` cell offsets, and flattened `u32` point connectivity.
-- Cell and point IDs are stable positions in their respective source arrays;
-  the constructor preserves input order.
-- Mixed cell types and topological dimensions are allowed.
-- Validation covers finite coordinates, offset count/start/monotonicity/end,
-  fixed cell arity, point-index bounds, and repeated indices within a cell.
-- Empty grids use offsets `[0]`; points without cells are valid.
-- Structurally valid geometric degeneracy is retained; orientation is not
-  normalized or certified.
-- `DatasetGeometry::UnstructuredGrid3` integrates source point and cell
-  counts with existing field cardinality checks.
-
-A dataset integration test attaches a cell scalar field to a mixed triangle
-and tetrahedron grid and checks that incorrect cardinality is rejected.
+- PR: https://github.com/Aine-dickson/sciviz/pull/2
+- Merge commit: `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`.
+- Feature head: `d7870124aac4f57a92186ecb3c2b114a846251e5`.
+- Design decisions: `docs/unstructured-topology.md`.
+- Implementation: `crates/svf-core/src/unstructured.rs`.
+- `UnstructuredGrid3` stores ordered points and CSR connectivity with
+  explicit `CellType3` values.
+- Supported linear cells: `Line2`, `Triangle3`, `Quad4`,
+  `Tetrahedron4`, and `Hexahedron8`.
+- Dataset geometry and point/cell field cardinality integrate with the
+  unstructured source counts.
+- Structural connectivity is validated; geometrically degenerate cells are
+  retained and cell orientation is not certified.
 
 User-reported Windows validation (2026-11-08):
 - `cargo check --workspace`: passed.
 - `cargo test --workspace`: 117 passed, 0 failed
   (112 core, 1 Explorer, 4 renderer).
-- The feature branch was checked out locally from its remote tracking branch.
-- No formatting command was run for M6.3.
 
-The branch is 17 commits ahead of and 0 behind `main`; it has not been
-merged. No pull request has been opened yet.
+The user synchronized local `main` successfully at merge commit
+`fbe8a7b`; the reported working tree was clean and matched `origin/main`.
+M6.1 formatting-only stashes remain untouched. Do not run formatting
+routines or restore either stash blindly.
 
-M6.3 deliberately excludes rendering/tessellation, file importers,
-higher-order cells, variable-arity polygons, mesh repair, quality metrics,
-and general unstructured adjacency. Future render-derived primitives must
-retain their source cell IDs.
+## M6.4 — Unstructured volume boundary extraction: locally validated
 
-No formatter should be run just to normalize source layout. Preserve the
-user's M6.1 formatting-only stash; do not pop or discard it.
+M6.4 was implemented on `m6-4-volume-boundary` from merged M6.3
+commit `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`. The feature branch is
+ready for pull-request review; it has not yet been merged.
 
-The user prefers focused implementation increments, exact Windows commands,
-no routine formatting churn, and a concise handoff update at each milestone.
+Design: `docs/volume-boundary-extraction.md`.
+
+Implementation:
+- `crates/svf-core/src/unstructured_topology.rs` adds
+  `UnstructuredVolumeTopology3`, `VolumeFace3`,
+  `VolumeFaceIncidence3`, `VolumeFaceVertices3`, and
+  `VolumeFaceClassification`.
+- `UnstructuredGrid3::volume_topology()` derives unique faces from
+  `Tetrahedron4` and `Hexahedron8`; lower-dimensional cells are ignored.
+- Face identity uses sorted point IDs, with triangle/quad arity kept distinct.
+  Coordinate-coincident faces with different point IDs do not merge.
+- Original local face order, source cell IDs, and local face indices are
+  retained per incidence.
+- Unique faces use deterministic canonical-key ordering; incidences retain
+  source cell/local-face order.
+- Incidence counts classify faces as boundary (1), interior (2), or
+  non-manifold (>2). No geometric watertightness or outward-orientation
+  claim is made.
+
+User-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test -p svf-core`: 125 passed, 0 failed.
+- `cargo test --workspace`: 130 passed, 0 failed
+  (125 core, 1 Explorer, 4 renderer).
+- The workspace working tree was clean and synchronized with
+  `origin/m6-4-volume-boundary` after the fast-forward pull.
+
+No formatter was run. Continue preserving the user's formatting-only stash;
+do not run formatting routines as cleanup.
+
