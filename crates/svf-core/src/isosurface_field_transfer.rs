@@ -274,7 +274,7 @@ mod tests {
     use crate::{
         dataset::Dataset,
         fields::{FieldMetadata, ScalarField},
-        geometry::WorldPoint3,
+        spatial::WorldPoint3,
         isosurface::extract_tetrahedral_isosurface,
         sampling::SampleValue,
         unstructured::{CellType3, UnstructuredGrid3},
