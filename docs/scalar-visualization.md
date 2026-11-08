@@ -10,10 +10,11 @@ The final `cargo test -p svf-core scalar_visualization` run passed
 passed without warnings. Extreme finite-range normalization, including
 [-f64::MAX, f64::MAX], has a passing regression test. All four Explorer
 modes were visually rechecked, including both scalar demonstrations,
-resize, and minimize/restore. The feature branch has been reviewed against
-main and a PR opened for user review.
+resize, and minimize/restore. M7.2 was merged to `main` through PR #7 on 2026-11-08
+(merge commit `09c99da4eb4f36d09fad20facb987fde76d2e588`).
 
-Branch: `m7-2-scalar-visualization`, based on `main` after M7.1.
+Merged implementation: `main` (PR #7).
+Original feature branch: `m7-2-scalar-visualization`.
 
 ## Objective
 
