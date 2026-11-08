@@ -10,7 +10,7 @@ use glam::DVec3;
 
 use crate::{
     spatial::{WorldPoint3, WorldVector3},
-    vector_visualization::{VectorAnalysis3, VectorEntity3, VectorStatus3},
+    vector_visualization::{VectorAnalysis3, VectorEntity3},
 };
 
 /// Selects an explicit mapping from scientific vector magnitude to display length.
@@ -302,7 +302,7 @@ mod tests {
     use crate::{
         fields::VectorValue3,
         spatial::WorldPoint3,
-        vector_visualization::{analyze_vector_sources, VectorSource3},
+        vector_visualization::{analyze_vector_sources, VectorSource3, VectorStatus3},
     };
 
     fn analysis(
