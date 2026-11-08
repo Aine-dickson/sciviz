@@ -315,6 +315,13 @@ impl<'a> Parser<'a> {
         Ok(line.to_owned())
     }
 
+    fn required_line(&mut self, expected: &str) -> Result<&'a str, VtkLegacyError> {
+        let Some((_, line)) = self.next_nonempty_line() else {
+            return Err(self.error(VtkLegacyErrorKind::MissingRecord, format!("missing {expected}")));
+        };
+        Ok(line)
+    }
+
     fn required_physical_line(&mut self, expected: &str) -> Result<&'a str, VtkLegacyError> {
         let Some((_, line)) = self.next_physical_line() else {
             return Err(self.error(VtkLegacyErrorKind::MissingRecord, format!("missing {expected}")));
