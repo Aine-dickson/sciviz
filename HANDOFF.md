@@ -853,37 +853,37 @@ M6.6 implementation is now present on the feature branch:
 - Code/API review completed; PR #5 merged to `main` on 2026-11-08. User synchronized local `main` at `957d50e` with a clean working tree.
 
 
-## Current work — M7.1 unstructured boundary-surface rendering
+## M7.1 — Unstructured boundary-surface rendering (complete; merged to main 2026-11-08)
 
-Branch: `m7-1-unstructured-rendering`, based on `main` at the M6.6 merge.
+Branch: `m7-1-unstructured-rendering`.
 
 Design contract: `docs/unstructured-rendering.md`.
 
-The approved direction is to render a derived exterior surface from a mixed
-unstructured volume fixture while preserving the existing parametric Explorer
-as the default mode. The pipeline is
+PR #6 merged to `main` on 2026-11-08:
+https://github.com/Aine-dickson/sciviz/pull/6
+
+Merge commit: `1d34ee114191e8a98bcfb3d1611812f66520ef83`
+(feature head: `29a713088d4e611d5c1753e4a7903fbf18ac6258`).
+
+The approved pipeline is
 `UnstructuredGrid3 → BoundarySurface3 → TriangulatedSurface3 → TriangleMesh3 → SceneRenderer`.
-The original grid and triangulated provenance remain CPU-side; only a derived
-mesh is sent to the renderer.
+The mixed fixture contains one disconnected `Hexahedron8` and one
+`Tetrahedron4`: 2 source cells, 10 boundary polygons (6 quads and 4
+triangles), 12 compact boundary points, and 16 render triangles. The original
+grid and triangulated provenance remain CPU-side; only the derived mesh is
+sent to the renderer.
 
-The fixture contains one disconnected `Hexahedron8` and one
-`Tetrahedron4`: 2 source cells, 10 boundary polygons, 12 compact boundary
-points, and 16 output triangles. The new mode is intended to run with
-`cargo run -p svf-explorer -- --unstructured`.
+Windows validation was user-reported on 2026-11-08:
+- `cargo check --workspace` passed without warnings.
+- `cargo test --workspace` passed: 159 tests (148 core, 7 Explorer,
+  4 renderer); doc-tests passed.
+- `cargo run -p svf-explorer -- --unstructured` displayed both shapes.
+- Default `cargo run -p svf-explorer` retained the parametric surface,
+  click/hover inspection, and amplitude interaction.
+- Both modes handled resize and minimize/restore correctly.
+- No formatting routine was run.
 
-Rendering reuses the existing indexed mesh pipeline, depth target, fixed
-unlit color, and no-cull behavior. No field coloring, unstructured picking,
-orientation repair, lighting, camera controls, or file I/O is included.
-
-The contract is committed. Draft PR #6 is open: https://github.com/Aine-dickson/sciviz/pull/6. The Explorer implementation now adds an optional
-`--unstructured` mode while keeping the parametric mode as the default.
-It constructs one hexahedron and one disconnected tetrahedron, derives the
-boundary and triangulated surfaces through existing `svf-core` APIs, adapts
-the result to `TriangleMesh3`, and retains the triangulated surface (including
-provenance) on the CPU.
-
-Six focused tests currently cover fixture structure, boundary polygon counts,
-triangle/provenance counts, render-mesh conversion/index validity, and mode
-selection. These are implementation claims based on code inspection only:
-**no build, tests, or Windows runtime validation have been run yet**. The
-formatting routine remains intentionally unused.
+M7.1 is complete. Next: synchronize the local `main` branch and begin
+planning M7.2. Preserve the existing scope boundaries: no field coloring,
+unstructured picking UI, orientation repair, lighting, camera controls,
+volume rendering, or file I/O was added in M7.1.
