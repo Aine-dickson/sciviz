@@ -497,9 +497,8 @@ M7.1 Windows validation and merge completed (2026-11-08):
 
 Design contract: `docs/scalar-visualization.md`.
 
-Status: complete on the feature branch; implementation, automated
-Windows validation, and all four Explorer-mode visual checks are
-user-validated (2026-11-08). Final branch review and PR creation remain.
+Status: implementation and Windows validation complete on the feature
+branch; final review completed and PR opened for user review (2026-11-08).
 
 - [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
@@ -527,6 +526,12 @@ user-validated (2026-11-08). Final branch review and PR creation remain.
   passed: 177 tests — 163 core, 9 Explorer, 5 renderer; doc-tests passed)
 - [x] Visually verify both scalar demonstrations and resize/minimize/restore
 - [x] Re-verify default and `--unstructured` modes after Explorer integration
+- [x] Fix and regression-test normalization across extreme finite scalar
+  ranges (including [-f64::MAX, f64::MAX])
+- [x] Verify the final core scalar tests on Windows (16 passed)
+- [x] Verify the final workspace on Windows (178 passed: 164 core,
+  9 Explorer, 5 renderer; doc-tests passed)
+- [x] Verify the final workspace check on Windows (passed without warnings)
 
 Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
 time-varying fields, implicit field transfer/interpolation, GPU-side scalar
