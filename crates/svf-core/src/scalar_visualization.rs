@@ -773,7 +773,7 @@ mod tests {
     use crate::{
         fields::FieldMetadata,
         sampling::{
-            Domain1D, Domain2D, SamplingSpec2D, sample_scalar_2d,
+            Domain1D, Domain2D, SampleValue, SamplingSpec2D, sample_scalar_2d,
         },
         spatial::WorldPoint3,
         unstructured::CellType3,
