@@ -689,18 +689,17 @@ Do not overwrite or blindly pop the preserved formatting stash. The M6.1
 formatting-only changes remain separate and must be handled deliberately if
 they are ever reapplied.
 
-## M6.3 — Unstructured topology foundations (in progress)
+## M6.3 — Unstructured topology foundations: implementation validated
 
-Development branch: `m6-3-unstructured-topology`, based on the current
-`main` branch at `db6bd11`. The branch is not merged and has not yet been
-validated on the user's Windows machine.
+Development branch: `m6-3-unstructured-topology`, based on `main` at
+`db6bd11`. The feature is validated locally on Windows but is not yet merged.
 
 Design decision record: `docs/unstructured-topology.md`.
 
 New module: `crates/svf-core/src/unstructured.rs`, exposed as
 `svf_core::unstructured`.
 
-Current API:
+API and contract:
 - `CellType3::{Line2, Triangle3, Quad4, Tetrahedron4, Hexahedron8}`
   describes supported linear cells embedded in 3D world space.
 - `CellType3::node_count()` and `topological_dimension()` expose fixed
@@ -721,19 +720,23 @@ Current API:
 A dataset integration test attaches a cell scalar field to a mixed triangle
 and tetrahedron grid and checks that incorrect cardinality is rejected.
 
-Tests are written but have not been run locally. Next actions:
-1. Review validation ordering, public API, and cell-order documentation.
-2. Pull the feature branch on Windows.
-3. Run `cargo check --workspace` and `cargo test --workspace`.
-4. Report exact output; do not claim validation before user confirmation.
+User-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test --workspace`: 117 passed, 0 failed
+  (112 core, 1 Explorer, 4 renderer).
+- The feature branch was checked out locally from its remote tracking branch.
+- No formatting command was run for M6.3.
 
-No formatter should be run just to normalize source layout. Preserve the
-user's M6.1 formatting-only stash; do not pop or discard it.
+The branch is 17 commits ahead of and 0 behind `main`; it has not been
+merged. No pull request has been opened yet.
 
 M6.3 deliberately excludes rendering/tessellation, file importers,
 higher-order cells, variable-arity polygons, mesh repair, quality metrics,
 and general unstructured adjacency. Future render-derived primitives must
 retain their source cell IDs.
+
+No formatter should be run just to normalize source layout. Preserve the
+user's M6.1 formatting-only stash; do not pop or discard it.
 
 The user prefers focused implementation increments, exact Windows commands,
 no routine formatting churn, and a concise handoff update at each milestone.
