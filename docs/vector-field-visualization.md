@@ -2,9 +2,12 @@
 
 ## Status
 
-Design contract approved and merged into main. Core source-location resolution
-is implemented in PR #9; Windows validation is pending. Arrow construction,
-scaling, renderer integration, and Explorer integration remain unimplemented.
+Implementation merged to `main` through PR #9 on 2026-11-08
+(merge commit `23c33fb855ffa2d52749baf66c1fb23eed53d19c`).
+Core, renderer, and the point-associated `--vectors` Explorer demonstration
+are implemented and user-validated on Windows. Cell-associated source
+resolution and glyph generation are covered by core tests; a dedicated
+cell-associated Explorer demonstration is the follow-up M7.4 increment.
 
 ## Objective
 
@@ -152,9 +155,9 @@ file import/export, and field interpolation/transfer.
 
 ## Implementation progress
 
-### Core source-location resolution
+### Core source-location resolution and vector analysis
 
-Implemented on branch `m7-3-core-vector-locations` (PR #9):
+Implemented and merged through PR #9:
 - Resolves point-associated vectors to exact source point coordinates and IDs.
 - Resolves cell-associated vectors to documented vertex-average anchors for
   polylines, triangle meshes, structured grids, and unstructured cells.
@@ -164,7 +167,32 @@ Implemented on branch `m7-3-core-vector-locations` (PR #9):
   as missing world-space locations.
 - Uses scaled accumulation for vertex averages to avoid avoidable overflow.
 
-Local Windows compilation and test results are pending. Remaining M7.3 work
-starts with vector magnitude/direction/status classification, followed by
-arrow geometry and explicit scale policies, renderer integration, and the
-Explorer demonstration.
+Additional M7.3 implementation:
+- `VectorStatus3` and `VectorAnalysis3` preserve source identity and
+  distinguish finite nonzero, zero, non-finite-component, and
+  mathematically overflowing magnitudes.
+- `build_vector_glyphs` creates f64 shaft and arrowhead line segments using
+  explicit magnitude-scaled or uniform-length policies.
+- `svf-render` converts prepared endpoints to f32 at the GPU boundary,
+  rejects non-finite narrowed coordinates, and draws the glyphs through the
+  existing depth-aware line pipeline.
+- Explorer `--vectors` builds 49 point-associated velocity vectors over the
+  parametric surface and uses an explicit uniform display length of 0.8.
+- The source dataset and derived glyph set remain retained on the CPU.
+
+User-reported Windows validation (2026-11-08):
+- `cargo test --workspace`: all tests passed.
+- `cargo run -p svf-explorer -- --vectors`: the undulating surface and
+  distributed yellow vector glyphs rendered; hover sampling, grid, and axes
+  remained functional.
+- Resize, minimize, and restore behaved consistently with the other modes.
+- Some short/densely spaced glyphs were difficult to distinguish visually;
+  M7.4 addresses a separate, sparse cell-associated demonstration rather than
+  changing M7.3's validated behavior.
+- No `cargo check` or formatting result is newly recorded for this final
+  vector implementation unless separately reported.
+
+M7.3 is complete within its implemented point-associated Explorer demo and
+reusable core/renderer pipeline. The core supports structured and unstructured
+cell source locations; a dedicated cell-associated Explorer demonstration is
+explicitly deferred to M7.4.
