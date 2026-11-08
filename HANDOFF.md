@@ -994,32 +994,61 @@ User-reported Windows validation (2026-11-08):
   distributed fairly densely. This feedback informs M7.4; do not alter the
   validated M7.3 behavior without a focused change.
 
-Coverage note: cell-associated source resolution and glyph construction are
-implemented in core, but the Explorer currently demonstrates point
-association only.
+Coverage note: M7.3 core supports point- and cell-associated vectors.
+The Explorer demonstrates point association through `--vectors`; M7.4
+adds the structured cell-associated demonstration through `--cell-vectors`.
 
-## M7.4 — Structured cell-associated vector visualization (next)
+## M7.4 — Structured cell-associated vector visualization (complete; merged 2026-11-08)
 
-Design contract: `docs/cell-vector-visualization.md` on branch
-`m7-4-cell-vector-visualization`.
+PR #11 merged to `main`; merge commit:
+`082fc5e18db8a7e40e1655dff70950af2fcc1e03`.
 
-PR #11 adds a separate `--cell-vectors` mode using a 9 × 9
-`StructuredGrid2D` source dataset (64 cells) and a cell-associated world-basis
-`VectorField3`. The displayed surface is generated from the same grid object;
-each glyph anchor is the arithmetic mean of its four source-cell corner
-positions. The deterministic fixture uses explicit 1.0-world-unit uniform
-glyphs. Source dataset and glyph result are retained CPU-side; renderer reuses
-the existing depth-aware prepared-glyph path.
+Design contract: `docs/cell-vector-visualization.md`.
 
-Implementation and tests are committed, but Windows validation is pending.
-Next: review PR #11, then have the user pull the branch and run
-`cargo test --workspace`; if it passes, launch
-`cargo run -p svf-explorer -- --cell-vectors`, inspect direction/arrowhead
-readability and depth occlusion, resize/minimize/restore, then re-run
-`--vectors` and the default mode. Do not merge PR #11 until the user reports
-successful validation and explicitly approves.
+Implemented:
+- `--cell-vectors` uses a 9 × 9 structured graph grid (64 logical cells).
+- Dataset geometry and displayed surface come from the same
+  `StructuredGrid2D` instance.
+- A cell-associated, world-basis `VectorField3` has 64 deterministic values.
+- Each glyph anchor is the arithmetic mean of its source cell's four
+  graph-surface corner positions; this is not an area-weighted centroid.
+- Glyphs use an explicit 1.0-world-unit uniform length.
+- Source dataset and glyph result remain CPU-side; the existing
+  depth-aware prepared-glyph renderer path is reused.
+- Tests cover field/grid cardinality, stable source-cell IDs, arithmetic
+  anchors, display length, and CLI mode selection.
 
-Do not attempt opaque unstructured-volume cell glyphs in this increment:
-their cell-center anchors lie inside the volume boundary and are correctly
-occluded by its surface. A separate visibility/representation design is
-required before that case is useful.
+User-reported Windows validation (2026-11-08):
+- Workspace tests passed.
+- Glyph placement appeared structured over the surface; grid and colored axes
+  remained visible.
+- Yellow glyphs and arrow tips were visible, though many were small/crowded
+  and their directions were not consistently easy to distinguish.
+- Depth occlusion could not be conclusively assessed from the fixed camera.
+- Resize/minimize/restore behavior remained consistent.
+- Explorer does not yet implement camera orbit, pan, or zoom. Mouse dragging
+  has no camera effect; do not assume those controls exist.
+
+Validation limitation: the automated tests establish exact source-cell
+anchors and glyph geometry, but the visual occlusion check remains open until
+camera navigation is available. M7.5 addresses that Explorer inspection
+limitation without changing scientific geometry or glyph placement.
+
+Unstructured volume-cell glyphs remain excluded: arithmetic cell centers lie
+inside opaque volume boundaries and can be correctly occluded. A separate
+visibility/representation design is needed for useful volume-cell glyphs.
+
+## M7.5 — Interactive 3D camera navigation (design proposed)
+
+Design contract: `docs/camera-navigation.md`.
+
+Status: design proposed; implementation has not started.
+
+Objective: enable orbit, pan, and zoom in Explorer so users can inspect
+scientific surfaces and glyphs from multiple viewpoints. Keep input handling
+in the host, reusable camera mathematics independent of windowing/GPU APIs,
+and GPU camera-uniform updates in the renderer.
+
+Next: review the M7.5 design contract, then agree its interaction mapping and
+acceptance criteria before implementation. No camera controls are currently
+available in Explorer.

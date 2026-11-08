@@ -2,8 +2,9 @@
 
 ## Status
 
-Design contract merged to `main`. Initial Explorer implementation is in
-PR #11; local Windows compilation, tests, and visual validation are pending.
+Design contract and Explorer implementation merged to `main` through PR #11
+on 2026-11-08 (merge commit `082fc5e18db8a7e40e1655dff70950af2fcc1e03`).
+User-reported Windows workspace tests passed.
 
 ## Objective
 
@@ -72,9 +73,12 @@ to falsify its position.
 - Adds tests for grid/field cardinality, cell source ordering, arithmetic
   four-corner anchors, explicit display length, and CLI mode selection.
 
-This is an initial implementation slice, not yet locally validated. Do not
-treat compile or runtime success as established until the Windows checks below
-are reported.
+Implementation and automated Windows workspace tests are complete.
+User-reported visual validation confirmed the structured glyph pattern,
+visible arrowheads, grid/axes, and consistent resize/minimize/restore behavior.
+Many glyphs are still small/crowded. Depth occlusion could not be conclusively
+assessed from the fixed camera because Explorer has no orbit/pan/zoom controls.
+The multiple-angle occlusion check is deferred to M7.5.
 
 ## Required tests
 
@@ -97,7 +101,7 @@ Explorer:
 Windows visual validation:
 - Glyphs appear at structured-cell centers on the graph surface.
 - Direction and arrowheads are distinguishable across the surface.
-- Surface depth correctly occludes glyph segments where appropriate.
+- [deferred to M7.5] Inspect surface depth occlusion from multiple camera angles.
 - Existing grid and colored axes remain visible.
 - Resize, minimize, and restore remain consistent.
 - Re-run `--vectors` and the default mode to confirm no regressions.
