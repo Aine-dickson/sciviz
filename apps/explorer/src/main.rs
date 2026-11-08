@@ -1,5 +1,9 @@
 use std::sync::Arc;
 
+mod vtk_loading;
+
+use vtk_loading::ImportedScene;
+
 use svf_core::{
     camera_navigation::{self, CameraNavigationConfig},
     dataset::Dataset,
@@ -49,6 +53,7 @@ enum ExplorerMode {
     CellVectors,
     Isosurface,
     ColoredIsosurface,
+    Imported,
 }
 
 impl ExplorerMode {
@@ -77,6 +82,7 @@ impl ExplorerMode {
             Self::ColoredIsosurface => {
                 "Scientific Visualization Framework — colored tetrahedral isosurface".to_owned()
             }
+            Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
         }
     }
 }
@@ -96,6 +102,7 @@ struct Explorer {
     _isosurface_dataset: Option<Dataset>,
     _isosurface: Option<Isosurface3>,
     _mapped_isosurface: Option<MappedIsosurface3>,
+    imported_scene: Option<ImportedScene>,
     cursor_position: Option<[f64; 2]>,
     active_drag: Option<MouseButton>,
     drag_origin: Option<[f64; 2]>,
@@ -126,6 +133,7 @@ impl Explorer {
             _isosurface_dataset: None,
             _isosurface: None,
             _mapped_isosurface: None,
+            imported_scene: None,
             cursor_position: None,
             active_drag: None,
             drag_origin: None,
@@ -382,6 +390,17 @@ impl ApplicationHandler for Explorer {
                     self._mapped_isosurface = Some(mapped);
                     Ok(renderer)
                 }
+                ExplorerMode::Imported => {
+                    let scene = self.imported_scene.as_ref()
+                        .ok_or("imported VTK scene was not prepared before window creation")?;
+                    let mut renderer = if let Some(mapped) = scene.mapped_surface.as_ref() {
+                        pollster::block_on(SceneRenderer::new_with_mapped_surface(window.clone(), mapped))?
+                    } else {
+                        pollster::block_on(SceneRenderer::new(window.clone(), &scene.mesh))?
+                    };
+                    renderer.set_camera(scene.camera)?;
+                    Ok(renderer)
+                }
             }
         })();
 
@@ -520,7 +539,31 @@ impl ApplicationHandler for Explorer {
 }
 
 fn main() {
-    let mode = mode_from_args(std::env::args());
+    let arguments = std::env::args().collect::<Vec<_>>();
+    let vtk_config = match vtk_loading::parse_vtk_args(&arguments) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Invalid Explorer arguments: {error}");
+            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name>]");
+            std::process::exit(2);
+        }
+    };
+
+    // Import and prepare the complete scientific scene before creating a
+    // window, so path/parser/geometry/mapping/camera failures are startup errors.
+    let (mode, imported_scene) = if let Some(config) = vtk_config {
+        let scene = match vtk_loading::load_vtk_scene(&config) {
+            Ok(scene) => scene,
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        };
+        eprintln!("{}", scene.summary());
+        (ExplorerMode::Imported, Some(scene))
+    } else {
+        (mode_from_args(arguments), None)
+    };
 
     let event_loop = match EventLoop::new() {
         Ok(event_loop) => event_loop,
@@ -534,6 +577,7 @@ fn main() {
     event_loop.set_control_flow(ControlFlow::Wait);
 
     let mut app = Explorer::new(mode);
+    app.imported_scene = imported_scene;
     if let Err(error) = event_loop.run_app(&mut app) {
         eprintln!("SVF Explorer terminated with an event-loop error: {error}");
     }
