@@ -497,9 +497,9 @@ M7.1 Windows validation and merge completed (2026-11-08):
 
 Design contract: `docs/scalar-visualization.md`.
 
-Status: core mapping and renderer RGBA integration are implemented and
-user-validated on Windows. Explorer scalar demonstrations are implemented;
-Windows compilation and visual validation are pending.
+Status: complete on the feature branch; implementation, automated
+Windows validation, and all four Explorer-mode visual checks are
+user-validated (2026-11-08). Final branch review and PR creation remain.
 
 - [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
@@ -522,10 +522,11 @@ Windows compilation and visual validation are pending.
 - [x] Verify `cargo check --workspace` on Windows after renderer integration
 - [x] Verify `cargo test --workspace` on Windows after renderer integration
   (175 passed: 163 core, 7 Explorer, 5 renderer; doc-tests passed)
-- [ ] Compile and test the Explorer scalar demonstration implementation on
-  Windows
-- [ ] Visually verify both scalar demonstrations and resize/minimize/restore
-- [ ] Re-verify default and `--unstructured` modes after Explorer integration
+- [x] Compile and test the Explorer scalar demonstration implementation on
+  Windows (`cargo check --workspace` passed; `cargo test --workspace`
+  passed: 177 tests — 163 core, 9 Explorer, 5 renderer; doc-tests passed)
+- [x] Visually verify both scalar demonstrations and resize/minimize/restore
+- [x] Re-verify default and `--unstructured` modes after Explorer integration
 
 Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
 time-varying fields, implicit field transfer/interpolation, GPU-side scalar
