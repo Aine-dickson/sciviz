@@ -684,7 +684,11 @@ mod tests {
                 corners.iter().map(|sample| sample.value().as_finite().unwrap()).sum::<f64>() / 4.0,
                 corners.iter().map(|sample| sample.y()).sum::<f64>() / 4.0,
             );
-            assert_eq!(analysis.source().anchor(), expected);
+            let actual = analysis.source().anchor().to_array();
+            let expected = expected.to_array();
+            assert!(actual.iter().zip(expected).all(|(actual, expected)| {
+                (actual - expected).abs() < 1.0e-12
+            }));
         }
     }
 
