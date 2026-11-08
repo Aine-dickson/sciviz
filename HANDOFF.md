@@ -1122,5 +1122,29 @@ User-reported Windows validation (2026-11-08):
   `VectorSource3::new` dead-code warning in `svf-core`.
 
 M8.1 core extraction, Explorer integration, automated Windows validation,
-and visual acceptance are complete. The next proposed increment is M8.2:
-provenance-based scalar-field transfer onto derived isosurface vertices.
+and visual acceptance are complete.
+
+## Next increment — M8.2 Provenance-based scalar transfer
+
+Design contract: `docs/isosurface-field-transfer.md`.
+
+Status: design finalized; implementation awaits review/approval.
+
+M8.2 transfers a point-associated scalar field from the exact source dataset
+onto M8.1 isosurface vertices, using the preserved source-point/source-edge
+provenance. Key settled decisions:
+- Preserve `SampleValue` classifications; interior NaN propagates, signed
+  infinities follow convex-combination semantics, and invalid samples affect
+  only their output vertices.
+- Use sign-aware finite interpolation to avoid avoidable overflow.
+- Own the exact `Isosurface3` alongside transferred values so mesh order and
+  provenance cannot be accidentally detached.
+- Map one color per unique derived vertex; automatic range uses finite
+  transferred values on the extracted surface.
+- Keep `MappedSurface3` unchanged; add a dedicated mapped-isosurface type.
+- Add renderer support and a separate Explorer `--colored-isosurface` mode.
+- Preserve existing `--isosurface` and all prior modes.
+
+M8.2 has no implementation changes yet. Review the finalized contract before
+creating the implementation branch.
+
