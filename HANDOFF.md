@@ -802,3 +802,10 @@ M6.5 implementation is now present on the branch:
   Quads remain quads. Only one-incidence faces are included.
 - No formatter, local build, or local test has been run for M6.5. Windows
   validation remains pending from the user.
+
+
+M6.5 validation and merge completed (2026-11-08):
+- PR #4 merged by squash; merge commit `e2571e649b601e7ae4e1d489e5ce1049cc77dcd0`.
+- User confirmed every test passes on their Windows environment, including the M6.5 validation run.
+- No formatter was run.
+- Next action: synchronize local `main`; M6.5 is complete.
