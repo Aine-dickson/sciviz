@@ -492,7 +492,8 @@ fn demo_cell_vector_glyphs(
     let grid = StructuredGrid2D::from_samples(samples);
     let surface = grid.to_surface_mesh()?;
 
-    let mut values = Vec::with_capacity(grid.cell_count());
+    let cell_count = (grid.x_sample_count() - 1) * (grid.y_sample_count() - 1);
+    let mut values = Vec::with_capacity(cell_count);
     for z_index in 0..(grid.y_sample_count() - 1) {
         for x_index in 0..(grid.x_sample_count() - 1) {
             let x0 = grid.sample(x_index, z_index).expect("cell corner exists").x();
