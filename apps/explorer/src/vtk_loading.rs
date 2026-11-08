@@ -35,7 +35,7 @@ pub struct ImportedScene {
     pub surface: TriangulatedSurface3,
     pub mesh: TriangleMesh3,
     pub camera: Camera3,
-    pub provenance: Option<SurfaceProvenance3>,
+    pub _provenance: Option<SurfaceProvenance3>,
     pub mapped_surface: Option<MappedSurface3>,
     pub omitted_lower_dimension_cells: usize,
     pub scalar_field_name: Option<String>,
@@ -206,7 +206,7 @@ pub fn prepare_imported_scene(
         surface,
         mesh,
         camera,
-        provenance,
+        _provenance: provenance,
         mapped_surface,
         omitted_lower_dimension_cells,
         scalar_field_name: scalar_field_name.map(str::to_owned),
@@ -266,10 +266,11 @@ pub fn fit_camera(mesh: &TriangleMesh3, aspect_ratio: f64) -> Result<Camera3, St
         0.8 / direction_length,
         1.0 / direction_length,
     ];
+    let center_coordinates = center.to_array();
     let position = WorldPoint3::new(
-        center.x() + direction[0] * distance,
-        center.y() + direction[1] * distance,
-        center.z() + direction[2] * distance,
+        center_coordinates[0] + direction[0] * distance,
+        center_coordinates[1] + direction[1] * distance,
+        center_coordinates[2] + direction[2] * distance,
     );
     let pose = LookAtCamera::new(
         position,
@@ -285,9 +286,8 @@ pub fn fit_camera(mesh: &TriangleMesh3, aspect_ratio: f64) -> Result<Camera3, St
 mod tests {
     use super::*;
     use svf_core::{
-        dataset::DatasetField,
         fields::{FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3},
-        sampling::SampleValue,
+        sampling::{NonFiniteValue, SampleValue},
         unstructured::CellType3,
     };
 
@@ -430,7 +430,7 @@ LOOKUP_TABLE default
         dataset.add_scalar_field(ScalarField::new(
             FieldMetadata::new("invalid", None).unwrap(),
             FieldAssociation::Point,
-            vec![SampleValue::Invalid; 4],
+            vec![SampleValue::NonFinite(NonFiniteValue::NaN); 4],
         ).unwrap()).unwrap();
         assert!(prepare_imported_scene(dataset, Some("invalid"))
             .unwrap_err().contains("no finite values"));
