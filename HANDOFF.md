@@ -875,7 +875,7 @@ Rendering reuses the existing indexed mesh pipeline, depth target, fixed
 unlit color, and no-cull behavior. No field coloring, unstructured picking,
 orientation repair, lighting, camera controls, or file I/O is included.
 
-The contract is committed. The Explorer implementation now adds an optional
+The contract is committed. Draft PR #6 is open: https://github.com/Aine-dickson/sciviz/pull/6. The Explorer implementation now adds an optional
 `--unstructured` mode while keeping the parametric mode as the default.
 It constructs one hexahedron and one disconnected tetrahedron, derives the
 boundary and triangulated surfaces through existing `svf-core` APIs, adapts
