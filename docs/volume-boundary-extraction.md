@@ -193,6 +193,8 @@ shared-face case.
 ## Implementation status
 
 The API and implementation are committed on branch
-`m6-4-volume-boundary`. Local Windows compilation and test validation
-remain pending. See `HANDOFF.md` and `docs/MILESTONES.md` for the current
-validation record.
+`m6-4-volume-boundary` and have passed user-reported local Windows
+validation (2026-11-08): `cargo check --workspace`, 125
+`svf-core` tests, and 130 workspace tests all passed. No formatter was run.
+The branch is ready for pull-request review and is not yet merged. See
+`HANDOFF.md` and `docs/MILESTONES.md` for the validation record.
