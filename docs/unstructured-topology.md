@@ -100,8 +100,13 @@ cell identity for picking, field lookup, and diagnostics.
 
 ## Verification status
 
-Unit tests now cover valid mixed cells, stable point/cell ordering, empty and
+Unit tests cover valid mixed cells, stable point/cell ordering, empty and
 points-only grids, default construction, validation failures, preservation of
 geometrically degenerate cells, and Dataset field attachment using source
-cell counts. These tests are committed on the M6.3 branch but have not yet
-been run on the user's Windows environment.
+cell counts.
+
+User-reported Windows validation completed on 2026-11-08:
+- `cargo check --workspace`: passed.
+- `cargo test --workspace`: 117 passed, 0 failed
+  (112 core, 1 Explorer, 4 renderer).
+- No formatting command was run for this increment.
