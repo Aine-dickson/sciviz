@@ -427,16 +427,16 @@ orientation repair, geometric quality, and file import/export.
 
 Design contract: `docs/surface-triangulation.md`.
 
-- [ ] Pass source triangle faces through unchanged
-- [ ] Split each source quad into two triangles
-- [ ] Select quad diagonals deterministically from sorted original source
+- [x] Pass source triangle faces through unchanged
+- [x] Split each source quad into two triangles
+- [x] Select quad diagonals deterministically from sorted original source
   point-ID endpoint pairs (lexicographically smaller pair wins)
-- [ ] Preserve source local-cycle winding without claiming outward orientation
-- [ ] Preserve source boundary-face, volume-cell, local-face, and per-face
-  triangle ordinal provenance
-- [ ] Preserve compact f64 points and source-point-ID mapping
-- [ ] Add focused tests for both diagonal choices, source-ID versus compact-ID
-  distinction, mixed face arities, provenance, determinism, immutability,
+- [x] Preserve source local-cycle winding without claiming outward orientation
+- [x] Preserve boundary-face array index, original topology face index,
+  volume-cell, local-face, and per-face triangle ordinal provenance
+- [x] Preserve compact f64 points and source-point-ID mapping
+- [x] Add ten focused tests for both diagonal choices, explicit source-ID
+  selection, mixed face arities, provenance, determinism, immutability,
   empty input, and geometric degeneracy
 - [ ] Review public API and implementation
 - [ ] Verify `cargo check --workspace` on Windows
@@ -445,3 +445,4 @@ Design contract: `docs/surface-triangulation.md`.
 
 Scope excludes renderer integration, field transfer, orientation repair,
 geometric quality optimization, and file import/export.
+
