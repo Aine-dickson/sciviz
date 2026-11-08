@@ -17,8 +17,9 @@ library during development.
   run reported 94 passing tests.
 - **M6.2 — Dataset containers and attribute attachment:** merged to `main`;
   user-reported Windows validation passed (103 workspace tests).
-- **M6.3 — Unstructured topology foundations:** implementation in progress
-  on branch `m6-3-unstructured-topology`; Windows validation pending.
+- **M6.3 — Unstructured topology foundations:** implemented on branch
+  `m6-3-unstructured-topology`; user-reported Windows validation passed
+  (117 workspace tests: 112 core, 1 Explorer, 4 renderer).
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
