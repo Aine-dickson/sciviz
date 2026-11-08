@@ -66,9 +66,11 @@ impl ImportedScene {
 pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> {
     let has_vtk = args.iter().any(|arg| arg == "--vtk");
     let has_scalar = args.iter().any(|arg| arg == "--vtk-scalar");
+    let has_isosurface = args.iter().any(|arg| arg == "--vtk-isosurface");
+    let has_isovalue = args.iter().any(|arg| arg == "--vtk-isovalue");
     if !has_vtk {
-        return if has_scalar {
-            Err("--vtk-scalar requires --vtk <path>".to_owned())
+        return if has_scalar || has_isosurface || has_isovalue {
+            Err("VTK field and isosurface options require --vtk <path>".to_owned())
         } else {
             Ok(None)
         };
@@ -90,6 +92,8 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
 
     let mut path = None;
     let mut scalar_field = None;
+    let mut isosurface_field = None;
+    let mut isovalue = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -113,6 +117,31 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 scalar_field = Some(value.clone());
                 index += 2;
             }
+            "--vtk-isosurface" => {
+                if isosurface_field.is_some() {
+                    return Err("--vtk-isosurface may only be supplied once".to_owned());
+                }
+                let value = args.get(index + 1)
+                    .filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-isosurface requires a field name".to_owned())?;
+                isosurface_field = Some(value.clone());
+                index += 2;
+            }
+            "--vtk-isovalue" => {
+                if isovalue.is_some() {
+                    return Err("--vtk-isovalue may only be supplied once".to_owned());
+                }
+                let value = args.get(index + 1)
+                    .filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-isovalue requires a finite f64 value".to_owned())?;
+                let parsed = value.parse::<f64>()
+                    .map_err(|_| format!("invalid --vtk-isovalue '{value}': expected a finite f64"))?;
+                if !parsed.is_finite() {
+                    return Err("--vtk-isovalue must be finite".to_owned());
+                }
+                isovalue = Some(parsed);
+                index += 2;
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in VTK mode"));
             }
@@ -122,9 +151,18 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         }
     }
 
+    if scalar_field.is_some() && (isosurface_field.is_some() || isovalue.is_some()) {
+        return Err("--vtk-scalar cannot be combined with --vtk-isosurface/--vtk-isovalue".to_owned());
+    }
+    if isosurface_field.is_some() != isovalue.is_some() {
+        return Err("--vtk-isosurface and --vtk-isovalue must be supplied together".to_owned());
+    }
+
     Ok(Some(VtkLoadConfig {
         path: path.ok_or_else(|| "--vtk requires a file path".to_owned())?,
         scalar_field,
+        isosurface_field,
+        isovalue,
     }))
 }
 
