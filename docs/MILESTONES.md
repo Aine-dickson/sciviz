@@ -458,19 +458,19 @@ GPU buffers authoritative.
 
 Design contract: `docs/unstructured-rendering.md`.
 
-Status: contract committed; implementation not started.
+Status: implementation committed to this feature branch; local validation pending.
 
-- [ ] Add an optional `--unstructured` Explorer mode; keep the existing
+- [x] Add an optional `--unstructured` Explorer mode; keep the existing
   parametric-surface mode as the default
-- [ ] Build a deterministic fixture containing one `Hexahedron8` and one
+- [x] Build a deterministic fixture containing one `Hexahedron8` and one
   disconnected `Tetrahedron4`
-- [ ] Derive its `BoundarySurface3` and `TriangulatedSurface3` using
+- [x] Derive its `BoundarySurface3` and `TriangulatedSurface3` using
   existing `svf-core` APIs
-- [ ] Adapt triangulated f64 points/connectivity to `TriangleMesh3` without
+- [x] Adapt triangulated f64 points/connectivity to `TriangleMesh3` without
   reordering points or triangles
-- [ ] Retain `TriangulatedSurface3` and source provenance on the CPU
-- [ ] Reuse the existing indexed renderer, depth testing, and no-cull policy
-- [ ] Add tests for fixture counts, polygon arities, triangle counts,
+- [x] Retain `TriangulatedSurface3` and source provenance on the CPU
+- [x] Reuse the existing indexed renderer, depth testing, and no-cull policy
+- [x] Add tests for fixture counts, polygon arities, triangle counts,
   per-cell provenance, render-mesh conversion, and index validity
 - [ ] Verify `cargo check --workspace` on Windows
 - [ ] Verify `cargo test -p svf-core` on Windows
