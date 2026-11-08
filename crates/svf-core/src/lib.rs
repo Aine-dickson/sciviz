@@ -9,6 +9,7 @@ pub mod dataset;
 pub mod ray;
 pub mod sampling;
 pub mod spatial;
+pub mod surface_triangulation;
 pub mod unstructured;
 pub mod unstructured_topology;
 
