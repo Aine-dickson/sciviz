@@ -1038,17 +1038,45 @@ Unstructured volume-cell glyphs remain excluded: arithmetic cell centers lie
 inside opaque volume boundaries and can be correctly occluded. A separate
 visibility/representation design is needed for useful volume-cell glyphs.
 
-## M7.5 — Interactive 3D camera navigation (design proposed)
+## M7.5 — Interactive 3D camera navigation (complete; merged 2026-11-08)
 
-Design contract: `docs/camera-navigation.md`.
+Design and implementation contract: `docs/camera-navigation.md`.
 
-Status: design proposed; implementation has not started.
+PR #13 merged to `main`; merge commit:
+`32002a3cbce2a3c03755cbda67dc8b759de1892d`.
 
-Objective: enable orbit, pan, and zoom in Explorer so users can inspect
-scientific surfaces and glyphs from multiple viewpoints. Keep input handling
-in the host, reusable camera mathematics independent of windowing/GPU APIs,
-and GPU camera-uniform updates in the renderer.
+Implemented:
+- `svf-core` exposes input-independent f64 orbit, pan, and zoom operations
+  through `camera_navigation`, with validated configuration and explicit
+  numerical limits.
+- Orbit rotates around the current target, preserves camera-target distance,
+  uses +Y world up, and clamps elevation away from the poles.
+- Pan translates camera position and target together in the camera plane;
+  the operation is perspective-camera only.
+- Zoom changes camera-target distance exponentially and clamps it to the
+  configured minimum and maximum.
+- Default navigation configuration: minimum distance 1.0, maximum distance
+  80.0, pole margin 0.02 radians, orbit sensitivity 0.006 radians/pixel,
+  and zoom exponent sensitivity 0.12 per wheel unit.
+- `svf-render` exposes validated `SceneRenderer::set_camera`; it validates
+  the GPU uniform before updating the stored camera and uniform, keeping
+  rendering and picking camera state synchronized.
+- Explorer maps left drag to orbit, middle drag to pan, and wheel input to
+  zoom. A drag does not also trigger click inspection.
+- Camera controls work across all six existing modes; scientific geometry,
+  datasets, and glyph positions are not transformed.
 
-Next: review the M7.5 design contract, then agree its interaction mapping and
-acceptance criteria before implementation. No camera controls are currently
-available in Explorer.
+User-reported Windows validation (2026-11-08):
+- `cargo test --workspace`: passed.
+- `cargo check --workspace`: passed; the only warning was the pre-existing
+  `VectorSource3::new` dead-code warning in `svf-core`.
+- Orbit, pan, zoom, click inspection/picking synchronization, and
+  resize/minimize/restore worked in `--cell-vectors`.
+- Navigation also worked in default, `--vectors`, `--scalar`,
+  `--unstructured`, and `--unstructured-scalar` modes.
+- The user reported all remaining mode checks passed.
+- Multi-angle inspection of the M7.4 cell-vector visualization is now
+  available; no camera-driven geometry or glyph-depth override was introduced.
+
+M7.5 implementation, automated workspace tests, compilation, and user-reported
+Windows runtime validation are complete. PR #13 is merged to `main`.
