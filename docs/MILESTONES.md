@@ -700,53 +700,47 @@ remains consistent. The only reported compiler warning is the pre-existing
 
 Design contract: `docs/isosurface-field-transfer.md`.
 
-Status: design finalized; implementation not started.
+Status: complete; core PR #20 and renderer/Explorer PR #21 merged to
+`main` on 2026-11-09.
 
-Objective: transfer a point-associated scalar field from the exact source
-dataset onto M8.1 isosurface vertices using source-point/source-edge
-provenance, then map and render the derived surface without inventing source
-point identities.
+- Core transfer PR #20 merge commit:
+  `531bd64da3f57dbe20c37dad8b591874bc625043`.
+- Renderer/Explorer PR #21 merge commit:
+  `ccc84e0b72fb1cedbaa6a159ecc2d5c384b2a917`.
 
-Finalized decisions:
-- The API accepts only an unstructured source dataset and point-associated
-  scalar fields. The caller must supply the exact dataset used for extraction;
-  M8.1 currently has no globally unique dataset identity, so the API can
-  validate counts and provenance bounds but cannot prove dataset identity.
-- Source-point provenance copies the complete `SampleValue` unchanged.
-- Source-edge provenance requires canonical ascending point IDs and finite
-  `t` in [0, 1]. Endpoints are copied exactly at t=0/1.
-- Interior NaN propagates to NaN; one or same-sign infinities propagate
-  their infinity; opposing infinities produce NaN. Non-finite samples affect
-  only their corresponding output vertex and receive the configured invalid
-  color later.
-- Finite interpolation uses same-sign `a + (b-a)*t` and opposite-sign
-  `a*(1-t)+b*t` branches to avoid avoidable overflow. An unexpected
-  non-finite result from finite inputs is an explicit error.
-- `TransferredScalarField3` owns the exact `Isosurface3`, field metadata,
-  and values in mesh-vertex order. `MappedIsosurface3` retains that object,
-  one color per unique vertex, and the resolved range.
-- Automatic color range uses finite transferred values on the extracted
-  surface. Explicit ranges, constant-range midpoint behavior, and invalid
-  colors reuse existing scalar visualization semantics.
-- Add `ScalarRange::from_values`; retain existing `MappedSurface3`
-  unchanged.
-- Renderer accepts prepared mapped isosurface geometry and colors only;
-  f64-to-f32 conversion remains at the GPU boundary.
-- Add separate Explorer `--colored-isosurface` mode using a second
-  point-associated field. Existing `--isosurface` and all previous modes
-  remain unchanged.
+Implemented:
+- [x] Transfer point-associated scalar values onto derived isosurface
+  vertices using exact source-point/source-edge provenance
+- [x] Validate source association, field cardinality, provenance bounds,
+  canonical edge ordering, and interpolation parameter range
+- [x] Preserve exact source-point values and exact edge endpoint values
+- [x] Define NaN and signed-infinity propagation for interior edge
+  interpolation
+- [x] Use sign-aware f64 interpolation for finite endpoint values and report
+  unexpected non-finite results
+- [x] Retain the exact `Isosurface3`, source field metadata, and transferred
+  values in `TransferredScalarField3`
+- [x] Add `ScalarRange::from_values` and `MappedIsosurface3`, with one
+  mapped color per unique derived vertex
+- [x] Keep `MappedSurface3` unchanged and avoid fabricating source point IDs
+- [x] Add renderer support for prepared mapped isosurface geometry; convert
+  f64 positions and RGBA colors to f32 only at the renderer boundary
+- [x] Add separate Explorer `--colored-isosurface` mode using a distinct
+  point-associated scalar field; preserve `--isosurface` unchanged
+- [x] Retain source dataset, extracted isosurface, and mapped derived
+  representation CPU-side
+- [x] Verify Windows workspace tests (user-reported: 228 passed —
+  204 core, 17 Explorer, 7 renderer)
+- [x] Visually verify `--colored-isosurface`; user reports the output
+  matches the expected mapped-color rendering
+- [x] Confirm the original `--isosurface` mode remains unchanged
 
-Implementation checklist:
-- [ ] Add core transfer module, types, validation, and numerical policy
-- [ ] Add shared scalar-range-from-values support
-- [ ] Add derived isosurface color mapping and focused tests
-- [ ] Add renderer adapter and f32-boundary validation
-- [ ] Add Explorer `--colored-isosurface` fixture/mode
-- [ ] Run Windows focused tests, workspace tests, and workspace check
-- [ ] Visually validate mapped colors, camera navigation, hover/picking,
-  resize, minimize, and restore
-- [ ] Regression-test all existing Explorer modes
+User-reported Windows validation (2026-11-09): all 228 workspace tests
+passed, and the colored isosurface output matched the expected appearance.
+The user authorized merging PR #21 after validation. No claim is made here
+that `cargo check --workspace` was run for this increment; the latest
+reported validation explicitly confirms the test suite and visual output.
 
-Explicit non-goals: cell/dataset/vector/tensor transfer, structured or
-hexahedral extraction, general resampling, volume rendering, GPU-side
+Explicit non-goals remain: cell/dataset/vector/tensor transfer, structured
+or hexahedral extraction, general resampling, volume rendering, GPU-side
 interpolation, and general material/legend systems.
