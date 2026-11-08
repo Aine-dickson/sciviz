@@ -36,6 +36,8 @@ library during development.
   on Windows, and merged through PR #13; orbit, pan, and wheel zoom work
   across all six Explorer modes.
 
+- **M8.1 — Tetrahedral isosurface extraction:** proposed; design under review.
+
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
 

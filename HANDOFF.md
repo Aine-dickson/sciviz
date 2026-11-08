@@ -1080,3 +1080,26 @@ User-reported Windows validation (2026-11-08):
 
 M7.5 implementation, automated workspace tests, compilation, and user-reported
 Windows runtime validation are complete. PR #13 is merged to `main`.
+
+
+## Next proposed increment — M8.1 Tetrahedral isosurface extraction
+
+Design proposal: `docs/tetrahedral-isosurface.md`.
+
+No M8 implementation has started. The proposed first derived-geometry
+increment extracts an isosurface from a point-associated scalar field on
+`Tetrahedron4` cells in an `UnstructuredGrid3`.
+
+Core contract under review:
+- Marching-tetrahedra classification at one finite isovalue.
+- f64 world-space output mesh with deterministic shared-edge vertex reuse.
+- Explicit per-vertex source-point/source-edge interpolation provenance.
+- Per-triangle source cell IDs.
+- Explicit reporting for unsupported cell types and skipped invalid cells.
+- Core owns extraction; renderer consumes the prepared mesh; Explorer adds
+  an optional `--isosurface` demonstration.
+- Hexahedra, structured-grid extraction, field transfer, and volume rendering
+  remain out of scope.
+
+The design is proposed, not approved or implemented. Resolve exact-isovalue,
+shared-face, winding, and degenerate-cell semantics before implementation.
