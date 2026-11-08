@@ -50,7 +50,10 @@ orientation, and M6.5 explicitly preserves reference cycles only.
 ## Provenance
 
 Every output triangle retains:
-- `source_face_index`: index into the input `BoundarySurface3::faces()`.
+- `boundary_face_index`: index into the input `BoundarySurface3::faces()`,
+  allowing direct lookup of the M6.5 boundary-face record.
+- `source_face_index`: original M6.4 topology face index retained by the
+  M6.5 boundary-face record.
 - `source_cell_index`: original volume cell index from M6.5.
 - `source_local_face_index`: local face-template index in that cell.
 - `source_triangle_index`: 0 for the first triangle emitted from that
@@ -80,7 +83,8 @@ allocation handling, define only the narrow error needed and document it.
    triangle order.
 7. Mixed triangle/quad surfaces preserve source face order and produce
    one/two triangles respectively.
-8. Every output triangle preserves source face, cell, local-face, and
+8. Every output triangle preserves both the M6.5 boundary-face array index
+   and original M6.4 topology face index, plus cell, local-face, and
    per-face triangle ordinal.
 9. Point coordinates and source-point-ID mapping are preserved exactly.
 10. Repeated triangulation is deterministic.
