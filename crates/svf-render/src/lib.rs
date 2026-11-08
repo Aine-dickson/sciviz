@@ -708,6 +708,14 @@ mod tests {
     };
 
     fn vector_glyphs(points: Vec<WorldPoint3>, values: Vec<VectorValue3>) -> VectorGlyphSet3 {
+        vector_glyphs_with_length(points, values, 2.0)
+    }
+
+    fn vector_glyphs_with_length(
+        points: Vec<WorldPoint3>,
+        values: Vec<VectorValue3>,
+        length: f64,
+    ) -> VectorGlyphSet3 {
         let mut dataset = Dataset::new(PointSet3::new(points).unwrap());
         let field = VectorField3::new(
             FieldMetadata::new("velocity", None).unwrap(),
@@ -721,7 +729,7 @@ mod tests {
         let analyses = analyze_vector_sources(&sources).unwrap();
         build_vector_glyphs(
             &analyses,
-            VectorScalePolicy3::UniformLength { length: 2.0 },
+            VectorScalePolicy3::UniformLength { length },
         )
         .unwrap()
     }
@@ -750,9 +758,12 @@ mod tests {
 
     #[test]
     fn vector_glyph_conversion_rejects_positions_outside_f32_range() {
-        let glyphs = vector_glyphs(
+        // The arrow must be representable in f64 before the renderer
+        // rejects its world coordinates at the f32 GPU boundary.
+        let glyphs = vector_glyphs_with_length(
             vec![WorldPoint3::new(1.0e100, 0.0, 0.0)],
             vec![VectorValue3::from_f64(1.0, 0.0, 0.0)],
+            1.0e90,
         );
         assert!(matches!(
             convert_vector_glyphs(&glyphs),
