@@ -266,30 +266,29 @@ fn structured_point(
 /// coordinates are large. All source geometry constructors guarantee finite
 /// coordinates, and scaling keeps each accumulated component bounded.
 fn mean_point(points: &[WorldPoint3]) -> WorldPoint3 {
-    let scale = points
-        .iter()
-        .flat_map(|point| point.to_array())
-        .map(f64::abs)
-        .fold(0.0_f64, f64::max);
-
-    if scale == 0.0 {
-        return WorldPoint3::ORIGIN;
-    }
-
-    // Divide each coordinate before summing. Every term is bounded by
-    // scale / n, so the sum cannot overflow; this also avoids an extra
-    // scale multiplication that can introduce avoidable rounding error.
-    let divisor = points.len() as f64;
     let mut mean = [0.0; 3];
-    for point in points {
-        let coordinates = point.to_array();
-        for axis in 0..3 {
-            mean[axis] += (coordinates[axis] / scale) / divisor;
+
+    // Scale each axis independently. A large coordinate on one axis must not
+    // erase precision for much smaller coordinates on another axis.
+    for axis in 0..3 {
+        let scale = points
+            .iter()
+            .map(|point| point.to_array()[axis].abs())
+            .fold(0.0_f64, f64::max);
+
+        if scale == 0.0 {
+            continue;
         }
+
+        let normalized_sum = points
+            .iter()
+            .map(|point| point.to_array()[axis] / scale)
+            .sum::<f64>();
+
+        mean[axis] = (normalized_sum / points.len() as f64) * scale;
     }
 
-    WorldPoint3::new(mean[0] * scale, mean[1] * scale, mean[2] * scale)
-}
+    WorldPoint3::new(mean[0], mean[1], mean[2])
 
 #[cfg(test)]
 mod tests {
