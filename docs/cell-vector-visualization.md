@@ -2,8 +2,8 @@
 
 ## Status
 
-Design contract prepared after M7.3 was merged and user-validated on Windows.
-Implementation has not started.
+Design contract merged to `main`. Initial Explorer implementation is in
+PR #11; local Windows compilation, tests, and visual validation are pending.
 
 ## Objective
 
@@ -58,6 +58,23 @@ all glyphs unconditionally on top of the surface or disable depth testing to
 make them more visible. If a glyph is hidden by the surface, treat that as a
 visibility consequence of its world-space anchor and camera, not as a reason
 to falsify its position.
+
+## Implementation in PR #11
+
+- Added `--cell-vectors` as a separate Explorer mode.
+- Builds an 9 × 9 structured graph grid (64 logical cells) over [-4, 4]².
+- Uses the same `StructuredGrid2D` instance as the dataset geometry and the
+  generated display surface.
+- Attaches 64 deterministic cell-associated world-basis velocity vectors.
+- Resolves the vectors through the existing core source-location pipeline and
+  generates 1.0-world-unit glyphs through the existing explicit uniform policy.
+- Retains the source dataset and glyph set on the CPU.
+- Adds tests for grid/field cardinality, cell source ordering, arithmetic
+  four-corner anchors, explicit display length, and CLI mode selection.
+
+This is an initial implementation slice, not yet locally validated. Do not
+treat compile or runtime success as established until the Windows checks below
+are reported.
 
 ## Required tests
 
