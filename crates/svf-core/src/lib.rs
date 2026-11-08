@@ -18,6 +18,7 @@ pub mod unstructured;
 pub mod unstructured_topology;
 pub mod vector_glyphs;
 pub mod vector_visualization;
+pub mod vtk_legacy;
 
 /// Human-readable project name.
 pub const PROJECT_NAME: &str = "Scientific Visualization Framework";
