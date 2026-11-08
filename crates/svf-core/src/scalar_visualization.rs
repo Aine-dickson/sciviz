@@ -7,6 +7,8 @@
 use std::{error::Error, fmt};
 
 use crate::{
+    fields::{FieldAssociation, FieldError, ScalarField},
+    sampling::SampleValue,
     geometry::{GeometryError, TriangleMesh3},
     sampling::{GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D},
     unstructured::UnstructuredGrid3,
