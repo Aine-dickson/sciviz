@@ -650,6 +650,41 @@ LOOKUP_TABLE default
     }
 
     #[test]
+    fn selects_an_alternate_point_scalar_field_by_exact_name() {
+        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("pressure", Some("kPa".to_owned())).unwrap(),
+            FieldAssociation::Point,
+            vec![
+                SampleValue::Finite(0.0),
+                SampleValue::Finite(100.0),
+                SampleValue::Finite(0.0),
+                SampleValue::Finite(100.0),
+            ],
+        ).unwrap()).unwrap();
+        let scene = prepare_imported_scene_with_options(
+            dataset, None, Some("pressure"), Some(50.0),
+        ).unwrap();
+        assert_eq!(scene.isosurface_field_name.as_deref(), Some("pressure"));
+        assert_eq!(scene.isosurface.as_ref().unwrap().isovalue(), 50.0);
+        assert_eq!(scene.isosurface.as_ref().unwrap().mesh().triangle_count(), 2);
+    }
+
+    #[test]
+    fn rejects_dataset_associated_isosurface_scalar_field() {
+        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("ambient", None).unwrap(),
+            FieldAssociation::Dataset,
+            vec![SampleValue::Finite(25.0)],
+        ).unwrap()).unwrap();
+        let error = prepare_imported_scene_with_options(
+            dataset, None, Some("ambient"), Some(25.0),
+        ).unwrap_err();
+        assert!(error.contains("Dataset association"));
+    }
+
+    #[test]
     fn rejects_isosurface_that_produces_no_triangles() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
         let error = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(1000.0))
