@@ -766,3 +766,40 @@ Feature head: `fd48c4b10900f19558eca59d681c7fde6cb3068f`.
 - [x] Merge PR #23
 
 The only reported compiler warning is the pre-existing `VectorSource3::new` dead-code warning. M9.1 is complete. M9.2 will address user-facing Explorer file loading while keeping parsing and scientific data ownership in `svf-core`.
+
+
+## M9.2 — Explorer VTK dataset loading (complete; merged 2026-11-09)
+
+Design contract: `docs/explorer-vtk-loading.md`.
+
+PR #25: https://github.com/Aine-dickson/sciviz/pull/25  
+Merge commit: `e9d57463a11dc89a6c43b8ba2677fdb79517a174`.
+
+- [x] Add `--vtk <path>` and optional `--vtk-scalar <field-name>`
+- [x] Parse arguments and load UTF-8 input before creating the event loop/window
+- [x] Reuse the unchanged M9.1 `svf-core` VTK parser
+- [x] Extract and triangulate volume boundaries for the existing triangle renderer
+- [x] Report omitted lower-dimensional cells and reject files without a renderable volume boundary
+- [x] Map selected point- or cell-associated scalar fields through the existing provenance-aware Viridis pipeline
+- [x] Fit and apply a perspective camera to imported mesh bounds
+- [x] Retain source Dataset, derived surface, provenance, and mapped representation CPU-side
+- [x] Preserve default launch and all existing Explorer demo modes
+- [x] Add a committed tetrahedron-plus-line VTK smoke fixture
+- [x] Verify `cargo test -p svf-explorer` on Windows (26 passed)
+- [x] Verify `cargo test --workspace` on Windows (249 passed: 216 core, 26 Explorer, 7 renderer; doc-tests passed)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Visually verify uncolored, point-associated scalar, and cell-associated scalar rendering
+- [x] Verify initial camera framing, zoom interaction, and missing-file failure before window creation
+- [x] Merge PR #25
+
+User-reported Windows validation (2026-11-09): all 249 workspace tests
+passed, doc-tests passed, and `cargo check --workspace` passed. The imported
+tetrahedral surface was visible and centered immediately at startup. Point
+scalar colors varied across the surface; cell scalar color remained uniform
+for the source cell. A missing path produced a contextual error and nonzero
+exit before a window opened. The only compiler warning was the pre-existing
+`VectorSource3::new` dead-code warning.
+
+M9.2 is complete. Binary VTK, native file dialogs, standalone rendering of
+lower-dimensional-only datasets, vector-field controls, legends, and
+additional cell types remain outside this increment.
