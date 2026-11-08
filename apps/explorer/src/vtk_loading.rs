@@ -16,7 +16,6 @@ use svf_core::{
     },
     spatial::{WorldPoint3, WorldVector3},
     surface_triangulation::TriangulatedSurface3,
-    unstructured::UnstructuredGrid3,
     vtk_legacy::parse_legacy_ascii_unstructured_grid,
 };
 
@@ -288,7 +287,7 @@ mod tests {
     use svf_core::{
         fields::{FieldMetadata, ScalarField, VectorBasis3, VectorField3, VectorValue3},
         sampling::{NonFiniteValue, SampleValue},
-        unstructured::CellType3,
+        unstructured::{CellType3, UnstructuredGrid3},
     };
 
     const TETRA_VTK: &str = "# vtk DataFile Version 3.0
