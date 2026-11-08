@@ -718,10 +718,11 @@ The user synchronized local `main` successfully at merge commit
 M6.1 formatting-only stashes remain untouched. Do not run formatting
 routines or restore either stash blindly.
 
-## M6.4 — Unstructured volume boundary extraction: implementation awaiting local validation
+## M6.4 — Unstructured volume boundary extraction: locally validated
 
-Development branch: `m6-4-volume-boundary`, created from merged M6.3
-commit `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`.
+M6.4 was implemented on `m6-4-volume-boundary` from merged M6.3
+commit `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`. The feature branch is
+ready for pull-request review; it has not yet been merged.
 
 Design: `docs/volume-boundary-extraction.md`.
 
@@ -741,16 +742,14 @@ Implementation:
 - Incidence counts classify faces as boundary (1), interior (2), or
   non-manifold (>2). No geometric watertightness or outward-orientation
   claim is made.
-- The implementation includes focused tests for single cells, shared faces,
-  non-manifold incidence, mixed cell types, ignored lower-dimensional cells,
-  source mapping, deterministic ordering, coordinate-distinct identity,
-  empty grids, and geometric degeneracy.
 
-Current status: implementation has been committed to the remote feature
-branch, but it has not yet been compiled or tested in the user's Windows
-environment. Do not mark M6.4 validated until the user reports the results
-of `cargo check --workspace`, `cargo test -p svf-core`, and
-`cargo test --workspace`.
+User-reported Windows validation (2026-11-08):
+- `cargo check --workspace`: passed.
+- `cargo test -p svf-core`: 125 passed, 0 failed.
+- `cargo test --workspace`: 130 passed, 0 failed
+  (125 core, 1 Explorer, 4 renderer).
+- The workspace working tree was clean and synchronized with
+  `origin/m6-4-volume-boundary` after the fast-forward pull.
 
 No formatter was run. Continue preserving the user's formatting-only stash;
 do not run formatting routines as cleanup.
