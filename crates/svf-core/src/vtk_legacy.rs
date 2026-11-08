@@ -87,7 +87,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse(mut self) -> Result<Dataset, VtkLegacyError> {
-        let version = self.required_line("version header")?;
+        // The legacy envelope is positional: the version must be the first
+        // physical line, and the title must occupy the second (possibly blank).
+        let version = self.required_physical_line("version header")?;
         let version = version.trim();
         let Some(version) = version.strip_prefix("# vtk DataFile Version ") else {
             return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "expected '# vtk DataFile Version x.x'"));
@@ -96,15 +98,15 @@ impl<'a> Parser<'a> {
             return Err(self.error(VtkLegacyErrorKind::UnsupportedVersion, format!("unsupported VTK legacy version '{}'", version.trim())));
         }
 
-        let title = self.required_line("title line")?;
-        if title.len() > 256 {
-            return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "title line exceeds 256 bytes"));
+        let title = self.required_physical_line("title line")?;
+        if title.chars().count() > 256 {
+            return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "title line exceeds 256 characters"));
         }
-        let mode = self.required_line("ASCII declaration")?;
+        let mode = self.required_physical_line("ASCII declaration")?;
         if !mode.trim().eq_ignore_ascii_case("ASCII") {
             return Err(self.error(VtkLegacyErrorKind::UnsupportedFormat, "only ASCII legacy files are supported"));
         }
-        let dataset = self.required_record("DATASET")?;
+        let dataset = self.required_physical_line("DATASET record")?;
         let dataset_tokens: Vec<_> = dataset.split_whitespace().collect();
         if dataset_tokens.len() != 2 || !dataset_tokens[0].eq_ignore_ascii_case("DATASET") {
             return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "expected 'DATASET UNSTRUCTURED_GRID'"));
@@ -313,11 +315,20 @@ impl<'a> Parser<'a> {
         Ok(line.to_owned())
     }
 
-    fn required_line(&mut self, expected: &str) -> Result<&'a str, VtkLegacyError> {
-        let Some((_, line)) = self.next_nonempty_line() else {
+    fn required_physical_line(&mut self, expected: &str) -> Result<&'a str, VtkLegacyError> {
+        let Some((_, line)) = self.next_physical_line() else {
             return Err(self.error(VtkLegacyErrorKind::MissingRecord, format!("missing {expected}")));
         };
         Ok(line)
+    }
+
+    fn next_physical_line(&mut self) -> Option<(usize, &'a str)> {
+        if self.index >= self.lines.len() {
+            return None;
+        }
+        let current = self.index;
+        self.index += 1;
+        Some((current + 1, self.lines[current].trim()))
     }
 
     fn next_nonempty_line(&mut self) -> Option<(usize, &'a str)> {
@@ -472,4 +483,119 @@ VECTORS flux float
         assert_eq!(values[2], SampleValue::from_f64(f64::NEG_INFINITY));
         assert_eq!(values[3], SampleValue::from_f64(0.1_f32 as f64));
     }
+    #[test]
+    fn enforces_positional_file_envelope_and_accepts_blank_title() {
+        let blank_title = MIXED.replacen("SVF fixture", "", 1);
+        assert!(parse_legacy_ascii_unstructured_grid(&blank_title).is_ok());
+
+        let leading_blank = format!("\\n{MIXED}");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&leading_blank).unwrap_err().kind(),
+            &VtkLegacyErrorKind::InvalidHeader
+        );
+
+        let extra_blank_before_ascii = MIXED.replacen("SVF fixture\\nASCII", "SVF fixture\\n\\nASCII", 1);
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&extra_blank_before_ascii).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedFormat
+        );
+    }
+
+    #[test]
+    fn accepts_cell_data_before_point_data_and_optional_scalar_metadata() {
+        let point_start = MIXED.find("POINT_DATA 8\\n").unwrap();
+        let cell_start = MIXED.find("CELL_DATA 2\\n").unwrap();
+        let point_section = &MIXED[point_start..cell_start];
+        let cell_section = &MIXED[cell_start..];
+        let geometry = &MIXED[..point_start];
+        let reordered = format!(
+            "{geometry}{}{}",
+            cell_section.replace("LOOKUP_TABLE default\\n", ""),
+            point_section
+                .replace("SCALARS temperature float 1", "SCALARS temperature float")
+                .replace("LOOKUP_TABLE default\\n", "")
+        );
+        let dataset = parse_legacy_ascii_unstructured_grid(&reordered).unwrap();
+        assert_eq!(dataset.scalar_field("pressure").unwrap().association(), FieldAssociation::Cell);
+        assert_eq!(dataset.scalar_field("temperature").unwrap().association(), FieldAssociation::Point);
+    }
+
+    #[test]
+    fn converts_supported_integer_field_types_at_declared_widths() {
+        let text = MIXED
+            .replace("SCALARS temperature float 1", "SCALARS temperature unsigned_char 1")
+            .replace("SCALARS pressure int", "SCALARS pressure short")
+            .replace("VECTORS flux float", "VECTORS flux unsigned_short");
+        let dataset = parse_legacy_ascii_unstructured_grid(&text).unwrap();
+        assert_eq!(dataset.scalar_field("temperature").unwrap().values()[7], SampleValue::Finite(7.0));
+        assert_eq!(dataset.scalar_field("pressure").unwrap().values()[1], SampleValue::Finite(200.0));
+        assert_eq!(
+            dataset.vector_field3("flux").unwrap().values()[1].components(),
+            [SampleValue::Finite(4.0), SampleValue::Finite(5.0), SampleValue::Finite(6.0)]
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_topology_sections_and_trailing_records() {
+        let bad_cell_count = MIXED.replace("CELLS 2 12", "CELLS 3 12");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&bad_cell_count).unwrap_err().kind(),
+            &VtkLegacyErrorKind::TruncatedData
+        );
+
+        let bad_index = MIXED.replace("2 0 1\\n", "2 0 99\\n");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&bad_index).unwrap_err().kind(),
+            &VtkLegacyErrorKind::InvalidGeometry
+        );
+
+        let repeated_index = MIXED.replace("2 0 1\\n", "2 0 0\\n");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&repeated_index).unwrap_err().kind(),
+            &VtkLegacyErrorKind::InvalidGeometry
+        );
+
+        let duplicate_section = format!("{MIXED}POINT_DATA 8\\n");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&duplicate_section).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnexpectedRecord
+        );
+
+        let trailing = format!("{MIXED}GARBAGE\\n");
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&trailing).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnexpectedRecord
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_attribute_and_numeric_records() {
+        let unsupported_attribute = MIXED.replace(
+            "SCALARS temperature float 1",
+            "NORMALS surface_normal float"
+        );
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&unsupported_attribute).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedAttribute
+        );
+
+        let unsupported_type = MIXED.replace(
+            "SCALARS temperature float 1",
+            "SCALARS temperature long 1"
+        );
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&unsupported_type).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedNumericType
+        );
+
+        let multicomponent = MIXED.replace(
+            "SCALARS temperature float 1",
+            "SCALARS temperature float 3"
+        );
+        assert_eq!(
+            parse_legacy_ascii_unstructured_grid(&multicomponent).unwrap_err().kind(),
+            &VtkLegacyErrorKind::UnsupportedAttribute
+        );
+    }
+
 }
