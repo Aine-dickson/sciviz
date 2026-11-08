@@ -2,11 +2,12 @@
 
 ## Status
 
-Design contract and core scalar-mapping stages are implemented. The user
-validated the core on Windows: `cargo test -p svf-core` passed (163 tests)
-and `cargo check --workspace` passed without warnings. Renderer RGBA input
-integration is now implemented on the feature branch and awaits Windows
-validation. Explorer scalar demonstration modes are still pending.
+The reusable core mapping and renderer RGBA integration are implemented
+and user-validated on Windows. On 2026-11-08, `cargo test --workspace`
+passed (175 tests: 163 core, 7 Explorer, 5 renderer; doc-tests passed) and
+`cargo check --workspace` passed without warnings. The Explorer structured
+point-field and unstructured cell-field demonstrations are now implemented;
+their Windows compile/test and visual validation remain pending.
 
 Branch: `m7-2-scalar-visualization`, based on `main` after M7.1.
 
