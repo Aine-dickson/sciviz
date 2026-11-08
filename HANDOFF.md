@@ -1169,7 +1169,7 @@ acceptance, and merge are complete.
 
 ## Current project state and next planning step
 
-M0–M8.2 are implemented and merged to `main`. The next milestone has not
+M0–M9.2 are implemented and merged to `main`. The next milestone has not
 yet been selected. Before implementation, review the current architecture,
 remaining design constraints, and desired scientific workflows; then define
 one focused increment with an explicit design contract and testable acceptance
@@ -1201,3 +1201,49 @@ User-reported Windows validation on the final feature head:
 - No Explorer runtime changes were introduced or required.
 
 M9.1 implementation, review, final Windows validation, and merge are complete. The next increment is M9.2: design and implement user-facing VTK file loading in Explorer, without moving parsing or scientific data ownership out of `svf-core`.
+
+
+## M9.2 — Explorer VTK dataset loading (complete; merged 2026-11-09)
+
+Design contract: `docs/explorer-vtk-loading.md`.
+
+- PR #25: https://github.com/Aine-dickson/sciviz/pull/25
+- Merge commit: `e9d57463a11dc89a6c43b8ba2677fdb79517a174`.
+- Implementation branch: `m9-2-explorer-vtk-loading`.
+
+Implemented:
+- Explorer accepts `--vtk <path>` and optional `--vtk-scalar <field-name>`.
+- Parses CLI arguments and loads UTF-8 VTK files before creating the event
+  loop/window; delegates parsing to the unchanged `svf-core` M9.1 parser.
+- Extracts volume-cell boundaries, triangulates them, and renders the resulting
+  surface. Reports lower-dimensional source cells omitted from this initial
+  view and rejects inputs without a renderable volume boundary.
+- Optional point- or cell-associated scalar mapping reuses the existing
+  provenance-aware scalar visualization pipeline, automatic finite range,
+  and Viridis color map.
+- Computes a perspective camera from imported mesh bounds and applies it
+  through the existing renderer camera API.
+- Retains the source Dataset, triangulated surface, source provenance,
+  TriangleMesh3, and optional mapped surface on the CPU.
+- Existing demo modes and default launch remain unchanged.
+- Includes a committed tetrahedron-plus-line fixture at
+  `apps/explorer/examples/tetra-with-fields.vtk`.
+
+User-reported Windows validation (2026-11-09):
+- `cargo test -p svf-explorer`: 26 passed.
+- `cargo test --workspace`: 249 passed (216 core, 26 Explorer, 7 renderer);
+  doc-tests passed.
+- `cargo check --workspace`: passed.
+- Uncolored, point-associated `temperature`, and cell-associated `density`
+  rendering were visually inspected. Point colors interpolate across the
+  surface; cell colors remain uniform per source cell.
+- Immediate startup camera framing was confirmed visible and centered before
+  user interaction. Zooming fully out can move the small fixture out of view.
+- Missing-file handling was verified to report a contextual error and exit
+  nonzero before opening a window.
+- The only reported compiler warning remains the pre-existing
+  `VectorSource3::new` dead-code warning.
+
+M9.2 implementation, Windows automated validation, visual acceptance, and
+merge are complete. The next milestone has not been selected; do not infer
+or silently begin an M9.3 scope.
