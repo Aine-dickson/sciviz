@@ -36,7 +36,8 @@ library during development.
   on Windows, and merged through PR #13; orbit, pan, and wheel zoom work
   across all six Explorer modes.
 
-- **M8.1 — Tetrahedral isosurface extraction:** proposed; design under review.
+- **M8.1 — Tetrahedral isosurface extraction:** implemented, user-validated on Windows, and merged to `main` through PRs #16 and #17. Adds deterministic, provenance-preserving marching tetrahedra and the `--isosurface` Explorer mode.
+- **M8.2 — Provenance-based scalar transfer:** design proposed; transfers point-associated scalar values onto derived isosurface vertices using source-point/source-edge provenance.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.

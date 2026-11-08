@@ -1082,24 +1082,45 @@ M7.5 implementation, automated workspace tests, compilation, and user-reported
 Windows runtime validation are complete. PR #13 is merged to `main`.
 
 
-## Next proposed increment — M8.1 Tetrahedral isosurface extraction
+## M8.1 — Tetrahedral isosurface extraction (complete; merged 2026-11-08)
 
-Design proposal: `docs/tetrahedral-isosurface.md`.
+Design and implementation contract: `docs/tetrahedral-isosurface.md`.
 
-No M8 implementation has started. The proposed first derived-geometry
-increment extracts an isosurface from a point-associated scalar field on
-`Tetrahedron4` cells in an `UnstructuredGrid3`.
+- Core PR #16 merged to `main`; merge commit
+  `08c69cee2aa132b12e4d79e52f71f8b69b410858`.
+- Explorer PR #17 merged to `main`; merge commit
+  `f4d7ade5d45c109e40580b095ae6af9724621b56`.
 
-Core contract under review:
-- Marching-tetrahedra classification at one finite isovalue.
-- f64 world-space output mesh with deterministic shared-edge vertex reuse.
-- Explicit per-vertex source-point/source-edge interpolation provenance.
-- Per-triangle source cell IDs.
-- Explicit reporting for unsupported cell types and skipped invalid cells.
-- Core owns extraction; renderer consumes the prepared mesh; Explorer adds
-  an optional `--isosurface` demonstration.
-- Hexahedra, structured-grid extraction, field transfer, and volume rendering
-  remain out of scope.
+Implemented:
+- `svf-core::isosurface::extract_tetrahedral_isosurface` extracts a
+  deterministic triangle surface from a point-associated scalar field on
+  `Tetrahedron4` cells in an `UnstructuredGrid3`.
+- Uses the documented half-open classification: values strictly below the
+  isovalue are low; equal or above are high.
+- Reuses canonical source-edge intersections and exact source-point
+  intersections; interpolation and output positions remain f64.
+- Preserves one source-point/source-edge provenance record per output vertex
+  and one source-cell ID per output triangle.
+- Reports unsupported cell types and skipped cells with explicit reasons.
+- Orients triangles toward increasing scalar values and selects quad splits
+  deterministically.
+- Resolves exact-isovalue shared faces through tetrahedral face adjacency,
+  avoiding duplicate coincident triangles.
+- Explorer adds deterministic `--isosurface` mode using two adjacent
+  tetrahedra and retains both source dataset and extraction result CPU-side.
+- Existing Explorer modes and renderer mesh path remain unchanged.
 
-The design is proposed, not approved or implemented. Resolve exact-isovalue,
-shared-face, winding, and degenerate-cell semantics before implementation.
+User-reported Windows validation (2026-11-08):
+- Focused Explorer isosurface test passed after correcting fixture assertions.
+- `cargo test --workspace`: all tests passed (200 core, 15 Explorer,
+  7 renderer; doc-tests passed).
+- `cargo check --workspace`: passed.
+- `cargo run -p svf-explorer -- --isosurface`: extracted surface rendered
+  correctly; behavior remained consistent, including camera navigation and
+  window interactions.
+- The only reported compiler warning remains the pre-existing
+  `VectorSource3::new` dead-code warning in `svf-core`.
+
+M8.1 core extraction, Explorer integration, automated Windows validation,
+and visual acceptance are complete. The next proposed increment is M8.2:
+provenance-based scalar-field transfer onto derived isosurface vertices.

@@ -663,27 +663,76 @@ report. The only reported check warning is the pre-existing
 
 ## M8.1 — Tetrahedral isosurface extraction
 
-Design proposal: `docs/tetrahedral-isosurface.md`.
+Design and implementation contract: `docs/tetrahedral-isosurface.md`.
 
-Status: proposed; implementation has not started.
+Status: complete; core PR #16 and Explorer PR #17 merged to `main`
+on 2026-11-08.
 
-Objective: derive a deterministic triangle isosurface from a point-associated
-scalar field on tetrahedral cells in an unstructured dataset, preserving
-source-cell identity and explicit source-edge interpolation provenance.
+- Core merge commit: `08c69cee2aa132b12e4d79e52f71f8b69b410858`.
+- Explorer merge commit: `f4d7ade5d45c109e40580b095ae6af9724621b56`.
 
-- [ ] Finalize exact-isovalue and shared-face classification semantics
-- [ ] Finalize deterministic marching-tetrahedra case handling and quad split
-- [ ] Define consistent triangle winding relative to scalar gradient
-- [ ] Define explicit handling for non-finite values, degenerate tetrahedra,
-  zero-area triangles, and interpolation overflow
-- [ ] Implement f64 core extraction with canonical shared-edge vertex reuse
-- [ ] Preserve per-vertex source-point/source-edge provenance and per-triangle
-  source cell IDs
-- [ ] Add deterministic Explorer `--isosurface` demonstration
-- [ ] Verify continuity across adjacent tetrahedra and inspect the surface
-  with camera navigation
-- [ ] Run Windows workspace tests/checks and regression-test all existing modes
+Implemented:
+- [x] Extract point-associated scalar isosurfaces from `Tetrahedron4`
+  cells in `UnstructuredGrid3` using f64 marching-tetrahedra calculations
+- [x] Define half-open low/high classification and deterministic handling
+  for exact-isovalue source vertices and shared faces
+- [x] Reuse canonical shared-edge intersections and preserve interpolation
+  provenance measured from the lower source point ID to the higher ID
+- [x] Preserve per-vertex source provenance and per-triangle source cell IDs
+- [x] Orient triangles toward increasing scalar values and choose quad
+  diagonals deterministically
+- [x] Report unsupported cell types and skipped invalid/degenerate cells
+- [x] Add deterministic Explorer `--isosurface` mode and retain source
+  dataset plus derived result CPU-side
+- [x] Verify focused isosurface test on Windows (user-reported: passed)
+- [x] Verify `cargo test --workspace` on Windows (user-reported: all passed;
+  200 core, 15 Explorer, 7 renderer; doc-tests passed)
+- [x] Verify `cargo check --workspace` on Windows (user-reported: passed)
+- [x] Visually verify extracted surface rendering, camera behavior, and
+  window interactions on Windows
+- [x] Merge core implementation PR #16 and Explorer PR #17 to `main`
 
-The first increment is deliberately limited to `Tetrahedron4` cells and
-point-associated scalar fields. Hexahedra, structured-grid isosurfaces,
-field transfer, contour lines, and volume rendering require separate designs.
+The user reported that the extracted surface works correctly and behavior
+remains consistent. The only reported compiler warning is the pre-existing
+`VectorSource3::new` dead-code warning.
+
+## M8.2 — Provenance-based scalar transfer onto derived isosurfaces
+
+Design proposal: `docs/isosurface-field-transfer.md`.
+
+Status: proposed; design review required before implementation.
+
+Objective: transfer a selected point-associated scalar field from the
+unchanged source dataset onto the vertices of an extracted `Isosurface3`,
+using its explicit source-point/source-edge provenance. This is the next
+step toward coloring and inspecting derived scientific surfaces without
+inventing source point IDs or mutating source data.
+
+Proposed contract:
+- A source-point intersection copies the selected field value at that
+  source point.
+- A source-edge intersection interpolates the selected field's endpoint
+  values using the isosurface provenance parameter `t`, which is measured
+  from the lower source point ID to the higher ID.
+- The transferred values are ordered exactly like
+  `Isosurface3::mesh().vertices()` and are a derived field, not a field
+  attached to or written back into the source dataset.
+- Initially support point-associated scalar fields only. Cell-associated
+  transfer requires a separate policy because a generated vertex may lie
+  on edges shared by multiple source cells.
+- Define explicit behavior for non-finite source values and numerically
+  unrepresentable interpolation; never silently substitute zero or clamp.
+- Preserve source dataset, isosurface geometry, and provenance unchanged.
+- Reuse existing scalar range and color-map semantics where possible, while
+  avoiding false claims that an interpolated edge vertex is one source point.
+- Keep all transfer and mapping calculations in `svf-core`; renderer
+  consumes prepared colored geometry only.
+
+Design review must settle invalid-value propagation, stable interpolation
+for extreme finite values, output metadata/provenance, and how the derived
+colored-surface type fits the existing renderer input without weakening
+the current source-provenance contracts.
+
+Explicit non-goals for M8.2: structured-grid or hexahedral isosurface
+extraction, cell-associated transfer, vector/tensor transfer, general
+dataset-to-dataset resampling, volume rendering, and GPU-side transfer.
