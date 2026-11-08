@@ -415,9 +415,9 @@ Design contract: `docs/boundary-surface.md`.
 - [x] Add 13 focused tests for tetrahedra, hexahedra, mixed cells, shared faces,
   non-manifold faces, compact indexing, provenance, deterministic ordering,
   empty input, and geometric degeneracy
-- [ ] Verify `cargo check --workspace` on Windows (user validation pending)
-- [ ] Verify `cargo test -p svf-core` on Windows (user validation pending)
-- [ ] Verify `cargo test --workspace` on Windows (user validation pending)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Verify `cargo test -p svf-core` on Windows
+- [x] Verify `cargo test --workspace` on Windows
 
 Scope excludes quad triangulation, renderer integration, field transfer,
 orientation repair, geometric quality, and file import/export.
