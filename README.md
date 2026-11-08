@@ -106,3 +106,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **M9.1 — VTK legacy ASCII unstructured-grid import:** implemented and merged through PR #23. Adds a graphics-independent `svf-core` parser for supported mixed-cell unstructured grids and point/cell scalar/vector fields. User-validated on Windows: 12 focused tests, 240 workspace tests, and `cargo check --workspace` passed. Explorer file loading is deferred to M9.2.
+
+
+- **M9.2 — Explorer VTK dataset loading:** implemented, Windows-validated, and merged through PR #25. Adds `--vtk <path>` and optional `--vtk-scalar <field-name>` for VTK legacy ASCII unstructured-grid files. Renders tetrahedral/hexahedral volume boundaries, supports point/cell scalar coloring, and fits the initial camera to imported geometry. User validation: 249 workspace tests passed, doc-tests passed, and `cargo check --workspace` passed.
