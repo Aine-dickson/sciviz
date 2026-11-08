@@ -809,3 +809,23 @@ M6.5 validation and merge completed (2026-11-08):
 - User confirmed every test passes on their Windows environment, including the M6.5 validation run.
 - No formatter was run.
 - Next action: synchronize local `main`; M6.5 is complete.
+
+
+## M6.6 — Provenance-preserving boundary surface triangulation (in progress)
+
+Branch: `m6-6-surface-triangulation`, based on current `main` after M6.5.
+
+Design contract: `docs/surface-triangulation.md`.
+
+M6.6 derives an independent triangle-only surface from M6.5
+`BoundarySurface3`. Triangles pass through unchanged. Quads split into two
+triangles using a deterministic diagonal selected by lexicographically
+comparing sorted endpoint pairs of original source point IDs. Both split
+patterns preserve the source local cycle. Every output triangle retains
+source boundary-face, source volume-cell, source local-face, and per-face
+triangle ordinal provenance. The compact points and source-point mapping
+remain unchanged.
+
+No outward orientation certification, geometry-dependent diagonal choice,
+quality filtering, field transfer, or renderer integration is in scope.
+Implementation and Windows validation are pending.
