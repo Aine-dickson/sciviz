@@ -36,6 +36,7 @@ pub enum RenderError {
     MeshConversion,
     MeshBufferSizeChanged,
     VectorGlyphConversion,
+    IsosurfaceConversion,
     InvalidCameraUniform,
 }
 
@@ -66,6 +67,10 @@ impl fmt::Display for RenderError {
             Self::VectorGlyphConversion => write!(
                 f,
                 "vector glyph geometry cannot be represented by the renderer's f32 line-vertex format"
+            ),
+            Self::IsosurfaceConversion => write!(
+                f,
+                "mapped isosurface cannot be represented by the renderer's f32 mesh format"
             ),
             Self::InvalidCameraUniform => write!(
                 f,
@@ -191,6 +196,15 @@ impl SceneRenderer {
         surface: &svf_core::scalar_visualization::MappedSurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+    }
+
+    /// Initialize the renderer with a provenance-preserving mapped isosurface.
+    pub async fn new_with_mapped_isosurface(
+        window: Arc<Window>,
+        surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
         Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
     }
 
@@ -645,6 +659,30 @@ fn convert_mapped_surface(
     }).collect::<Result<Vec<_>, _>>()?;
 
     Ok((vertices, surface.indices().to_vec()))
+}
+
+fn convert_mapped_isosurface(
+    surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
+) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
+    let mesh = surface.isosurface().mesh();
+    if mesh.vertex_count() != surface.colors().len()
+        || mesh.indices().len() % 3 != 0
+        || mesh.indices().iter().any(|&index| index as usize >= mesh.vertex_count())
+    {
+        return Err(RenderError::IsosurfaceConversion);
+    }
+    let vertices = mesh.vertices().iter().zip(surface.colors()).map(|(point, color)| {
+        let p = point.to_array();
+        let position = [p[0] as f32, p[1] as f32, p[2] as f32];
+        let color = color.channels().map(|channel| channel as f32);
+        if !position.iter().all(|value| value.is_finite())
+            || !color.iter().all(|value| value.is_finite())
+        {
+            return Err(RenderError::IsosurfaceConversion);
+        }
+        Ok(MeshVertex { position, color })
+    }).collect::<Result<Vec<_>, _>>()?;
+    Ok((vertices, mesh.indices().to_vec()))
 }
 
 fn convert_vector_glyphs(
