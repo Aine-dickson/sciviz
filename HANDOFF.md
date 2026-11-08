@@ -721,8 +721,11 @@ routines or restore either stash blindly.
 ## M6.4 — Unstructured volume boundary extraction: locally validated
 
 M6.4 was implemented on `m6-4-volume-boundary` from merged M6.3
-commit `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`. The feature branch is
-ready for pull-request review; it has not yet been merged.
+commit `fbe8a7bbb630b69fd04c1817ee706f3ea73886dc`, validated on Windows,
+and merged through PR #3 on 2026-11-08.
+
+- PR: https://github.com/Aine-dickson/sciviz/pull/3
+- Merge commit: `d4e78c1bb73c44945ee4258d87e5f69e477a7a94`.
 
 Design: `docs/volume-boundary-extraction.md`.
 
@@ -748,8 +751,8 @@ User-reported Windows validation (2026-11-08):
 - `cargo test -p svf-core`: 125 passed, 0 failed.
 - `cargo test --workspace`: 130 passed, 0 failed
   (125 core, 1 Explorer, 4 renderer).
-- The workspace working tree was clean and synchronized with
-  `origin/m6-4-volume-boundary` after the fast-forward pull.
+- The user merged PR #3 on GitHub. Local `main` synchronization after the
+  merge is the next step.
 
 No formatter was run. Continue preserving the user's formatting-only stash;
 do not run formatting routines as cleanup.
