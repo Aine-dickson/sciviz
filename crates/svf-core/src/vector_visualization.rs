@@ -1,8 +1,8 @@
-//! Association-aware source locations for three-component vector fields.
+//! Association-aware source resolution and numerical analysis for vector fields.
 //!
 //! This module resolves each vector measurement to its original dataset
-//! entity and a world-space anchor. It does not compute vector magnitudes,
-//! directions, glyph geometry, or renderer-specific data.
+//! entity and a world-space anchor, then computes robust magnitude, direction,
+//! and validity status. Arrow geometry is built separately by vector_glyphs.
 
 use std::{error::Error, fmt};
 
