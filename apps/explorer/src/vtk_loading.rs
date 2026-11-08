@@ -10,6 +10,7 @@ use svf_core::{
     dataset::{Dataset, DatasetField, DatasetGeometry},
     fields::FieldAssociation,
     geometry::TriangleMesh3,
+    isosurface::{extract_tetrahedral_isosurface, Isosurface3},
     scalar_visualization::{
         map_scalar_field, ColorMap, ColorRgba, MappedSurface3, ScalarRangeMode,
         SurfaceProvenance3,
@@ -22,10 +23,12 @@ use svf_core::{
 const FIT_VERTICAL_FOV: f64 = 45.0_f64.to_radians();
 const INVALID_COLOR: [f64; 4] = [0.35, 0.05, 0.22, 1.0];
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VtkLoadConfig {
     pub path: PathBuf,
     pub scalar_field: Option<String>,
+    pub isosurface_field: Option<String>,
+    pub isovalue: Option<f64>,
 }
 
 #[derive(Debug)]
@@ -38,6 +41,8 @@ pub struct ImportedScene {
     pub mapped_surface: Option<MappedSurface3>,
     pub omitted_lower_dimension_cells: usize,
     pub scalar_field_name: Option<String>,
+    pub isosurface: Option<Isosurface3>,
+    pub isosurface_field_name: Option<String>,
 }
 
 impl ImportedScene {
