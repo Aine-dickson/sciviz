@@ -248,10 +248,20 @@ impl ScalarRange {
     #[must_use]
     pub fn normalize(self, value: f64) -> f64 {
         if self.minimum == self.maximum {
-            0.5
-        } else {
-            ((value - self.minimum) / (self.maximum - self.minimum)).clamp(0.0, 1.0)
+            return 0.5;
         }
+
+        // Clamp before scaling so values outside the range cannot overflow
+        // during normalization. Scaling all operands by the largest endpoint
+        // magnitude keeps the subtraction bounded even for [-f64::MAX,
+        // f64::MAX], while retaining useful precision for same-sign ranges.
+        let value = value.clamp(self.minimum, self.maximum);
+        let scale = self.minimum.abs().max(self.maximum.abs());
+        let minimum = self.minimum / scale;
+        let maximum = self.maximum / scale;
+        let value = value / scale;
+
+        ((value - minimum) / (maximum - minimum)).clamp(0.0, 1.0)
     }
 }
 
@@ -840,6 +850,19 @@ mod tests {
         assert_eq!(range.normalize(10.0), 1.0);
         assert_eq!(ScalarRange::new(2.0, 2.0), Err(ScalarRangeError::InvalidOrder { minimum: 2.0, maximum: 2.0 }));
         assert!(matches!(ScalarRange::new(f64::NAN, 2.0), Err(ScalarRangeError::NonFiniteMinimum { .. })));
+    }
+
+    #[test]
+    fn normalization_handles_extreme_finite_ranges_without_overflow() {
+        let symmetric = ScalarRange::new(-f64::MAX, f64::MAX).unwrap();
+        assert_eq!(symmetric.normalize(-f64::MAX), 0.0);
+        assert_eq!(symmetric.normalize(0.0), 0.5);
+        assert_eq!(symmetric.normalize(f64::MAX), 1.0);
+
+        let positive = ScalarRange::new(f64::MAX / 2.0, f64::MAX).unwrap();
+        assert_eq!(positive.normalize(f64::MAX / 2.0), 0.0);
+        assert_eq!(positive.normalize(f64::MAX), 1.0);
+        assert!(positive.normalize(f64::MAX * 0.75).is_finite());
     }
 
     #[test]
