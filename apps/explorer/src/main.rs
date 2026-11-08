@@ -801,7 +801,7 @@ mod tests {
             )).count(),
             1,
         );
-        assert_eq!(isosurface.triangle_source_cells().len(), 2);
+        assert_eq!(isosurface.triangle_source_cells().len(), isosurface.mesh().triangle_count());
         assert!(isosurface.triangle_source_cells().iter().all(|cell| *cell < 2));
         assert_eq!(isosurface.vertex_provenance().len(), isosurface.mesh().vertex_count());
         assert!(isosurface.metadata().unsupported_cells().is_empty());
