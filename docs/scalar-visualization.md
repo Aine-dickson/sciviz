@@ -64,9 +64,12 @@ source geometry representation.
 
 Initial adapters:
 
-1. **Structured grid:** adapt `SampledSurface3`. Its generated mesh vertices
-   map to source grid sample IDs; each generated triangle maps to its source
-   grid rectangle/cell ID.
+1. **Structured grid:** adapt `SampledSurface3`. Convert each
+   `GridSampleIndex2D(x, y)` to the dataset's row-major point ID
+   `y * x_sample_count + x`. Convert each `GridCellIndex2D(x, y)` to the
+   row-major source rectangle ID `y * (x_sample_count - 1) + x`. Both
+   generated triangles from one rectangle therefore resolve to the same
+   logical source cell.
 2. **Unstructured volume:** adapt `TriangulatedSurface3`. Its compact points
    map through `source_point_ids()`; each triangle maps through
    `source_cell_index()`.
