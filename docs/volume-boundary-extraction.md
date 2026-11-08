@@ -21,7 +21,7 @@ The existing lower-dimensional `Line2`, `Triangle3`, and `Quad4` cells
 remain in the source grid and are ignored by this volume-topology query. This
 avoids inventing mixed-dimensional boundary semantics in this increment.
 
-## Public API proposal
+## Public API
 
 Add `crates/svf-core/src/unstructured_topology.rs`, exported from
 `svf-core`.
@@ -35,7 +35,7 @@ impl UnstructuredGrid3 {
 ```
 
 The derived result contains every unique face and its incident volume cells.
-Suggested public types:
+Public types:
 
 - `UnstructuredVolumeTopology3`: owns the deterministic unique-face list;
   exposes `faces()`, `boundary_faces()`, `interior_faces()`,
@@ -188,3 +188,11 @@ shared-face case.
 - Verify `cargo test --workspace` on Windows.
 - Do not run formatting routines as a routine cleanup step. Inspect and avoid
   unrelated formatting churn.
+
+
+## Implementation status
+
+The API and implementation are committed on branch
+`m6-4-volume-boundary`. Local Windows compilation and test validation
+remain pending. See `HANDOFF.md` and `docs/MILESTONES.md` for the current
+validation record.
