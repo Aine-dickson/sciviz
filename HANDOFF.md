@@ -148,7 +148,6 @@ Implementation committed; local Windows validation completed by user: formatting
 
 New file: `crates/svf-core/src/geometry.rs`, exported through
 `pub mod geometry`.
-
 Public API:
 - `GeometryError`: non-finite point with offending index, or a polyline with fewer than two points.
 - `PointSet3`: ordered collection of independent `WorldPoint3` values. Empty sets are valid; no connectivity is implied.
@@ -297,8 +296,7 @@ Public API is exposed from `svf_core::sampling`:
   otherwise the entire cell is omitted. No hole is silently bridged.
 - The lower-left to upper-right diagonal gives +Y-facing winding.
 - `SampledSurface3` maps each mesh vertex to its source grid sample and each
-  triangle to its source grid cell for later inspection and picking.
-- Output allocations are reserved fallibly and vertex indices are checked
+  triangle to its source grid cell for later inspection and picking.- Output allocations are reserved fallibly and vertex indices are checked
   against the u32 mesh index format.
 - Nine focused tests cover dimensions/access, mesh generation, winding,
   invalid-cell omission, source identity, all-invalid grids, and f64 values.
@@ -448,7 +446,6 @@ User-reported Windows validation (2026-11-08): the surface changed from flat at 
 
 Initial core implementation committed on 2026-11-08; Windows validation is
 pending.
-
 New file: `crates/svf-core/src/ray.rs`, exposed as `svf_core::ray`.
 
 Public API:
@@ -597,8 +594,7 @@ renderer changes. Design details and exclusions are documented in
 `docs/fields.md`.
 
 Tests are included in `fields.rs`. User-reported Windows workspace
-validation completed: 89 core, 1 Explorer, and 4 renderer tests passed.
-Formatting status was not newly confirmed for this increment.
+validation completed: 89 core, 1 Explorer, and 4 renderer tests passed.Formatting status was not newly confirmed for this increment.
 
 
 ## M6.1 — Scientific field semantics: local validation update
@@ -747,8 +743,7 @@ Implementation:
   claim is made.
 
 User-reported Windows validation (2026-11-08):
-- `cargo check --workspace`: passed.
-- `cargo test -p svf-core`: 125 passed, 0 failed.
+- `cargo check --workspace`: passed.- `cargo test -p svf-core`: 125 passed, 0 failed.
 - `cargo test --workspace`: 130 passed, 0 failed
   (125 core, 1 Explorer, 4 renderer).
 - The user merged PR #3 on GitHub. Local `main` synchronization after the
@@ -898,7 +893,6 @@ Feature branch: `m7-2-scalar-visualization`.
 Design contract: `docs/scalar-visualization.md`.
 
 The M7.2 core pipeline is implemented, merged, and user-validated on Windows.
-
 Core implementation:
 - `crates/svf-core/src/scalar_visualization.rs` provides
   `SurfaceProvenance3` adapters for structured sampled surfaces,
@@ -1047,8 +1041,7 @@ PR #13 merged to `main`; merge commit:
 
 Implemented:
 - `svf-core` exposes input-independent f64 orbit, pan, and zoom operations
-  through `camera_navigation`, with validated configuration and explicit
-  numerical limits.
+  through `camera_navigation`, with validated configuration and explicit  numerical limits.
 - Orbit rotates around the current target, preserves camera-target distance,
   uses +Y world up, and clamps elevation away from the poles.
 - Pan translates camera position and target together in the camera plane;
@@ -1181,3 +1174,30 @@ yet been selected. Before implementation, review the current architecture,
 remaining design constraints, and desired scientific workflows; then define
 one focused increment with an explicit design contract and testable acceptance
 criteria. Do not infer or silently begin an M8.3 scope.
+
+
+## M9.1 — VTK legacy ASCII unstructured-grid import (complete; merged 2026-11-09)
+
+Design contract: `docs/vtk-legacy-ascii-import.md`.
+
+- PR #22 design contract and PR #23 implementation are merged to `main`.
+- Implementation PR: https://github.com/Aine-dickson/sciviz/pull/23
+- Merge commit: `efa1cdbd59c09ca97a67a7e674f5c5483cc948c8`.
+- Feature head: `fd48c4b10900f19558eca59d681c7fde6cb3068f`.
+
+Implemented in graphics-independent `svf-core`:
+- Public API: `parse_legacy_ascii_unstructured_grid(&str) -> Result<Dataset, VtkLegacyError>`.
+- Parses the accepted VTK legacy ASCII `UNSTRUCTURED_GRID` subset and preserves supported mixed-cell topology, point/cell order, and field associations.
+- Supports VTK LINE, TRIANGLE, QUAD, TETRA, and HEXAHEDRON cells.
+- Supports point/cell scalar and 3-component vector arrays, declared numeric conversions, non-finite field values, optional scalar metadata, and inline lookup-table definitions.
+- Validates the physical file envelope, record order, declared counts, connectivity, indices, numeric types (including empty arrays), duplicate sections/field names, and unsupported records; returns categorized errors without partial datasets.
+- Binary files, unsupported cell types/attributes, dataset-associated fields, and Explorer file loading remain out of scope. Explorer loading is deferred to M9.2.
+
+User-reported Windows validation on the final feature head:
+- `cargo test -p svf-core vtk_legacy`: 12 passed.
+- `cargo test --workspace`: 240 passed (216 core, 17 Explorer, 7 renderer); doc-tests passed.
+- `cargo check --workspace`: passed.
+- The only warning was the pre-existing `VectorSource3::new` dead-code warning.
+- No Explorer runtime changes were introduced or required.
+
+M9.1 implementation, review, final Windows validation, and merge are complete. The next increment is M9.2: design and implement user-facing VTK file loading in Explorer, without moving parsing or scientific data ownership out of `svf-core`.
