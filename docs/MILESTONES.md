@@ -497,9 +497,9 @@ M7.1 Windows validation and merge completed (2026-11-08):
 
 Design contract: `docs/scalar-visualization.md`.
 
-Status: core mapping is implemented and user-validated on Windows;
-renderer RGBA integration is implemented and awaiting Windows validation.
-Explorer scalar demonstrations remain pending.
+Status: core mapping and renderer RGBA integration are implemented and
+user-validated on Windows. Explorer scalar demonstrations are implemented;
+Windows compilation and visual validation are pending.
 
 - [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
@@ -516,15 +516,16 @@ Explorer scalar demonstrations remain pending.
   geometry
 - [x] Add a colored-surface renderer input path while preserving the existing
   flat-color mesh path
-- [ ] Demonstrate the same mapping API on a structured point field and an
-  unstructured cell field
-- [x] Add focused core and renderer conversion tests; Explorer tests remain
-  pending
-- [x] Verify `cargo check --workspace` on Windows for the core stages
-- [x] Verify `cargo test -p svf-core` on Windows (163 passed)
-- [ ] Verify `cargo check --workspace` on Windows after renderer integration
-- [ ] Verify `cargo test --workspace` on Windows after renderer integration
+- [x] Demonstrate the same mapping API on a structured point field and an
+  unstructured cell field through optional Explorer modes
+- [x] Add focused core, renderer conversion, and Explorer demo/mode tests
+- [x] Verify `cargo check --workspace` on Windows after renderer integration
+- [x] Verify `cargo test --workspace` on Windows after renderer integration
+  (175 passed: 163 core, 7 Explorer, 5 renderer; doc-tests passed)
+- [ ] Compile and test the Explorer scalar demonstration implementation on
+  Windows
 - [ ] Visually verify both scalar demonstrations and resize/minimize/restore
+- [ ] Re-verify default and `--unstructured` modes after Explorer integration
 
 Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
 time-varying fields, implicit field transfer/interpolation, GPU-side scalar
