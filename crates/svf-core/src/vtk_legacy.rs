@@ -117,7 +117,7 @@ impl<'a> Parser<'a> {
         let (point_count, coordinate_type) = parse_header_count_type(&points_header, "POINTS", self.line_number())?;
         let coordinate_value_count = point_count.checked_mul(3).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "POINTS coordinate count overflows usize"))?;
         let coordinates = self.read_numbers(coordinate_value_count, coordinate_type, true)?;
-        let mut points = Vec::with_capacity(point_count);
+        let mut points = Vec::new();
         for xyz in coordinates.chunks_exact(3) {
             points.push(WorldPoint3::new(xyz[0], xyz[1], xyz[2]));
         }
@@ -131,7 +131,7 @@ impl<'a> Parser<'a> {
         let declared_size = parse_usize(cells_tokens[2], self.line_number(), "CELLS size")?;
         let raw_cells = self.read_integer_tokens(declared_size)?;
         let mut cursor = 0usize;
-        let mut cell_records: Vec<Vec<u32>> = Vec::with_capacity(cell_count);
+        let mut cell_records: Vec<Vec<u32>> = Vec::new();
         let mut actual_size = 0usize;
         for cell_index in 0..cell_count {
             let node_count_token = raw_cells.get(cursor).ok_or_else(|| self.error(VtkLegacyErrorKind::TruncatedData, format!("missing node count for cell {cell_index}")))?;
@@ -140,7 +140,7 @@ impl<'a> Parser<'a> {
             actual_size = actual_size.checked_add(1).and_then(|n| n.checked_add(node_count)).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "CELLS size overflows usize"))?;
             let end = cursor.checked_add(node_count).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "cell connectivity range overflows usize"))?;
             let ids = raw_cells.get(cursor..end).ok_or_else(|| self.error(VtkLegacyErrorKind::TruncatedData, format!("cell {cell_index} declares {node_count} point IDs but the CELLS payload is truncated")))?;
-            let mut cell = Vec::with_capacity(node_count);
+            let mut cell = Vec::new();
             for id in ids {
                 cell.push(u32::try_from(*id).map_err(|_| self.error(VtkLegacyErrorKind::InvalidCount, format!("point ID {id} in cell {cell_index} is outside u32")))?);
             }
@@ -161,9 +161,10 @@ impl<'a> Parser<'a> {
             return Err(self.error(VtkLegacyErrorKind::InvalidCount, format!("CELL_TYPES count {type_count} does not match CELLS count {cell_count}")));
         }
         let raw_types = self.read_integer_tokens(type_count)?;
-        let mut cell_types = Vec::with_capacity(cell_count);
-        let mut connectivity = Vec::with_capacity(declared_size.saturating_sub(cell_count));
-        let mut offsets = Vec::with_capacity(cell_count.checked_add(1).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "cell offset count overflows usize"))?);
+        let mut cell_types = Vec::new();
+        let mut connectivity = Vec::new();
+        cell_count.checked_add(1).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "cell offset count overflows usize"))?;
+        let mut offsets = Vec::new();
         offsets.push(0);
         for (cell_index, (raw_type, ids)) in raw_types.into_iter().zip(cell_records).enumerate() {
             let cell_type = match raw_type {
@@ -177,6 +178,7 @@ impl<'a> Parser<'a> {
             if ids.len() != cell_type.node_count() {
                 return Err(self.error(VtkLegacyErrorKind::InvalidCount, format!("cell {cell_index} type {cell_type:?} requires {} nodes, received {}", cell_type.node_count(), ids.len())));
             }
+            cell_types.push(cell_type);
             connectivity.extend(ids);
             offsets.push(connectivity.len());
         }
@@ -265,7 +267,7 @@ impl<'a> Parser<'a> {
     }
 
     fn read_numbers(&mut self, count: usize, data_type: &str, coordinates: bool) -> Result<Vec<f64>, VtkLegacyError> {
-        let mut values = Vec::with_capacity(count);
+        let mut values = Vec::new();
         while values.len() < count {
             let Some((line_number, line)) = self.next_nonempty_line() else {
                 return Err(self.error(VtkLegacyErrorKind::TruncatedData, format!("expected {count} numeric values, received {}", values.len())));
@@ -400,7 +402,7 @@ DATASET UNSTRUCTURED_GRID
 POINTS 8 double
 0 0 0  1 0 0  1 1 0  0 1 0
 0 0 1  1 0 1  1 1 1  0 1 1
-CELLS 2 13
+CELLS 2 12
 2 0 1
 8 0 1 2 3 4 5 6 7
 CELL_TYPES 2
