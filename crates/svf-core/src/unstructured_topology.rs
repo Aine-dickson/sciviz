@@ -492,7 +492,7 @@ mod tests {
     fn incidences_preserve_source_cell_and_local_face_order() {
         let grid = grid(
             tetra_points(),
-            &[(CellType3::Tetrahedron4, &[10.min(3), 1, 2, 3])],
+            &[(CellType3::Tetrahedron4, &[0, 1, 2, 3])],
         );
         let topology = grid.volume_topology();
         let face = topology
