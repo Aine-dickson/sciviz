@@ -31,6 +31,15 @@ pub struct VectorSource3 {
 }
 
 impl VectorSource3 {
+    /// Creates an internal source record after its dataset location is resolved.
+    pub(crate) const fn new(
+        entity: VectorEntity3,
+        anchor: WorldPoint3,
+        value: VectorValue3,
+    ) -> Self {
+        Self { entity, anchor, value }
+    }
+
     /// Returns the source point or cell identity.
     #[must_use]
     pub const fn entity(&self) -> VectorEntity3 {
