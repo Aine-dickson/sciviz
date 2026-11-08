@@ -933,13 +933,26 @@ Explorer scalar demonstrations are implemented on this branch:
 - Existing default parametric and `--unstructured` flat-color modes remain.
 - Explorer unit tests cover mode selection and both mapped demo datasets.
 
-Next:
-1. Pull the latest branch and compile/test the Explorer implementation on
-   Windows; fix any reported issues without running formatters.
-2. Launch both scalar modes and visually verify their color mapping and
-   resize/minimize/restore behavior.
-3. Re-run default and `--unstructured` modes to confirm no regression.
-4. Complete documentation, review the branch, and open a PR for user review.
+Windows validation completed (user-reported, 2026-11-08):
+- Pulled branch through `899579e`.
+- `cargo test --workspace`: 177 passed (163 core, 9 Explorer,
+  5 renderer); doc-tests passed.
+- `cargo check --workspace`: passed without warnings.
+- `--scalar`: structured surface displayed a smooth visible gradient;
+  yellow peaks and dark-blue troughs aligned with height variation.
+  Hover inspection returned a finite sample; click inspection produced
+  valid hits and expected misses outside the sampled surface.
+- `--unstructured-scalar`: hexahedron and tetrahedron both rendered with
+  distinct dark-blue and bright-yellow cell colors. Each cell was uniform
+  across its visible triangles, confirming no within-cell color variation.
+- Default parametric and original `--unstructured` flat-color modes still
+  rendered and behaved as before.
+- All four modes handled resize and minimize/restore consistently.
+- No formatting routine was run.
+
+M7.2 implementation, automated Windows validation, and visual acceptance
+are complete on this feature branch. Next: perform the final branch review
+and open a PR for user review. Do not merge without the user's approval.
 
 Do not add implicit interpolation for generated points without explicit
 source weights. Keep scalar range calculation, palette interpolation, and
