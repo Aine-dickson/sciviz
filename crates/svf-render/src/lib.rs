@@ -12,6 +12,7 @@ use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     geometry::TriangleMesh3,
     spatial::{WorldPoint3, WorldVector3},
+    vector_glyphs::VectorGlyphSet3,
 };
 use wgpu::{CurrentSurfaceTexture, Surface, SurfaceConfiguration, util::DeviceExt};
 use winit::{dpi::PhysicalSize, window::Window};
@@ -21,6 +22,7 @@ const GRID_COLOR: [f32; 3] = [0.19, 0.22, 0.28];
 const X_AXIS_COLOR: [f32; 3] = [0.95, 0.25, 0.22];
 const Y_AXIS_COLOR: [f32; 3] = [0.28, 0.88, 0.38];
 const Z_AXIS_COLOR: [f32; 3] = [0.25, 0.52, 0.98];
+const VECTOR_GLYPH_COLOR: [f32; 3] = [0.98, 0.72, 0.20];
 
 /// Errors raised while initializing or using the rendering infrastructure.
 #[derive(Debug)]
@@ -33,6 +35,7 @@ pub enum RenderError {
     SurfaceValidation,
     MeshConversion,
     MeshBufferSizeChanged,
+    VectorGlyphConversion,
 }
 
 impl fmt::Display for RenderError {
@@ -58,6 +61,10 @@ impl fmt::Display for RenderError {
             Self::MeshBufferSizeChanged => write!(
                 f,
                 "updated scientific mesh must preserve the existing vertex and index counts"
+            ),
+            Self::VectorGlyphConversion => write!(
+                f,
+                "vector glyph geometry cannot be represented by the renderer's f32 line-vertex format"
             ),
         }
     }
@@ -571,6 +578,42 @@ fn convert_mapped_surface(
     Ok((vertices, surface.indices().to_vec()))
 }
 
+fn convert_vector_glyphs(
+    glyphs: &VectorGlyphSet3,
+) -> Result<Vec<LineVertex>, RenderError> {
+    let capacity = glyphs
+        .entries()
+        .len()
+        .checked_mul(6)
+        .ok_or(RenderError::VectorGlyphConversion)?;
+    let mut vertices = Vec::new();
+    vertices
+        .try_reserve_exact(capacity)
+        .map_err(|_| RenderError::VectorGlyphConversion)?;
+
+    for entry in glyphs.entries() {
+        let Some(segments) = entry.segments() else {
+            continue;
+        };
+
+        for segment in segments {
+            for point in [segment.start(), segment.end()] {
+                let coordinates = point.to_array();
+                let position = coordinates.map(|value| value as f32);
+                if !position.iter().all(|value| value.is_finite()) {
+                    return Err(RenderError::VectorGlyphConversion);
+                }
+                vertices.push(LineVertex {
+                    position,
+                    color: VECTOR_GLYPH_COLOR,
+                });
+            }
+        }
+    }
+
+    Ok(vertices)
+}
+
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
     let pose = LookAtCamera::new(
         WorldPoint3::new(14.0, 12.0, 18.0),
@@ -656,6 +699,66 @@ fn tracing_adapter_info(adapter: &wgpu::Adapter) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use svf_core::{
+        dataset::Dataset,
+        fields::{FieldAssociation, FieldMetadata, VectorBasis3, VectorField3, VectorValue3},
+        geometry::PointSet3,
+        vector_glyphs::{build_vector_glyphs, VectorScalePolicy3},
+        vector_visualization::{analyze_vector_sources, resolve_vector_sources},
+    };
+
+    fn vector_glyphs(points: Vec<WorldPoint3>, values: Vec<VectorValue3>) -> VectorGlyphSet3 {
+        let mut dataset = Dataset::new(PointSet3::new(points).unwrap());
+        let field = VectorField3::new(
+            FieldMetadata::new("velocity", None).unwrap(),
+            FieldAssociation::Point,
+            VectorBasis3::World,
+            values,
+        )
+        .unwrap();
+        dataset.add_vector_field3(field).unwrap();
+        let sources = resolve_vector_sources(&dataset, "velocity").unwrap();
+        let analyses = analyze_vector_sources(&sources).unwrap();
+        build_vector_glyphs(
+            &analyses,
+            VectorScalePolicy3::UniformLength { length: 2.0 },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn vector_glyph_conversion_flattens_segments_and_skips_entries_without_geometry() {
+        let glyphs = vector_glyphs(
+            vec![
+                WorldPoint3::new(1.0, 2.0, 3.0),
+                WorldPoint3::new(4.0, 5.0, 6.0),
+                WorldPoint3::new(7.0, 8.0, 9.0),
+            ],
+            vec![
+                VectorValue3::from_f64(1.0, 0.0, 0.0),
+                VectorValue3::from_f64(0.0, 0.0, 0.0),
+                VectorValue3::from_f64(f64::NAN, 1.0, 0.0),
+            ],
+        );
+
+        let vertices = convert_vector_glyphs(&glyphs).unwrap();
+        assert_eq!(vertices.len(), 6);
+        assert_eq!(vertices[0].position, [1.0, 2.0, 3.0]);
+        assert_eq!(vertices[1].position, [3.0, 2.0, 3.0]);
+        assert!(vertices.iter().all(|vertex| vertex.color == VECTOR_GLYPH_COLOR));
+    }
+
+    #[test]
+    fn vector_glyph_conversion_rejects_positions_outside_f32_range() {
+        let glyphs = vector_glyphs(
+            vec![WorldPoint3::new(1.0e100, 0.0, 0.0)],
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0)],
+        );
+        assert!(matches!(
+            convert_vector_glyphs(&glyphs),
+            Err(RenderError::VectorGlyphConversion)
+        ));
+    }
 
     #[test]
     fn mesh_conversion_preserves_indices_and_converts_positions() {
