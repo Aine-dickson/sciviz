@@ -9,7 +9,6 @@ use std::{error::Error, fmt};
 use crate::{
     geometry::{GeometryError, TriangleMesh3},
     sampling::{GridCellIndex2D, GridSampleIndex2D, SampledSurface3, StructuredGrid2D},
-    spatial::WorldPoint3,
     unstructured::UnstructuredGrid3,
     surface_triangulation::TriangulatedSurface3,
 };
