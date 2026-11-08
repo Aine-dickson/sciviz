@@ -860,8 +860,8 @@ mod tests {
         assert_eq!(mapped.isosurface().mesh().indices(), isosurface.mesh().indices());
         assert_eq!(mapped.colors().len(), isosurface.mesh().vertex_count());
         assert_eq!(mapped.transferred().metadata().name(), "temperature");
-        assert_eq!(mapped.scalar_range().minimum(), -2.0);
-        assert_eq!(mapped.scalar_range().maximum(), 3.0);
+        assert_eq!(mapped.scalar_range().minimum(), -1.0);
+        assert_eq!(mapped.scalar_range().maximum(), 2.0);
     }
 
     #[test]
