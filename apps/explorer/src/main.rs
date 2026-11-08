@@ -7,8 +7,9 @@ use svf_core::{
         sample_scalar_2d,
     },
     spatial::WorldPoint3,
+    surface_triangulation::TriangulatedSurface3,
     unstructured::{CellType3, UnstructuredGrid3},
-    BoundaryFaceVertices3, TriangulatedSurface3,
+    boundary_surface::BoundaryFaceVertices3,
 };
 use svf_render::SceneRenderer;
 use winit::{
@@ -50,7 +51,7 @@ struct Explorer {
     mode: ExplorerMode,
     amplitude: f64,
     surface: Option<SampledSurface3>,
-    triangulated_surface: Option<TriangulatedSurface3>,
+    _triangulated_surface: Option<TriangulatedSurface3>,
     cursor_position: Option<[f64; 2]>,
 }
 
@@ -68,7 +69,7 @@ impl Explorer {
             mode,
             amplitude: INITIAL_AMPLITUDE,
             surface: None,
-            triangulated_surface: None,
+            _triangulated_surface: None,
             cursor_position: None,
         }
     }
@@ -226,7 +227,7 @@ impl ApplicationHandler for Explorer {
             Ok(renderer) => {
                 self.renderer = Some(renderer);
                 self.surface = sampled_surface;
-                self.triangulated_surface = triangulated_surface;
+                self._triangulated_surface = triangulated_surface;
                 self.window = Some(window.clone());
                 window.request_redraw();
             }
