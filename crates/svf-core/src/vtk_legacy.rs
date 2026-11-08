@@ -488,13 +488,13 @@ VECTORS flux float
         let blank_title = MIXED.replacen("SVF fixture", "", 1);
         assert!(parse_legacy_ascii_unstructured_grid(&blank_title).is_ok());
 
-        let leading_blank = format!("\\n{MIXED}");
+        let leading_blank = format!("\n{MIXED}");
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&leading_blank).unwrap_err().kind(),
             &VtkLegacyErrorKind::InvalidHeader
         );
 
-        let extra_blank_before_ascii = MIXED.replacen("SVF fixture\\nASCII", "SVF fixture\\n\\nASCII", 1);
+        let extra_blank_before_ascii = MIXED.replacen("SVF fixture\nASCII", "SVF fixture\n\nASCII", 1);
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&extra_blank_before_ascii).unwrap_err().kind(),
             &VtkLegacyErrorKind::UnsupportedFormat
@@ -503,17 +503,17 @@ VECTORS flux float
 
     #[test]
     fn accepts_cell_data_before_point_data_and_optional_scalar_metadata() {
-        let point_start = MIXED.find("POINT_DATA 8\\n").unwrap();
-        let cell_start = MIXED.find("CELL_DATA 2\\n").unwrap();
+        let point_start = MIXED.find("POINT_DATA 8\n").unwrap();
+        let cell_start = MIXED.find("CELL_DATA 2\n").unwrap();
         let point_section = &MIXED[point_start..cell_start];
         let cell_section = &MIXED[cell_start..];
         let geometry = &MIXED[..point_start];
         let reordered = format!(
             "{geometry}{}{}",
-            cell_section.replace("LOOKUP_TABLE default\\n", ""),
+            cell_section.replace("LOOKUP_TABLE default\n", ""),
             point_section
                 .replace("SCALARS temperature float 1", "SCALARS temperature float")
-                .replace("LOOKUP_TABLE default\\n", "")
+                .replace("LOOKUP_TABLE default\n", "")
         );
         let dataset = parse_legacy_ascii_unstructured_grid(&reordered).unwrap();
         assert_eq!(dataset.scalar_field("pressure").unwrap().association(), FieldAssociation::Cell);
@@ -543,25 +543,25 @@ VECTORS flux float
             &VtkLegacyErrorKind::TruncatedData
         );
 
-        let bad_index = MIXED.replace("2 0 1\\n", "2 0 99\\n");
+        let bad_index = MIXED.replace("2 0 1\n", "2 0 99\n");
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&bad_index).unwrap_err().kind(),
             &VtkLegacyErrorKind::InvalidGeometry
         );
 
-        let repeated_index = MIXED.replace("2 0 1\\n", "2 0 0\\n");
+        let repeated_index = MIXED.replace("2 0 1\n", "2 0 0\n");
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&repeated_index).unwrap_err().kind(),
             &VtkLegacyErrorKind::InvalidGeometry
         );
 
-        let duplicate_section = format!("{MIXED}POINT_DATA 8\\n");
+        let duplicate_section = format!("{MIXED}POINT_DATA 8\n");
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&duplicate_section).unwrap_err().kind(),
             &VtkLegacyErrorKind::UnexpectedRecord
         );
 
-        let trailing = format!("{MIXED}GARBAGE\\n");
+        let trailing = format!("{MIXED}GARBAGE\n");
         assert_eq!(
             parse_legacy_ascii_unstructured_grid(&trailing).unwrap_err().kind(),
             &VtkLegacyErrorKind::UnexpectedRecord
