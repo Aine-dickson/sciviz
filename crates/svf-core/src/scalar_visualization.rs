@@ -220,7 +220,10 @@ impl ScalarRange {
     ///
     /// A constant field is valid and retains equal minimum/maximum endpoints.
     pub fn from_field(field: &ScalarField) -> Result<Self, ScalarRangeError> {
-        let mut finite = field.values().iter().filter_map(|value| value.as_finite());
+        let mut finite = field.values()
+            .iter()
+            .filter_map(|value| value.as_finite())
+            .filter(|value| value.is_finite());
         let first = finite.next().ok_or(ScalarRangeError::NoFiniteValues)?;
         let (minimum, maximum) =
             finite.fold((first, first), |(min, max), value| (min.min(value), max.max(value)));
@@ -415,7 +418,7 @@ pub fn map_scalar_field(
                 FieldAssociation::Dataset => 0,
             };
             let value = field.values()[value_index];
-            let color = match value.as_finite() {
+            let color = match value.as_finite().filter(|value| value.is_finite()) {
                 Some(value) => color_map.sample(range.normalize(value)),
                 None => invalid_color,
             };
