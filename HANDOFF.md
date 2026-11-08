@@ -757,3 +757,48 @@ User-reported Windows validation (2026-11-08):
 No formatter was run. Continue preserving the user's formatting-only stash;
 do not run formatting routines as cleanup.
 
+
+
+## M6.5 — Unstructured boundary surface representation (in progress)
+
+Branch: `m6-5-boundary-surface`, based on synchronized `main` at
+`295c53b`.
+
+The design contract is recorded in `docs/boundary-surface.md`. M6.5 will
+convert M6.4 boundary-face incidence into a compact graphics-independent
+surface while keeping the source volume grid authoritative.
+
+Design decisions:
+- Include only faces classified as boundary (one incident volume cell).
+  Interior faces are omitted; non-manifold faces remain queryable through
+  M6.4 topology but are excluded from the extracted boundary surface.
+- Preserve triangle and quad faces as distinct polygon types. No core
+  triangulation or diagonal choice.
+- Compact referenced source points once, in ascending source point-ID order.
+  Store f64 world positions plus a parallel compact-to-source point-ID map.
+- Preserve deterministic M6.4 face order and each boundary face's sole
+  incidence local vertex cycle.
+- Preserve source topology face index, source cell index, and local face index.
+- Treat local face cycles as reference order only; no outward orientation is
+  certified because source cell orientation is not certified.
+- Do not copy/transfer fields, mutate the grid, or integrate the renderer.
+
+No M6.5 implementation or local validation is claimed yet. Next: implement the
+contract in a new `svf-core` module, add focused tests, then ask the user to
+pull and validate on Windows. Do not run formatting routines or disturb
+existing stashes/local formatting changes.
+
+
+M6.5 implementation is now present on the branch:
+- New `crates/svf-core/src/boundary_surface.rs`, exported by `lib.rs`.
+- Public API: `BoundarySurface3`, `BoundarySurfaceFace3`,
+  `BoundaryFaceVertices3`, and `BoundarySurfaceError`.
+- `UnstructuredGrid3::boundary_surface()` derives compact boundary geometry.
+- Thirteen unit tests cover tetrahedra, hexahedra, adjacent cells, mixed
+  arities, non-manifold exclusion, lower-dimensional cells, compact point
+  mapping, provenance/local cycles, determinism, source immutability,
+  coordinate identity, empty input, and geometric degeneracy.
+- Compact source point IDs are ascending and unique; face order follows M6.4.
+  Quads remain quads. Only one-incidence faces are included.
+- No formatter, local build, or local test has been run for M6.5. Windows
+  validation remains pending from the user.
