@@ -291,6 +291,159 @@ fn mean_point(points: &[WorldPoint3]) -> WorldPoint3 {
     WorldPoint3::new(mean[0], mean[1], mean[2])
 }
 
+
+/// Classification of one source vector after finite-component analysis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VectorStatus3 {
+    /// All components are finite and the magnitude is representable as f64.
+    FiniteNonZero,
+    /// All components are finite and exactly zero.
+    Zero,
+    /// At least one component is NaN or infinite.
+    NonFiniteComponent,
+    /// Components are finite and non-zero, but Euclidean magnitude exceeds f64.
+    MagnitudeOverflow,
+}
+
+/// Magnitude, direction, and status derived from one resolved source vector.
+///
+/// A direction is retained for finite non-zero vectors even when their
+/// magnitude is too large to represent as f64. This permits direction-only
+/// operations such as a later uniform-length glyph policy.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VectorAnalysis3 {
+    source: VectorSource3,
+    magnitude: Option<f64>,
+    direction: Option<crate::spatial::WorldVector3>,
+    status: VectorStatus3,
+}
+
+impl VectorAnalysis3 {
+    /// Returns the unchanged source record, including identity, anchor, and components.
+    #[must_use]
+    pub const fn source(&self) -> VectorSource3 {
+        self.source
+    }
+
+    /// Returns the Euclidean magnitude when it is representable as f64.
+    #[must_use]
+    pub const fn magnitude(&self) -> Option<f64> {
+        self.magnitude
+    }
+
+    /// Returns the unit direction for finite non-zero vectors.
+    #[must_use]
+    pub const fn direction(&self) -> Option<crate::spatial::WorldVector3> {
+        self.direction
+    }
+
+    /// Returns the explicit validity classification.
+    #[must_use]
+    pub const fn status(&self) -> VectorStatus3 {
+        self.status
+    }
+}
+
+/// Errors produced while analyzing resolved vector sources.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum VectorAnalysisError {
+    /// Storage for analyzed vector records could not be reserved.
+    AllocationFailed { requested_items: usize },
+}
+
+impl fmt::Display for VectorAnalysisError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AllocationFailed { requested_items } => write!(
+                f,
+                "could not allocate storage for {requested_items} vector analyses"
+            ),
+        }
+    }
+}
+
+impl Error for VectorAnalysisError {}
+
+/// Computes robust magnitudes, unit directions, and explicit statuses.
+///
+/// The calculation scales components by their largest absolute value before
+/// taking a norm. It therefore avoids intermediate square overflow and
+/// underflow. If the final mathematical magnitude is outside the f64 range,
+/// the magnitude is None and status is MagnitudeOverflow; the finite unit
+/// direction remains available.
+pub fn analyze_vector_sources(
+    sources: &[VectorSource3],
+) -> Result<Vec<VectorAnalysis3>, VectorAnalysisError> {
+    let mut analyses = Vec::new();
+    analyses
+        .try_reserve_exact(sources.len())
+        .map_err(|_| VectorAnalysisError::AllocationFailed {
+            requested_items: sources.len(),
+        })?;
+
+    for source in sources.iter().copied() {
+        analyses.push(analyze_vector_source(source));
+    }
+
+    Ok(analyses)
+}
+
+fn analyze_vector_source(source: VectorSource3) -> VectorAnalysis3 {
+    let Some(vector) = source.value.as_finite_world_vector() else {
+        return VectorAnalysis3 {
+            source,
+            magnitude: None,
+            direction: None,
+            status: VectorStatus3::NonFiniteComponent,
+        };
+    };
+
+    let components = vector.to_vector().to_array();
+    let scale = components
+        .iter()
+        .map(|component| component.abs())
+        .fold(0.0_f64, f64::max);
+
+    if scale == 0.0 {
+        return VectorAnalysis3 {
+            source,
+            magnitude: Some(0.0),
+            direction: None,
+            status: VectorStatus3::Zero,
+        };
+    }
+
+    let scaled = [
+        components[0] / scale,
+        components[1] / scale,
+        components[2] / scale,
+    ];
+    let scaled_length =
+        (scaled[0] * scaled[0] + scaled[1] * scaled[1] + scaled[2] * scaled[2]).sqrt();
+    let direction = crate::spatial::WorldVector3::new(
+        scaled[0] / scaled_length,
+        scaled[1] / scaled_length,
+        scaled[2] / scaled_length,
+    );
+    let magnitude = scale * scaled_length;
+
+    if magnitude.is_finite() {
+        VectorAnalysis3 {
+            source,
+            magnitude: Some(magnitude),
+            direction: Some(direction),
+            status: VectorStatus3::FiniteNonZero,
+        }
+    } else {
+        VectorAnalysis3 {
+            source,
+            magnitude: None,
+            direction: Some(direction),
+            status: VectorStatus3::MagnitudeOverflow,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -508,6 +661,88 @@ mod tests {
         add_vectors(&mut dataset, FieldAssociation::Cell, vec![vector(1.0, 0.0, 0.0)]);
         let anchor = resolve_vector_sources(&dataset, "velocity").unwrap()[0].anchor();
         assert_eq!(anchor, WorldPoint3::new(0.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn analyzes_finite_vector_magnitude_and_unit_direction() {
+        let source = VectorSource3 {
+            entity: VectorEntity3::Point(7),
+            anchor: WorldPoint3::new(1.0, 2.0, 3.0),
+            value: vector(3.0, 4.0, 0.0),
+        };
+        let analysis = analyze_vector_sources(&[source]).unwrap()[0];
+        assert_eq!(analysis.source(), source);
+        assert_eq!(analysis.magnitude(), Some(5.0));
+        assert_eq!(
+            analysis.direction(),
+            Some(crate::spatial::WorldVector3::new(0.6, 0.8, 0.0))
+        );
+        assert_eq!(analysis.status(), VectorStatus3::FiniteNonZero);
+    }
+
+    #[test]
+    fn zero_vector_is_valid_but_has_no_direction() {
+        let source = VectorSource3 {
+            entity: VectorEntity3::Cell(2),
+            anchor: WorldPoint3::ORIGIN,
+            value: vector(0.0, -0.0, 0.0),
+        };
+        let analysis = analyze_vector_sources(&[source]).unwrap()[0];
+        assert_eq!(analysis.magnitude(), Some(0.0));
+        assert_eq!(analysis.direction(), None);
+        assert_eq!(analysis.status(), VectorStatus3::Zero);
+        assert_eq!(analysis.source(), source);
+    }
+
+    #[test]
+    fn non_finite_vector_retains_source_without_magnitude_or_direction() {
+        let source = VectorSource3 {
+            entity: VectorEntity3::Point(4),
+            anchor: WorldPoint3::new(1.0, 0.0, 0.0),
+            value: vector(f64::INFINITY, 2.0, 3.0),
+        };
+        let analysis = analyze_vector_sources(&[source]).unwrap()[0];
+        assert_eq!(analysis.source(), source);
+        assert_eq!(analysis.magnitude(), None);
+        assert_eq!(analysis.direction(), None);
+        assert_eq!(analysis.status(), VectorStatus3::NonFiniteComponent);
+    }
+
+    #[test]
+    fn extreme_finite_components_keep_direction_when_magnitude_overflows() {
+        let source = VectorSource3 {
+            entity: VectorEntity3::Point(1),
+            anchor: WorldPoint3::ORIGIN,
+            value: vector(f64::MAX, f64::MAX, 0.0),
+        };
+        let analysis = analyze_vector_sources(&[source]).unwrap()[0];
+        assert_eq!(analysis.source(), source);
+        assert_eq!(analysis.magnitude(), None);
+        let direction = analysis.direction().unwrap();
+        let expected = std::f64::consts::FRAC_1_SQRT_2;
+        assert!((direction.to_vector().x - expected).abs() < 1.0e-15);
+        assert!((direction.to_vector().y - expected).abs() < 1.0e-15);
+        assert_eq!(direction.to_vector().z, 0.0);
+        assert_eq!(analysis.status(), VectorStatus3::MagnitudeOverflow);
+    }
+
+    #[test]
+    fn scaled_norm_handles_tiny_and_large_representable_vectors() {
+        let tiny = VectorSource3 {
+            entity: VectorEntity3::Point(0),
+            anchor: WorldPoint3::ORIGIN,
+            value: vector(3.0e-300, 4.0e-300, 0.0),
+        };
+        let large = VectorSource3 {
+            entity: VectorEntity3::Point(1),
+            anchor: WorldPoint3::ORIGIN,
+            value: vector(f64::MAX / 4.0, 0.0, 0.0),
+        };
+        let analyses = analyze_vector_sources(&[tiny, large]).unwrap();
+        assert!((analyses[0].magnitude().unwrap() / 5.0e-300 - 1.0).abs() < 1.0e-14);
+        assert_eq!(analyses[0].status(), VectorStatus3::FiniteNonZero);
+        assert_eq!(analyses[1].magnitude(), Some(f64::MAX / 4.0));
+        assert_eq!(analyses[1].direction(), Some(crate::spatial::WorldVector3::new(1.0, 0.0, 0.0)));
     }
 
     #[test]
