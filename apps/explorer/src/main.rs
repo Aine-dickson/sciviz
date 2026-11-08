@@ -405,6 +405,7 @@ fn demo_unstructured_surface(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use svf_core::boundary_surface::BoundaryFaceVertices3;
 
     #[test]
     fn amplitude_scales_surface_height_without_changing_topology() {
