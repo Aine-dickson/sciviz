@@ -967,3 +967,22 @@ Do not add implicit interpolation for generated points without explicit
 source weights. Keep scalar range calculation, palette interpolation, and
 field association lookup in `svf-core`; the renderer must remain a consumer
 of mapped geometry and colors.
+
+
+## M7.3 — Vector field visualization (next)
+
+Adopted on 2026-11-08. Design contract:
+`docs/vector-field-visualization.md` on branch
+`m7-3-vector-field-visualization`.
+
+The next increment is point- and cell-associated vector-field visualization
+using provenance-preserving 3D arrow glyphs. Point glyphs use source point
+positions; cell glyphs use deterministic arithmetic-mean source-vertex
+centers. Dataset-associated vectors are deferred until an explicit spatial
+anchor contract exists. The core owns vector resolution, robust magnitude
+and direction calculation, explicit scale policies, and f64 arrow geometry;
+the renderer only converts and draws prepared segments. Zero and non-finite
+vectors retain explicit status rather than receiving fabricated directions.
+
+No implementation or local validation is claimed yet. Review the design
+contract, then implement in small independently testable increments.
