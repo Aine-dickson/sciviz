@@ -678,7 +678,7 @@ mod tests {
         use svf_core::{
             fields::{FieldAssociation, FieldMetadata, ScalarField},
             sampling::SampleValue,
-            scalar_visualization::{ColorRgba, ScalarRangeMode, SurfaceProvenance3, map_scalar_field},
+            scalar_visualization::{ColorMap, ColorRgba, ScalarRangeMode, SurfaceProvenance3, map_scalar_field},
         };
 
         let mesh = TriangleMesh3::new(
