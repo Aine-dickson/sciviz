@@ -43,6 +43,7 @@ enum ExplorerMode {
     StructuredScalar,
     UnstructuredScalar,
     Vectors,
+    CellVectors,
 }
 
 impl ExplorerMode {
@@ -61,6 +62,9 @@ impl ExplorerMode {
             }
             Self::Vectors => {
                 "Scientific Visualization Framework — 3D vector field glyphs".to_owned()
+            }
+            Self::CellVectors => {
+                "Scientific Visualization Framework — structured cell vector glyphs".to_owned()
             }
         }
     }
@@ -291,6 +295,18 @@ impl ApplicationHandler for Explorer {
                     self._vector_glyphs = Some(glyphs);
                     Ok(renderer)
                 }
+                ExplorerMode::CellVectors => {
+                    let (dataset, surface, glyphs) = demo_cell_vector_glyphs()?;
+                    let renderer = pollster::block_on(SceneRenderer::new_with_vector_glyphs(
+                        window.clone(),
+                        surface.mesh(),
+                        &glyphs,
+                    ))?;
+                    self.surface = Some(surface);
+                    self._vector_dataset = Some(dataset);
+                    self._vector_glyphs = Some(glyphs);
+                    Ok(renderer)
+                }
             }
         })();
 
@@ -403,7 +419,9 @@ fn main() {
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
     let arguments = args.into_iter().collect::<Vec<_>>();
-    if arguments.iter().any(|argument| argument == "--vectors") {
+    if arguments.iter().any(|argument| argument == "--cell-vectors") {
+        ExplorerMode::CellVectors
+    } else if arguments.iter().any(|argument| argument == "--vectors") {
         ExplorerMode::Vectors
     } else if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
         ExplorerMode::UnstructuredScalar
@@ -461,6 +479,51 @@ fn demo_vector_glyphs() -> Result<(Dataset, VectorGlyphSet3), Box<dyn std::error
         VectorScalePolicy3::UniformLength { length: 0.8 },
     )?;
     Ok((dataset, glyphs))
+}
+
+/// Builds a sparse cell-associated vector field on the same structured grid
+/// used to generate its visible graph surface.
+fn demo_cell_vector_glyphs(
+) -> Result<(Dataset, SampledSurface3, VectorGlyphSet3), Box<dyn std::error::Error>> {
+    let domain = Domain2D::new(Domain1D::new(-4.0, 4.0)?, Domain1D::new(-4.0, 4.0)?);
+    let samples = sample_scalar_2d(domain, SamplingSpec2D::new(9, 9)?, |x, z| {
+        x.sin() * z.cos()
+    })?;
+    let grid = StructuredGrid2D::from_samples(samples);
+    let surface = grid.to_surface_mesh()?;
+
+    let cell_count = (grid.x_sample_count() - 1) * (grid.y_sample_count() - 1);
+    let mut values = Vec::with_capacity(cell_count);
+    for z_index in 0..(grid.y_sample_count() - 1) {
+        for x_index in 0..(grid.x_sample_count() - 1) {
+            let x0 = grid.sample(x_index, z_index).expect("cell corner exists").x();
+            let x1 = grid.sample(x_index + 1, z_index).expect("cell corner exists").x();
+            let z0 = grid.sample(x_index, z_index).expect("cell corner exists").y();
+            let z1 = grid.sample(x_index, z_index + 1).expect("cell corner exists").y();
+            let center_x = (x0 + x1) * 0.5;
+            let center_z = (z0 + z1) * 0.5;
+            values.push(VectorValue3::from_f64(
+                -0.3 * center_z,
+                0.75,
+                0.3 * center_x,
+            ));
+        }
+    }
+
+    let mut dataset = Dataset::new(grid);
+    dataset.add_vector_field3(VectorField3::new(
+        FieldMetadata::new("cell velocity", Some("world units / time".to_owned()))?,
+        FieldAssociation::Cell,
+        VectorBasis3::World,
+        values,
+    )?)?;
+    let sources = resolve_vector_sources(&dataset, "cell velocity")?;
+    let analyses = analyze_vector_sources(&sources)?;
+    let glyphs = build_vector_glyphs(
+        &analyses,
+        VectorScalePolicy3::UniformLength { length: 1.0 },
+    )?;
+    Ok((dataset, surface, glyphs))
 }
 
 fn demo_structured_scalar_surface(
@@ -584,6 +647,58 @@ mod tests {
         assert_eq!(glyphs.entries().len(), 49);
         assert!(glyphs.entries().iter().all(|entry| entry.segments().is_some()));
         assert!(glyphs.entries().iter().all(|entry| entry.display_length() == Some(0.8)));
+    }
+
+    #[test]
+    fn cell_vector_demo_builds_structured_cell_anchors_and_glyphs() {
+        use svf_core::vector_visualization::VectorEntity3;
+
+        let (dataset, surface, glyphs) = demo_cell_vector_glyphs().unwrap();
+        assert_eq!(dataset.point_count(), 81);
+        assert_eq!(dataset.cell_count(), 64);
+        assert_eq!(surface.mesh().triangle_count(), 128);
+        assert_eq!(glyphs.entries().len(), 64);
+        let field = dataset.vector_field3("cell velocity").unwrap();
+        assert_eq!(field.association(), FieldAssociation::Cell);
+        assert_eq!(field.len(), dataset.cell_count());
+        assert!(glyphs.entries().iter().all(|entry| {
+            entry.segments().is_some() && entry.display_length() == Some(1.0)
+        }));
+
+        let svf_core::dataset::DatasetGeometry::StructuredGrid2D(grid) = dataset.geometry() else {
+            panic!("cell vector fixture must use a structured grid");
+        };
+        for (cell_id, entry) in glyphs.entries().iter().enumerate() {
+            let analysis = entry.analysis();
+            assert_eq!(analysis.source().entity(), VectorEntity3::Cell(cell_id));
+            let x_count = grid.x_sample_count() - 1;
+            let x = cell_id % x_count;
+            let z = cell_id / x_count;
+            let corners = [
+                grid.sample(x, z).unwrap(),
+                grid.sample(x + 1, z).unwrap(),
+                grid.sample(x, z + 1).unwrap(),
+                grid.sample(x + 1, z + 1).unwrap(),
+            ];
+            let expected = WorldPoint3::new(
+                corners.iter().map(|sample| sample.x()).sum::<f64>() / 4.0,
+                corners.iter().map(|sample| sample.value().as_finite().unwrap()).sum::<f64>() / 4.0,
+                corners.iter().map(|sample| sample.y()).sum::<f64>() / 4.0,
+            );
+            let actual = analysis.source().anchor().to_array();
+            let expected = expected.to_array();
+            assert!(actual.iter().zip(expected).all(|(actual, expected)| {
+                (actual - expected).abs() < 1.0e-12
+            }));
+        }
+    }
+
+    #[test]
+    fn cell_vectors_mode_is_selected_from_command_line() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--cell-vectors".to_owned()]),
+            ExplorerMode::CellVectors
+        );
     }
 
     #[test]

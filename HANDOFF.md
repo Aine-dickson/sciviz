@@ -1003,12 +1003,21 @@ association only.
 Design contract: `docs/cell-vector-visualization.md` on branch
 `m7-4-cell-vector-visualization`.
 
-Build a separate `--cell-vectors` mode using a `StructuredGrid2D` source
-dataset and a cell-associated world-basis `VectorField3`. Generate the visible
-graph surface from the same source grid; anchor each glyph at the arithmetic
-mean of its four source-cell corner positions. Use a sparse deterministic
-fixture and explicit uniform glyph length to make direction and arrowheads
-readable while preserving depth testing. Keep existing modes unchanged.
+PR #11 adds a separate `--cell-vectors` mode using a 9 × 9
+`StructuredGrid2D` source dataset (64 cells) and a cell-associated world-basis
+`VectorField3`. The displayed surface is generated from the same grid object;
+each glyph anchor is the arithmetic mean of its four source-cell corner
+positions. The deterministic fixture uses explicit 1.0-world-unit uniform
+glyphs. Source dataset and glyph result are retained CPU-side; renderer reuses
+the existing depth-aware prepared-glyph path.
+
+Implementation and tests are committed, but Windows validation is pending.
+Next: review PR #11, then have the user pull the branch and run
+`cargo test --workspace`; if it passes, launch
+`cargo run -p svf-explorer -- --cell-vectors`, inspect direction/arrowhead
+readability and depth occlusion, resize/minimize/restore, then re-run
+`--vectors` and the default mode. Do not merge PR #11 until the user reports
+successful validation and explicitly approves.
 
 Do not attempt opaque unstructured-volume cell glyphs in this increment:
 their cell-center anchors lie inside the volume boundary and are correctly
