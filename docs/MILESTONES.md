@@ -491,3 +491,49 @@ M7.1 Windows validation and merge completed (2026-11-08):
 - `cargo check --workspace` passed without warnings.
 - `cargo test --workspace` passed (159 tests: 148 core, 7 Explorer, 4 renderer); doc-tests passed.
 - No formatting routine was run.
+
+
+### M7.2 — Reusable scalar visualization
+
+Design contract: `docs/scalar-visualization.md`.
+
+Status: implementation and Windows validation complete on the feature
+branch; final review completed and PR opened for user review (2026-11-08).
+
+- [x] Define a common surface representation with source point IDs per render
+  vertex and source logical cell IDs per render triangle
+- [x] Adapt structured `SampledSurface3`, unstructured
+  `TriangulatedSurface3`, and identity-mapped `TriangleMesh3`
+- [x] Implement reusable scalar range resolution and continuous color maps in
+  graphics-independent `svf-core`
+- [x] Support point-, cell-, and dataset-associated scalar fields
+- [x] Define finite/non-finite, constant-field, explicit-range, and clamping
+  semantics
+- [x] Expand triangle corners for mapped output so cell colors remain constant
+  per triangle and do not bleed across shared indexed vertices
+- [x] Preserve source point/cell provenance and never mutate source fields or
+  geometry
+- [x] Add a colored-surface renderer input path while preserving the existing
+  flat-color mesh path
+- [x] Demonstrate the same mapping API on a structured point field and an
+  unstructured cell field through optional Explorer modes
+- [x] Add focused core, renderer conversion, and Explorer demo/mode tests
+- [x] Verify `cargo check --workspace` on Windows after renderer integration
+- [x] Verify `cargo test --workspace` on Windows after renderer integration
+  (175 passed: 163 core, 7 Explorer, 5 renderer; doc-tests passed)
+- [x] Compile and test the Explorer scalar demonstration implementation on
+  Windows (`cargo check --workspace` passed; `cargo test --workspace`
+  passed: 177 tests — 163 core, 9 Explorer, 5 renderer; doc-tests passed)
+- [x] Visually verify both scalar demonstrations and resize/minimize/restore
+- [x] Re-verify default and `--unstructured` modes after Explorer integration
+- [x] Fix and regression-test normalization across extreme finite scalar
+  ranges (including [-f64::MAX, f64::MAX])
+- [x] Verify the final core scalar tests on Windows (16 passed)
+- [x] Verify the final workspace on Windows (178 passed: 164 core,
+  9 Explorer, 5 renderer; doc-tests passed)
+- [x] Verify the final workspace check on Windows (passed without warnings)
+
+Scope excludes vector glyphs, contours, isosurfaces, volume rendering,
+time-varying fields, implicit field transfer/interpolation, GPU-side scalar
+mapping, logarithmic/percentile ranges, materials/lighting, on-screen text
+legends, file import/export, and mesh repair.

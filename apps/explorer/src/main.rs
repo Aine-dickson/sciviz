@@ -1,10 +1,16 @@
 use std::sync::Arc;
 
 use svf_core::{
+    dataset::Dataset,
+    fields::{FieldAssociation, FieldMetadata, ScalarField},
     geometry::TriangleMesh3,
     sampling::{
-        Domain1D, Domain2D, SampledSurface3, SamplingSpec2D, StructuredGrid2D,
+        Domain1D, Domain2D, SampleValue, SampledSurface3, SamplingSpec2D, StructuredGrid2D,
         sample_scalar_2d,
+    },
+    scalar_visualization::{
+        ColorMap, ColorRgba, MappedSurface3, ScalarRangeMode, SurfaceProvenance3,
+        map_scalar_field,
     },
     spatial::WorldPoint3,
     surface_triangulation::TriangulatedSurface3,
@@ -30,6 +36,8 @@ enum ExplorerMode {
     #[default]
     Parametric,
     Unstructured,
+    StructuredScalar,
+    UnstructuredScalar,
 }
 
 impl ExplorerMode {
@@ -39,6 +47,12 @@ impl ExplorerMode {
             Self::Unstructured => {
                 "Scientific Visualization Framework — Unstructured volume (hex + tetra)"
                     .to_owned()
+            }
+            Self::StructuredScalar => {
+                "Scientific Visualization Framework — Structured point scalar".to_owned()
+            }
+            Self::UnstructuredScalar => {
+                "Scientific Visualization Framework — Unstructured cell scalar".to_owned()
             }
         }
     }
@@ -51,6 +65,9 @@ struct Explorer {
     amplitude: f64,
     surface: Option<SampledSurface3>,
     _triangulated_surface: Option<TriangulatedSurface3>,
+    _scalar_dataset: Option<Dataset>,
+    _surface_provenance: Option<SurfaceProvenance3>,
+    _mapped_surface: Option<MappedSurface3>,
     cursor_position: Option<[f64; 2]>,
 }
 
@@ -69,12 +86,18 @@ impl Explorer {
             amplitude: INITIAL_AMPLITUDE,
             surface: None,
             _triangulated_surface: None,
+            _scalar_dataset: None,
+            _surface_provenance: None,
+            _mapped_surface: None,
             cursor_position: None,
         }
     }
 
     fn inspect_cursor_position(&mut self, log_details: bool) {
-        if self.mode == ExplorerMode::Unstructured {
+        if matches!(
+            self.mode,
+            ExplorerMode::Unstructured | ExplorerMode::UnstructuredScalar
+        ) {
             if log_details {
                 eprintln!(
                     "Unstructured surface inspection is not implemented in this increment"
@@ -203,30 +226,52 @@ impl ApplicationHandler for Explorer {
             }
         };
 
-        let (mesh, sampled_surface, triangulated_surface) = match self.mode {
-            ExplorerMode::Parametric => match demo_surface(self.amplitude) {
-                Ok(surface) => (surface.mesh().clone(), Some(surface), None),
-                Err(error) => {
-                    eprintln!("Failed to generate demonstration surface: {error}");
-                    event_loop.exit();
-                    return;
+        let renderer_result: Result<SceneRenderer, Box<dyn std::error::Error>> = (|| {
+            match self.mode {
+                ExplorerMode::Parametric => {
+                    let surface = demo_surface(self.amplitude)?;
+                    let renderer =
+                        pollster::block_on(SceneRenderer::new(window.clone(), surface.mesh()))?;
+                    self.surface = Some(surface);
+                    Ok(renderer)
                 }
-            },
-            ExplorerMode::Unstructured => match demo_unstructured_surface() {
-                Ok((surface, mesh)) => (mesh, None, Some(surface)),
-                Err(error) => {
-                    eprintln!("Failed to generate unstructured demonstration surface: {error}");
-                    event_loop.exit();
-                    return;
+                ExplorerMode::Unstructured => {
+                    let (surface, mesh) = demo_unstructured_surface()?;
+                    let renderer =
+                        pollster::block_on(SceneRenderer::new(window.clone(), &mesh))?;
+                    self._triangulated_surface = Some(surface);
+                    Ok(renderer)
                 }
-            },
-        };
+                ExplorerMode::StructuredScalar => {
+                    let (dataset, surface, provenance, mapped) =
+                        demo_structured_scalar_surface()?;
+                    let renderer = pollster::block_on(
+                        SceneRenderer::new_with_mapped_surface(window.clone(), &mapped),
+                    )?;
+                    self.surface = Some(surface);
+                    self._scalar_dataset = Some(dataset);
+                    self._surface_provenance = Some(provenance);
+                    self._mapped_surface = Some(mapped);
+                    Ok(renderer)
+                }
+                ExplorerMode::UnstructuredScalar => {
+                    let (dataset, surface, provenance, mapped) =
+                        demo_unstructured_scalar_surface()?;
+                    let renderer = pollster::block_on(
+                        SceneRenderer::new_with_mapped_surface(window.clone(), &mapped),
+                    )?;
+                    self._triangulated_surface = Some(surface);
+                    self._scalar_dataset = Some(dataset);
+                    self._surface_provenance = Some(provenance);
+                    self._mapped_surface = Some(mapped);
+                    Ok(renderer)
+                }
+            }
+        })();
 
-        match pollster::block_on(SceneRenderer::new(window.clone(), &mesh)) {
+        match renderer_result {
             Ok(renderer) => {
                 self.renderer = Some(renderer);
-                self.surface = sampled_surface;
-                self._triangulated_surface = triangulated_surface;
                 self.window = Some(window.clone());
                 window.request_redraw();
             }
@@ -332,7 +377,12 @@ fn main() {
 }
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
-    if args.into_iter().any(|argument| argument == "--unstructured") {
+    let arguments = args.into_iter().collect::<Vec<_>>();
+    if arguments.iter().any(|argument| argument == "--unstructured-scalar") {
+        ExplorerMode::UnstructuredScalar
+    } else if arguments.iter().any(|argument| argument == "--scalar") {
+        ExplorerMode::StructuredScalar
+    } else if arguments.iter().any(|argument| argument == "--unstructured") {
         ExplorerMode::Unstructured
     } else {
         ExplorerMode::Parametric
@@ -354,6 +404,40 @@ fn demo_surface(
         amplitude * x.sin() * y.cos()
     })?;
     Ok(StructuredGrid2D::from_samples(samples).to_surface_mesh()?)
+}
+
+fn demo_structured_scalar_surface(
+) -> Result<(Dataset, SampledSurface3, SurfaceProvenance3, MappedSurface3), Box<dyn std::error::Error>> {
+    let domain = Domain2D::new(Domain1D::new(-5.0, 5.0)?, Domain1D::new(-5.0, 5.0)?);
+    let samples = sample_scalar_2d(domain, SamplingSpec2D::new(41, 41)?, |x, y| {
+        x.sin() * y.cos()
+    })?;
+    let values = samples
+        .as_slice()
+        .iter()
+        .map(|sample| sample.value())
+        .collect();
+    let grid = StructuredGrid2D::from_samples(samples);
+    let surface = grid.to_surface_mesh()?;
+
+    let mut dataset = Dataset::new(grid.clone());
+    dataset.add_scalar_field(ScalarField::new(
+        FieldMetadata::new("height", Some("world units".to_owned()))?,
+        FieldAssociation::Point,
+        values,
+    )?)?;
+    let provenance = SurfaceProvenance3::from_structured(&surface, &grid)?;
+    let mapped = map_scalar_field(
+        &provenance,
+        dataset.scalar_field("height").expect("field was just attached"),
+        dataset.point_count(),
+        dataset.cell_count(),
+        ScalarRangeMode::Automatic,
+        &ColorMap::viridis(),
+        invalid_color()?,
+    )?;
+
+    Ok((dataset, surface, provenance, mapped))
 }
 
 fn demo_unstructured_grid() -> Result<UnstructuredGrid3, Box<dyn std::error::Error>> {
@@ -402,6 +486,35 @@ fn demo_unstructured_surface(
     Ok((surface, mesh))
 }
 
+fn demo_unstructured_scalar_surface(
+) -> Result<(Dataset, TriangulatedSurface3, SurfaceProvenance3, MappedSurface3), Box<dyn std::error::Error>> {
+    let grid = demo_unstructured_grid()?;
+    let surface = grid.boundary_surface()?.triangulate();
+
+    let mut dataset = Dataset::new(grid.clone());
+    dataset.add_scalar_field(ScalarField::new(
+        FieldMetadata::new("cell intensity", Some("relative".to_owned()))?,
+        FieldAssociation::Cell,
+        vec![SampleValue::Finite(0.18), SampleValue::Finite(0.92)],
+    )?)?;
+    let provenance = SurfaceProvenance3::from_unstructured(&surface, &grid)?;
+    let mapped = map_scalar_field(
+        &provenance,
+        dataset.scalar_field("cell intensity").expect("field was just attached"),
+        dataset.point_count(),
+        dataset.cell_count(),
+        ScalarRangeMode::Automatic,
+        &ColorMap::viridis(),
+        invalid_color()?,
+    )?;
+
+    Ok((dataset, surface, provenance, mapped))
+}
+
+fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMapError> {
+    ColorRgba::new(0.35, 0.05, 0.22, 1.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,6 +554,44 @@ mod tests {
                 .iter()
                 .any(|point| point.to_array()[1] < -0.5)
         );
+    }
+
+    #[test]
+    fn structured_scalar_demo_maps_point_values_to_surface_corners() {
+        let (dataset, surface, provenance, mapped) =
+            demo_structured_scalar_surface().unwrap();
+
+        assert_eq!(dataset.point_count(), 41 * 41);
+        assert_eq!(dataset.cell_count(), 40 * 40);
+        assert_eq!(surface.mesh().triangle_count(), 40 * 40 * 2);
+        assert_eq!(mapped.triangle_count(), surface.mesh().triangle_count());
+        assert_eq!(mapped.positions().len(), mapped.colors().len());
+        assert_eq!(mapped.source_point_ids().len(), mapped.positions().len());
+        assert_eq!(provenance.source_point_ids().len(), surface.mesh().vertex_count());
+        assert_eq!(dataset.scalar_field("height").unwrap().association(), FieldAssociation::Point);
+        assert!(mapped.colors().iter().any(|color| color != &mapped.colors()[0]));
+    }
+
+    #[test]
+    fn unstructured_scalar_demo_maps_each_source_cell_to_its_surface_triangles() {
+        let (dataset, surface, provenance, mapped) =
+            demo_unstructured_scalar_surface().unwrap();
+
+        assert_eq!(dataset.point_count(), 12);
+        assert_eq!(dataset.cell_count(), 2);
+        assert_eq!(surface.triangle_count(), 16);
+        assert_eq!(mapped.triangle_count(), 16);
+        assert_eq!(dataset.scalar_field("cell intensity").unwrap().association(), FieldAssociation::Cell);
+        assert_eq!(provenance.source_cell_ids(), mapped.source_cell_ids());
+        let hexahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 0).count();
+        let tetrahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 1).count();
+        assert_eq!(hexahedron_triangles, 12);
+        assert_eq!(tetrahedron_triangles, 4);
+
+        for (triangle, _) in mapped.source_cell_ids().iter().enumerate() {
+            let colors = &mapped.colors()[triangle * 3..triangle * 3 + 3];
+            assert!(colors.iter().all(|color| color == &colors[0]));
+        }
     }
 
     #[test]
@@ -540,7 +691,7 @@ mod tests {
     }
 
     #[test]
-    fn command_line_selects_unstructured_mode_only_for_exact_flag() {
+    fn command_line_selects_each_optional_mode_only_for_exact_flags() {
         assert_eq!(
             mode_from_args(vec!["svf-explorer".to_owned()]),
             ExplorerMode::Parametric
@@ -550,17 +701,31 @@ mod tests {
             ExplorerMode::Unstructured
         );
         assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--scalar".to_owned()]),
+            ExplorerMode::StructuredScalar
+        );
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--unstructured-scalar".to_owned()]),
+            ExplorerMode::UnstructuredScalar
+        );
+        assert_eq!(
             mode_from_args(vec!["svf-explorer".to_owned(), "--unstructured-extra".to_owned()]),
             ExplorerMode::Parametric
         );
     }
 
     #[test]
-    fn unstructured_mode_does_not_change_parametric_default() {
+    fn optional_modes_do_not_change_parametric_default_or_existing_unstructured_mode() {
         assert_eq!(ExplorerMode::default(), ExplorerMode::Parametric);
         assert!(ExplorerMode::Parametric.window_title(1.0).contains("A=1.00"));
         assert!(ExplorerMode::Unstructured
             .window_title(1.0)
             .contains("Unstructured volume"));
+        assert!(ExplorerMode::StructuredScalar
+            .window_title(1.0)
+            .contains("Structured point scalar"));
+        assert!(ExplorerMode::UnstructuredScalar
+            .window_title(1.0)
+            .contains("Unstructured cell scalar"));
     }
 }

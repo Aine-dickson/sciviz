@@ -883,7 +883,84 @@ Windows validation was user-reported on 2026-11-08:
 - Both modes handled resize and minimize/restore correctly.
 - No formatting routine was run.
 
-M7.1 is complete. Next: synchronize the local `main` branch and begin
-planning M7.2. Preserve the existing scope boundaries: no field coloring,
+M7.1 is complete. Preserve its scope boundaries: no field coloring,
 unstructured picking UI, orientation repair, lighting, camera controls,
 volume rendering, or file I/O was added in M7.1.
+
+## Current work — M7.2 reusable scalar visualization
+
+Branch: `m7-2-scalar-visualization`, created from `main` after M7.1.
+
+Design contract: `docs/scalar-visualization.md`.
+
+The M7.2 core pipeline is implemented and user-validated on Windows.
+
+Core implementation:
+- `crates/svf-core/src/scalar_visualization.rs` provides
+  `SurfaceProvenance3` adapters for structured sampled surfaces,
+  unstructured triangulated surfaces, and identity-mapped triangle meshes.
+- `MappedSurface3` expands each triangle into three corners and retains
+  per-corner source point IDs plus per-triangle source cell IDs.
+- Point, cell, and dataset scalar associations are mapped without mutating
+  source geometry or fields.
+- Automatic and explicit ranges, finite/non-finite handling, constant-field
+  midpoint behavior, clamping, validated RGBA colors, and continuous color
+  maps are implemented.
+- User-reported Windows validation: `cargo test -p svf-core` passed
+  (163 tests); `cargo check --workspace` passed without warnings.
+
+Current renderer integration is implemented and user-validated on
+Windows (2026-11-08):
+- `svf-render` provides `SceneRenderer::new_with_mapped_surface`.
+- Mapped positions and linear-light RGBA values convert to f32 at the GPU
+  boundary; the mesh vertex layout and WGSL shader accept RGBA.
+- The existing `SceneRenderer::new(window, &TriangleMesh3)` path remains,
+  using its existing flat color with alpha 1.0.
+- User-reported `cargo test --workspace`: 175 passed (163 core,
+  7 Explorer, 5 renderer); doc-tests passed.
+- User-reported `cargo check --workspace`: passed without warnings.
+- User visually confirmed the existing unstructured flat-color mode still
+  renders correctly and handles resize/minimize/restore.
+
+Explorer scalar demonstrations are implemented on this branch:
+- `--scalar`: structured grid with a point-associated height field.
+- `--unstructured-scalar`: existing hexahedron/tetrahedron fixture with a
+  cell-associated field.
+- Both modes construct a source `Dataset`, create a provenance-aware surface,
+  call the same `map_scalar_field` API, and pass the resulting
+  `MappedSurface3` to the renderer.
+- Source dataset, provenance, and mapped surface are retained CPU-side.
+- Existing default parametric and `--unstructured` flat-color modes remain.
+- Explorer unit tests cover mode selection and both mapped demo datasets.
+
+Windows validation completed (user-reported, 2026-11-08):
+- Pulled branch through `b104bf1`, including the extreme-range
+  normalization fix.
+- `cargo test -p svf-core scalar_visualization`: 16 passed.
+- `cargo test --workspace`: 178 passed (164 core, 9 Explorer,
+  5 renderer); doc-tests passed.
+- `cargo check --workspace`: passed without warnings.
+- `--scalar`: structured surface displayed a smooth visible gradient;
+  yellow peaks and dark-blue troughs aligned with height variation.
+  Hover inspection returned a finite sample; click inspection produced
+  valid hits and expected misses outside the sampled surface.
+- `--unstructured-scalar`: hexahedron and tetrahedron both rendered with
+  distinct dark-blue and bright-yellow cell colors. Each cell was uniform
+  across its visible triangles, confirming no within-cell color variation.
+- Default parametric and original `--unstructured` flat-color modes still
+  rendered and behaved as before.
+- All four modes handled resize and minimize/restore consistently.
+- Regression test confirms normalization remains finite and correctly
+  maps endpoints and midpoint for extreme finite ranges, including
+  [-f64::MAX, f64::MAX].
+- No formatting routine was run.
+
+M7.2 implementation, automated Windows validation, numerical edge-case
+validation, and visual acceptance are complete on this feature branch.
+Final compare against main: 31 commits ahead, 0 behind. Next: open a PR
+for user review. Do not merge without the user's approval.
+
+Do not add implicit interpolation for generated points without explicit
+source weights. Keep scalar range calculation, palette interpolation, and
+field association lookup in `svf-core`; the renderer must remain a consumer
+of mapped geometry and colors.

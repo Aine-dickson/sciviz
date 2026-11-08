@@ -8,6 +8,7 @@ pub mod fields;
 pub mod dataset;
 pub mod ray;
 pub mod sampling;
+pub mod scalar_visualization;
 pub mod spatial;
 pub mod surface_triangulation;
 pub mod unstructured;
