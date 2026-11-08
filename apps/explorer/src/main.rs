@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 mod vtk_loading;
 
-use vtk_loading::{fit_camera, ImportedScene};
+use vtk_loading::ImportedScene;
 
 use svf_core::{
     camera_navigation::{self, CameraNavigationConfig},
