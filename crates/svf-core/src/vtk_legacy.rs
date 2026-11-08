@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
             return Err(self.error(VtkLegacyErrorKind::UnsupportedVersion, format!("unsupported VTK legacy version '{}'", version.trim())));
         }
 
-        let title = self.required_line("title line")?;
+        let _title = self.required_line("title line")?;
         if title.len() > 256 {
             return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "title line exceeds 256 bytes"));
         }
@@ -287,7 +287,7 @@ impl<'a> Parser<'a> {
     }
 
     fn read_integer_tokens(&mut self, count: usize) -> Result<Vec<u64>, VtkLegacyError> {
-        let mut values = Vec::with_capacity(count);
+        let mut values = Vec::new();
         while values.len() < count {
             let Some((line_number, line)) = self.next_nonempty_line() else {
                 return Err(self.error(VtkLegacyErrorKind::TruncatedData, format!("expected {count} integer values, received {}", values.len())));
