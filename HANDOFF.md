@@ -829,3 +829,23 @@ remain unchanged.
 No outward orientation certification, geometry-dependent diagonal choice,
 quality filtering, field transfer, or renderer integration is in scope.
 Implementation and Windows validation are pending.
+
+
+M6.6 implementation is now present on the feature branch:
+- New `crates/svf-core/src/surface_triangulation.rs`, exported from
+  `svf-core`.
+- Public API: `TriangulatedSurface3`,
+  `TriangulatedSurfaceTriangle3`, and
+  `BoundarySurface3::triangulate()`.
+- Source triangles pass through unchanged. Quads split using the
+  lexicographically smaller sorted pair of original source point IDs.
+- The output preserves compact f64 points and source point IDs.
+- Each triangle records both `boundary_face_index` (index into the M6.5
+  surface face array) and `source_face_index` (original M6.4 topology face
+  index), plus source cell, local face, and per-face triangle ordinal.
+- Ten focused unit tests use public UnstructuredGrid3 construction and
+  boundary extraction to exercise tetrahedra, hexahedra, both diagonal
+  choices, mixed cell types, provenance, determinism, immutability, and
+  geometric degeneracy.
+- No formatter, local build, or local test has been run. Review and Windows
+  validation remain pending.
