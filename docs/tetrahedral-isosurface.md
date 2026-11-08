@@ -2,11 +2,19 @@
 
 ## Status
 
-Proposed design; implementation has not started.
+Implemented and merged to `main` on 2026-11-08 through core PR #16 and Explorer PR #17.
 
 This increment is intended to be the first M8 derived-geometry pipeline.
 It builds on the M6 dataset/field model, M7.2 scalar semantics, and the
 provenance requirements established by surface triangulation and mapping.
+
+## Implementation status
+
+The implementation follows this contract. The core extraction API is
+`extract_tetrahedral_isosurface`; the optional Explorer mode is
+`--isosurface`. User-reported Windows workspace tests, workspace check,
+and visual validation passed. See `HANDOFF.md` and `docs/MILESTONES.md`
+for merge commits and validation details.
 
 ## Objective
 
