@@ -21,9 +21,10 @@ library during development.
   implemented and merged to `main`; M6.6 passed Windows validation with
   153 workspace tests (148 core, 1 Explorer, 4 renderer).
 
-M7.1 is now defined: optional rendering of a mixed tetrahedron/hexahedron
-boundary surface while preserving the existing parametric demo. Its design
-contract is committed; implementation and Windows validation are pending.
+M7.1 is in progress: an optional mixed tetrahedron/hexahedron boundary
+surface mode has been implemented on its feature branch. The design contract
+and focused tests are committed; compilation and Windows validation are
+pending.
 
 See [Milestones](docs/MILESTONES.md) for scope and validation details, and
 [HANDOFF.md](HANDOFF.md) for the current development state.
