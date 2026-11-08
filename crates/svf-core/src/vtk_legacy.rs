@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
             return Err(self.error(VtkLegacyErrorKind::UnsupportedVersion, format!("unsupported VTK legacy version '{}'", version.trim())));
         }
 
-        let _title = self.required_line("title line")?;
+        let title = self.required_line("title line")?;
         if title.len() > 256 {
             return Err(self.error(VtkLegacyErrorKind::InvalidHeader, "title line exceeds 256 bytes"));
         }
@@ -116,7 +116,7 @@ impl<'a> Parser<'a> {
         let points_header = self.required_record("POINTS")?;
         let (point_count, coordinate_type) = parse_header_count_type(&points_header, "POINTS", self.line_number())?;
         let coordinate_value_count = point_count.checked_mul(3).ok_or_else(|| self.error(VtkLegacyErrorKind::CountOverflow, "POINTS coordinate count overflows usize"))?;
-        let coordinates = self.read_numbers(coordinate_value_count, coordinate_type, true)?;
+        let coordinates = self.read_numbers(coordinate_value_count, &coordinate_type, true)?;
         let mut points = Vec::new();
         for xyz in coordinates.chunks_exact(3) {
             points.push(WorldPoint3::new(xyz[0], xyz[1], xyz[2]));
@@ -393,7 +393,7 @@ fn is_record_keyword(token: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dataset::DatasetGeometry, fields::DatasetField, unstructured::CellType3};
+    use crate::{dataset::{DatasetField, DatasetGeometry}, unstructured::CellType3};
 
     const MIXED: &str = "# vtk DataFile Version 3.0
 SVF fixture
