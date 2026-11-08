@@ -969,20 +969,48 @@ field association lookup in `svf-core`; the renderer must remain a consumer
 of mapped geometry and colors.
 
 
-## M7.3 — Vector field visualization (next)
+## M7.3 — Vector field visualization (complete; merged to main 2026-11-08)
 
-Adopted on 2026-11-08. Design contract:
-`docs/vector-field-visualization.md` on branch
-`m7-3-vector-field-visualization`.
+Design contract: `docs/vector-field-visualization.md`.
 
-The next increment is point- and cell-associated vector-field visualization
-using provenance-preserving 3D arrow glyphs. Point glyphs use source point
-positions; cell glyphs use deterministic arithmetic-mean source-vertex
-centers. Dataset-associated vectors are deferred until an explicit spatial
-anchor contract exists. The core owns vector resolution, robust magnitude
-and direction calculation, explicit scale policies, and f64 arrow geometry;
-the renderer only converts and draws prepared segments. Zero and non-finite
-vectors retain explicit status rather than receiving fabricated directions.
+PR #9 merged to `main`; merge commit:
+`23c33fb855ffa2d52749baf66c1fb23eed53d19c`.
 
-No implementation or local validation is claimed yet. Review the design
-contract, then implement in small independently testable increments.
+Implemented:
+- Graphics-independent point/cell source resolution with provenance.
+- Robust vector magnitude, direction, and explicit validity status.
+- f64 arrow glyph construction with explicit magnitude-scaled and
+  uniform-length policies.
+- Renderer conversion at the f64-to-f32 boundary and depth-aware drawing.
+- Explorer `--vectors` point-associated demonstration with 49 vectors.
+- Source dataset and glyph results retained CPU-side.
+
+User-reported Windows validation (2026-11-08):
+- `cargo test --workspace`: all tests passed.
+- `--vectors` displayed the undulating surface and yellow glyphs; hover
+  sample, grid, and colored axes remained functional.
+- Resize, minimize, and restore were consistent with the other modes.
+- Some glyphs were difficult to distinguish because they are short and
+  distributed fairly densely. This feedback informs M7.4; do not alter the
+  validated M7.3 behavior without a focused change.
+
+Coverage note: cell-associated source resolution and glyph construction are
+implemented in core, but the Explorer currently demonstrates point
+association only.
+
+## M7.4 — Structured cell-associated vector visualization (next)
+
+Design contract: `docs/cell-vector-visualization.md` on branch
+`m7-4-cell-vector-visualization`.
+
+Build a separate `--cell-vectors` mode using a `StructuredGrid2D` source
+dataset and a cell-associated world-basis `VectorField3`. Generate the visible
+graph surface from the same source grid; anchor each glyph at the arithmetic
+mean of its four source-cell corner positions. Use a sparse deterministic
+fixture and explicit uniform glyph length to make direction and arrowheads
+readable while preserving depth testing. Keep existing modes unchanged.
+
+Do not attempt opaque unstructured-volume cell glyphs in this increment:
+their cell-center anchors lie inside the volume boundary and are correctly
+occluded by its surface. A separate visibility/representation design is
+required before that case is useful.
