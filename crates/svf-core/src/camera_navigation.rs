@@ -233,6 +233,7 @@ fn build_camera(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::camera::PerspectiveProjection;
 
     fn camera() -> Camera3 {
         let pose = LookAtCamera::new(
