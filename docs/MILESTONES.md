@@ -399,3 +399,25 @@ PR #3 on 2026-11-08.
 User-reported validation completed on Windows (2026-11-08). No formatting
 routine was run; unrelated formatting changes and existing stashes remain
 untouched.
+
+
+### M6.5 — Unstructured boundary surface representation
+
+Design contract: `docs/boundary-surface.md`.
+
+- [ ] Extract only one-incidence boundary faces from M6.4 volume topology
+- [ ] Preserve triangle and quadrilateral face types without triangulation
+- [ ] Build a compact deterministic point array with source-point mapping
+- [ ] Preserve source topology face, source cell, and local face provenance
+- [ ] Exclude interior and non-manifold faces from the extracted boundary surface
+- [ ] Preserve source local face cycles without claiming outward orientation
+- [ ] Keep extraction graphics-independent and leave source grid/fields unchanged
+- [ ] Test tetrahedra, hexahedra, mixed cells, shared faces, non-manifold faces,
+  compact indexing, provenance, deterministic ordering, empty input, and
+  geometric degeneracy
+- [ ] Verify `cargo check --workspace` on Windows
+- [ ] Verify `cargo test -p svf-core` on Windows
+- [ ] Verify `cargo test --workspace` on Windows
+
+Scope excludes quad triangulation, renderer integration, field transfer,
+orientation repair, geometric quality, and file import/export.
