@@ -67,6 +67,10 @@ impl fmt::Display for RenderError {
                 f,
                 "vector glyph geometry cannot be represented by the renderer's f32 line-vertex format"
             ),
+            Self::InvalidCameraUniform => write!(
+                f,
+                "camera view-projection matrix cannot be represented by the renderer's f32 uniform format"
+            ),
         }
     }
 }
