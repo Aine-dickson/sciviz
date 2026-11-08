@@ -497,8 +497,10 @@ M7.1 Windows validation and merge completed (2026-11-08):
 
 Design contract: `docs/scalar-visualization.md`.
 
-Status: implementation and Windows validation complete on the feature
-branch; final review completed and PR opened for user review (2026-11-08).
+Status: complete and merged to `main` through PR #7 on 2026-11-08
+(merge commit `09c99da`). Implementation, Windows automated validation,
+numerical edge-case validation, and all four Explorer-mode visual checks
+are complete.
 
 - [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
