@@ -70,7 +70,7 @@ framework or a large camera abstraction.
   click inspection.
 - Keep camera controls available in every current visualization mode.
 
-## Proposed default interaction mapping
+## Default interaction mapping
 
 Implemented Explorer mapping:
 
