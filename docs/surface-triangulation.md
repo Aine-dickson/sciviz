@@ -74,9 +74,8 @@ allocation handling, define only the narrow error needed and document it.
    provenance; triangle ordinal is zero.
 3. Quad emits exactly two triangles for the 0–2 diagonal.
 4. Quad emits exactly two triangles for the 1–3 diagonal.
-5. Diagonal selection compares sorted original source point-ID pairs,
-   including a case where compact IDs and source IDs are deliberately
-   different.
+5. The diagonal policy reads the explicit original source point-ID mapping
+   and chooses the lexicographically smaller canonical endpoint pair.
 6. Both split patterns preserve the source local cycle and deterministic
    triangle order.
 7. Mixed triangle/quad surfaces preserve source face order and produce
