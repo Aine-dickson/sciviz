@@ -582,7 +582,7 @@ mod tests {
         assert_eq!(surface.triangle_count(), 16);
         assert_eq!(mapped.triangle_count(), 16);
         assert_eq!(dataset.scalar_field("cell intensity").unwrap().association(), FieldAssociation::Cell);
-        assert_eq!(provenance.source_cell_ids(), &mapped.source_cell_ids());
+        assert_eq!(provenance.source_cell_ids(), mapped.source_cell_ids());
         let hexahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 0).count();
         let tetrahedron_triangles = mapped.source_cell_ids().iter().filter(|&&id| id == 1).count();
         assert_eq!(hexahedron_triangles, 12);
