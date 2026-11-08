@@ -785,7 +785,22 @@ mod tests {
         assert_eq!(dataset.point_count(), 5);
         assert_eq!(dataset.cell_count(), 2);
         assert_eq!(isosurface.isovalue(), 0.0);
-        assert_eq!(isosurface.mesh().triangle_count(), 2);
+        assert_eq!(isosurface.mesh().triangle_count(), 4);
+        assert_eq!(isosurface.mesh().vertex_count(), 6);
+        assert_eq!(
+            isosurface.vertex_provenance().iter().filter(|provenance| matches!(
+                provenance,
+                svf_core::isosurface::IsosurfaceVertexProvenance3::SourceEdge { point_ids: [0, 1], .. }
+            )).count(),
+            1,
+        );
+        assert_eq!(
+            isosurface.vertex_provenance().iter().filter(|provenance| matches!(
+                provenance,
+                svf_core::isosurface::IsosurfaceVertexProvenance3::SourceEdge { point_ids: [1, 2], .. }
+            )).count(),
+            1,
+        );
         assert_eq!(isosurface.triangle_source_cells().len(), 2);
         assert!(isosurface.triangle_source_cells().iter().all(|cell| *cell < 2));
         assert_eq!(isosurface.vertex_provenance().len(), isosurface.mesh().vertex_count());
