@@ -2,139 +2,209 @@
 
 ## Status
 
-Design proposal; implementation has not started. This proposal follows the
-completed M8.1 tetrahedral isosurface extractor.
+Design contract finalized; implementation has not started. This increment
+builds on the merged M8.1 tetrahedral isosurface extractor.
 
 ## Objective
 
-Transfer a selected point-associated scalar field from an unchanged source
-`Dataset` onto the vertices of an `Isosurface3`, using the isosurface's
-source-point and source-edge interpolation provenance.
+Transfer a selected point-associated scalar field from the unchanged source
+dataset onto the vertices of an extracted `Isosurface3`, using the
+isosurface's source-point and source-edge interpolation provenance. Map the
+transferred values to colors and render the derived surface without inventing
+source point IDs or mutating source data.
 
-This enables a derived isosurface to be colored or inspected by a scalar
-field other than the field used to extract it. It also establishes a reusable
-rule for transferring point data onto this specific derived geometry without
-pretending that interpolated vertices are original source points.
+M8.2 is a vertical slice: core transfer and mapping, renderer adaptation, and
+a separate Explorer demonstration.
 
-## Input contract
+## Scope and input contract
 
-- The source dataset is the same immutable dataset used to produce the
-  `Isosurface3`.
-- The selected field exists on that dataset and is point-associated.
-- Its cardinality matches the source dataset point count.
-- The `Isosurface3` has one provenance entry per output mesh vertex.
-- The transfer operation does not mutate the source dataset, source field,
-  isosurface mesh, or isosurface provenance.
-- Initial scope is scalar fields only. Vector/tensor transfer is deferred.
+- Input geometry is `DatasetGeometry::UnstructuredGrid3`, and the selected
+  field is a scalar field with `FieldAssociation::Point`.
+- The caller must pass the exact source `Dataset` from which the
+  `Isosurface3` was extracted. M8.1 does not carry a globally unique dataset
+  identity, so the transfer API can validate cardinalities and provenance
+  bounds but cannot prove that two same-sized datasets are identical.
+- Validate source field cardinality against the source dataset point and cell
+  counts before reading values.
+- Validate that the isosurface has one provenance entry per mesh vertex and
+  one source-cell ID per mesh triangle.
+- Validate every source point ID, both source edge endpoint IDs, canonical
+  edge ordering, and interpolation parameter before indexing.
+- Transfer and mapping never mutate the source dataset, source field, or
+  original `Isosurface3`.
 
-The API should make the relationship between source dataset, isosurface,
-and selected field explicit. It must validate source cardinality and every
-provenance point ID before indexing source values.
+Initial support is limited to point-associated scalar fields. Cell-associated
+transfer is deliberately excluded: an edge vertex shared by multiple source
+cells does not have a unique cell value without an explicit discontinuity
+policy.
 
 ## Transfer semantics
 
-For each output vertex, in exact isosurface mesh vertex order:
+Produce one value for each isosurface mesh vertex, in exact mesh vertex order.
 
-- `SourcePoint { point_id }`: copy the selected source field value at
-  `point_id` without numerical transformation.
-- `SourceEdge { point_ids: [low_id, high_id], t }`: interpolate the source
-  field values at `low_id` and `high_id` using `t`, where `t` is
-  measured from the lower source point ID toward the higher source point ID.
+- `SourcePoint { point_id }`: copy the source field's `SampleValue`
+  exactly, including NaN and signed infinity classifications.
+- `SourceEdge { point_ids: [low_id, high_id], t }`: interpolate the values
+  at those endpoint IDs. M8.1 defines `t` from the lower source point ID
+  toward the higher ID.
+- Require `low_id < high_id`; require finite `t` in the closed interval
+  [0, 1]. Reject malformed provenance; never reorder endpoints or clamp
+  `t`.
+- At `t == 0` or `t == 1`, return the corresponding endpoint
+  `SampleValue` exactly. This avoids contaminating an exact endpoint with
+  the other endpoint's invalid value.
 
-The edge parameter must be finite and within [0, 1]. Invalid provenance is
-an explicit error; it must not be silently clamped or reinterpreted.
+### Non-finite endpoint policy
 
-Transfer is based on source provenance, not nearest-point lookup, geometric
-proximity, output vertex order assumptions, or triangle source-cell IDs.
+For interior interpolation (`0 < t < 1`), preserve IEEE-style convex
+combination behavior in the existing `SampleValue` model:
 
-## Numerical and invalid-value policy to settle
+- If either endpoint is NaN, the result is NaN.
+- One infinite endpoint and one finite endpoint produce that infinity.
+- Two infinities with the same sign produce that infinity.
+- Opposing positive and negative infinities produce NaN.
+- Finite endpoints produce a finite interpolated value.
 
-The design review must define and test:
+A non-finite transferred value invalidates only that output vertex's scalar
+sample. It does not fail the whole transfer operation and is not replaced
+with zero. The color-mapping stage assigns the configured invalid color to
+that vertex.
 
-- How NaN and positive/negative infinity at source endpoints propagate to
-  transferred values.
-- Whether a non-finite endpoint invalidates only its corresponding output
-  vertex or causes the entire transfer operation to fail.
-- A stable interpolation formula for extreme finite endpoint values that
-  avoids avoidable intermediate overflow.
-- How any genuinely unrepresentable result is classified or reported.
-- Whether the result stores `SampleValue` values or a dedicated transferred
-  value/status type.
-- Whether an empty isosurface produces a valid empty transferred field.
+### Stable finite interpolation
 
-Do not silently replace invalid values with zero, extrapolate, or clamp the
-interpolation parameter. The policy must be deterministic and documented.
+For finite endpoints, use a convex interpolation that avoids avoidable
+overflow:
 
-## Output contract
+- If both endpoints have the same sign, compute
+  `a + (b - a) * t`. The endpoint difference is bounded for same-sign
+  finite values.
+- If endpoints have opposite signs, compute
+  `a * (1 - t) + b * t`. The weighted terms are finite and oppose rather
+  than add in magnitude.
+- Handle `t == 0` and `t == 1` before either formula.
+- Classify the result through `SampleValue::from_f64`. If finite inputs
+  nevertheless produce a non-finite result, return an explicit numerical
+  error; do not silently turn arithmetic failure into a data-invalid sample.
 
-The result is a derived scalar field aligned one-to-one with the isosurface
-mesh vertices. It should retain:
+A convex combination of finite endpoints is mathematically bounded by those
+endpoints, so overflow should not occur with the prescribed branch-specific
+formulas. Underflow and signed zero remain valid finite results.
 
-- The selected source field's name and optional units.
-- The output values in mesh vertex order.
-- The source isosurface vertex provenance, either by a stable reference to
-  the `Isosurface3` or by an explicitly documented ownership model.
-- Enough identity to associate each transferred value with the corresponding
-  derived mesh vertex.
+## Core API and ownership
 
-The result is not attached to the source `Dataset` and must not claim that
-edge-interpolated values belong to a single source point.
+Add a focused `svf-core::isosurface_field_transfer` module.
 
-## Color mapping and renderer boundary
+- `transfer_point_scalar_field(dataset, isosurface, field_name)`
+  returns a `TransferredScalarField3`.
+- The transferred object owns a clone of the source `Isosurface3`, the
+  source field's `FieldMetadata`, and one `SampleValue` per isosurface
+  mesh vertex. Owning the isosurface ties values to the exact mesh order and
+  retains vertex provenance, triangle source-cell IDs, and extraction
+  metadata together.
+- Expose read-only accessors. Do not expose a constructor that can create
+  mismatched mesh/value/provenance cardinalities.
+- A separate `map_transferred_scalar_field` operation consumes the
+  transferred object and returns `MappedIsosurface3`, retaining the
+  transferred object plus one RGBA color per unique mesh vertex and the
+  resolved scalar range.
 
-The existing scalar visualization pipeline already defines scalar ranges,
-color maps, invalid colors, and prepared colored surfaces for source-aware
-surface representations. M8.2 should reuse those semantics where possible.
+The derived field is not attached to the source `Dataset`. It must never
+claim that an edge-interpolated value belongs to one source point.
 
-However, the existing `MappedSurface3` source-point mapping must not be
-populated with a fabricated point ID for an isosurface edge vertex. The
-design must choose an explicit derived-surface representation, such as a
-dedicated mapped-isosurface result carrying:
-- f64 output positions and triangle connectivity,
-- per-corner or per-vertex colors as required by the renderer,
-- isosurface vertex provenance,
-- per-triangle source cell IDs.
+## Color mapping contract
 
-The renderer must consume prepared positions, indices, and colors. It must
-not perform field interpolation, inspect datasets, or interpret provenance.
-Any f64-to-f32 conversion remains at the renderer boundary.
+Reuse `ColorMap`, `ColorRgba`, `ScalarRange`, and
+`ScalarRangeMode` from `scalar_visualization`.
 
-Whether the first M8.2 implementation includes the renderer adapter and an
-Explorer colored-isosurface mode should be decided during design review.
-Avoid expanding the increment into a generic rendering/material framework.
+- Automatic range is computed from finite transferred values on the
+  extracted isosurface, not all values in the source dataset. Add
+  `ScalarRange::from_values` for this purpose and have
+  `ScalarRange::from_field` delegate to the shared implementation.
+- Explicit ranges retain existing finite-endpoint validation and clamping
+  behavior.
+- A constant finite transferred range maps finite values to the existing
+  midpoint normalization (0.5).
+- NaN and infinities receive the caller-supplied invalid color.
+- If automatic range has no finite transferred values, return the existing
+  `ScalarRangeError::NoFiniteValues`. An explicit range can still map an
+  all-invalid or empty result, assigning invalid colors where vertices exist.
+- Colors are stored once per unique isosurface vertex. Keep the original
+  indexed triangle topology; do not expand vertices or fabricate source
+  point IDs.
+- Preserve the full `Isosurface3` inside the mapped result so source vertex
+  provenance, per-triangle source cell IDs, and extraction metadata remain
+  available.
+
+The existing `MappedSurface3` remains unchanged. Its
+`source_point_ids` represent actual source points and must not be overloaded
+with interpolated edge vertices.
+
+## Renderer and Explorer integration
+
+- Add a renderer entry point accepting `MappedIsosurface3`.
+- Renderer conversion reads prepared f64 mesh positions and RGBA colors,
+  converts them to f32 at the GPU boundary, and reuses the mesh indices.
+- Validate position/color cardinality, index bounds, and finite f32
+  representability. The renderer does not inspect the source dataset,
+  interpolate fields, or interpret provenance.
+- Add a separate `--colored-isosurface` Explorer mode. Keep the existing
+  `--isosurface` behavior and all earlier modes unchanged.
+- Extend the deterministic two-tetrahedron fixture with a second
+  point-associated scalar field distinct from the extraction field. Extract
+  using the existing signed-distance field, transfer the second field, map
+  it to colors, and render it through the new renderer entry point.
+- Keep source dataset, isosurface, transferred values, and provenance alive
+  on the CPU side in Explorer.
 
 ## Required tests
 
-- Exact source-point values are copied unchanged.
-- Source-edge values interpolate correctly at t=0, t=0.5, and t=1.
-- Canonical endpoint ordering is respected.
-- Shared isosurface vertices are transferred exactly once and remain aligned
-  with mesh vertex order.
-- Invalid provenance IDs and invalid t values are rejected.
-- Non-finite endpoint policy is tested for NaN and both infinities.
-- Extreme finite endpoint values do not create avoidable overflow.
-- Empty isosurface behavior is deterministic.
-- Source dataset and isosurface remain unchanged.
-- If color mapping is included, constant ranges, explicit/automatic ranges,
-  invalid colors, and per-triangle provenance are covered.
-- Existing M7 scalar mapping and all Explorer modes remain unchanged.
+Core transfer:
+- Source-point values copy exactly for finite, NaN, positive infinity, and
+  negative infinity samples.
+- Edge interpolation covers t=0, t=1, and interior values, including
+  same-sign, opposite-sign, zero, and extreme finite endpoints.
+- Interior non-finite combinations cover NaN, one infinity, same-sign
+  infinities, and opposing infinities.
+- Invalid field type/name, non-point association, and cardinality mismatch
+  return explicit errors.
+- Invalid source IDs, noncanonical edge IDs, invalid t, provenance count
+  mismatch, and invalid source-cell IDs are rejected before indexing.
+- Empty isosurfaces produce valid empty transferred fields.
+- The source dataset and input isosurface remain unchanged.
+
+Color mapping:
+- Automatic range uses finite transferred values only.
+- Constant and explicit ranges retain existing semantics.
+- Invalid values receive the exact supplied invalid color.
+- All-invalid automatic range returns `NoFiniteValues`; explicit range
+  supports all-invalid and empty results.
+- One color is retained per unique isosurface vertex and triangle indices
+  remain unchanged.
+- Mapped output retains the complete isosurface and all provenance.
+
+Renderer/Explorer:
+- Renderer conversion preserves positions, colors, and indices.
+- Reject f64 positions or colors that become non-finite in f32.
+- Verify `--colored-isosurface` selects the new mode and renders the
+  transferred field.
+- Existing `--isosurface`, all prior Explorer modes, camera navigation,
+  picking/hover, resize, minimize, and restore remain unchanged.
 
 ## Explicit non-goals
 
 - Structured-grid or hexahedral isosurface extraction.
-- Cell-associated, dataset-associated, vector, or tensor field transfer.
+- Cell-, dataset-, vector-, or tensor-associated transfer.
 - General dataset-to-dataset interpolation or resampling.
 - Nearest-neighbor transfer or spatial search.
 - Contour lines, volume rendering, GPU-side interpolation, or time-varying
   field transfer.
-- General materials, lighting, or UI legend systems.
+- General materials, lighting, legends, or a general rendering framework.
 
 ## Acceptance criteria
 
-M8.2 is complete when a selected point-associated scalar field can be
-transferred deterministically from the source dataset to every derived
-isosurface vertex using validated source provenance; numerical and invalid
-value behavior is explicit and tested; source data remains unchanged; and
-any colored output preserves derived-geometry provenance without fabricating
-source point identity. Windows workspace tests and the agreed visual
-validation must pass if renderer/Explorer integration is included.
+M8.2 is complete when point-associated scalar values transfer deterministically
+through validated M8.1 provenance, including explicit non-finite and
+numerical behavior; mapped colors preserve the original derived mesh and
+provenance without fabricated source point IDs; the new renderer and
+`--colored-isosurface` path work; and Windows workspace tests plus the
+agreed visual and regression checks pass.
