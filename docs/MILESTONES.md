@@ -618,9 +618,10 @@ glyph renderer path.
   Explorer has no orbit/pan/zoom controls yet)
 
 Visual feedback: the glyph pattern is structured and arrowheads are visible,
-but many glyphs remain small/crowded. The fixed camera prevents a conclusive
-visual depth-occlusion check. This limitation motivates M7.5; it does not
-invalidate the source-anchor or geometry tests.
+but many glyphs remain small/crowded. At M7.4 completion, the fixed camera
+prevented a conclusive visual depth-occlusion check. M7.5 now supplies
+multi-angle camera inspection, and the user reports that the cell-vector mode
+passes the navigation checks.
 
 Unstructured volume-cell glyphs remain deliberately excluded: their arithmetic
 cell centers lie inside opaque volume boundaries and are not usefully visible
@@ -628,21 +629,34 @@ without a separate visibility/representation design.
 
 ## M7.5 — Interactive 3D camera navigation
 
-Design contract: `docs/camera-navigation.md`.
+Design and implementation contract: `docs/camera-navigation.md`.
 
-Status: design proposed; awaiting review before implementation.
+<badge>Complete</badge> Merged to `main` through PR #13 on 2026-11-08.
 
-Objective: add reusable orbit, pan, and zoom navigation to the Explorer so
-users can inspect scientific geometry and depth relationships from multiple
-viewpoints.
+- Merge commit: `32002a3cbce2a3c03755cbda67dc8b759de1892d`.
+- [x] Define reusable, input-independent f64 camera navigation semantics in
+  `svf-core`
+- [x] Implement validated orbit, pan, and zoom with explicit distance,
+  elevation, and sensitivity limits
+- [x] Add validated camera replacement in `svf-render`, synchronizing stored
+  camera state and the GPU uniform
+- [x] Map left drag to orbit, middle drag to pan, and wheel to zoom in Explorer
+- [x] Preserve click inspection and keep picking rays synchronized with the
+  currently rendered camera
+- [x] Cover navigation math, invalid inputs, distance limits, and camera
+  stability with core tests
+- [x] Verify `cargo test --workspace` on Windows (user-reported: passed)
+- [x] Verify `cargo check --workspace` on Windows (passed; one pre-existing
+  `VectorSource3::new` dead-code warning remains)
+- [x] Verify navigation, picking, resize, and minimize/restore in
+  `--cell-vectors` on Windows
+- [x] Verify navigation in default, `--vectors`, `--scalar`,
+  `--unstructured`, and `--unstructured-scalar` modes on Windows
+- [x] Inspect M7.4 cell-associated glyphs from multiple camera angles
 
-- [ ] Define reusable, input-independent camera navigation semantics
-- [ ] Add validated orbit, pan, and zoom operations with explicit limits
-- [ ] Expose camera replacement/update in `svf-render` and synchronize the
-  GPU uniform
-- [ ] Map Explorer pointer and wheel gestures to camera operations
-- [ ] Keep camera picking rays synchronized with the rendered view
-- [ ] Test pole/degeneracy handling, zoom limits, pan stability, and invalid input
-- [ ] Verify all existing modes, depth occlusion, picking, resize, and
-  minimize/restore on Windows
+User-reported validation completed on Windows (2026-11-08). The workspace
+test and check commands passed, and runtime navigation passed in all six
+Explorer modes. Exact test counts were not recorded in the final validation
+report. The only reported check warning is the pre-existing
+`VectorSource3::new` dead-code warning.
 
