@@ -233,7 +233,7 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
     let dataset = parse_legacy_ascii_unstructured_grid(&input).map_err(|error| {
         format!("could not import VTK file '{}': {error}", config.path.display())
     })?;
-    prepare_imported_scene_with_options(
+    prepare_imported_scene_with_vectors(
         dataset,
         config.scalar_field.as_deref(),
         config.isosurface_field.as_deref(),
