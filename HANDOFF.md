@@ -1425,3 +1425,16 @@ E2 implementation, automated validation, and merge are complete. Renderer integr
 - Separates molecular coordinates from an idealized electron-domain arrangement schematic. It does not claim schematic lone-pair positions are measured electron-density maxima.
 - Does not hardcode measured bond angles into the semantic model. Angle values require explicit coordinate/reference provenance.
 - No implementation, renderer/Explorer integration, Prismal/Mava integration, or general VSEPR engine has been started. Next increment should implement and test the bounded semantic model in `svf-core`; representation adapter is a separate decision after semantic review.
+
+### E3.2 — VSEPR electron-domain core implementation (complete; merged 2026-11-09)
+
+- Implementation: [PR #39](https://github.com/Aine-dickson/sciviz/pull/39). Squash merge commit: `849e11236cd85f0454f4f85dcf0d7a599ffa8830`.
+- Added `svf_core::vsepr` with stable `ElectronDomainId`, explicit bonding-pair/lone-pair classifications, and a validated `VseprCentre` tied to an existing `Molecule`.
+- Bonding domains preserve exact source `BondId` and neighbouring `AtomId`; lone-pair domains have no bond or second-atom identity.
+- Validation rejects missing central atoms, duplicate domain IDs, unknown/non-incident bonds, incorrect neighbours, duplicate or omitted incident-bond mappings, unsupported domain patterns, and contradictory shape classifications.
+- Only the approved four-domain patterns are supported: methane (4 bonding, 0 lone pairs → tetrahedral) and water (2 bonding, 2 lone pairs → bent). Double/triple bonds each count as one domain.
+- Caller domain order is preserved. The semantic model does not infer geometry from molecular coordinates or claim measured bond angles.
+- User-reported Windows validation: focused VSEPR tests passed; `cargo test -p svf-core` passed 259 tests; `cargo test --workspace` passed 306 tests (259 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. No failures.
+- No schematic adapter, renderer, Explorer UI, Prismal/Mava integration, or general VSEPR prediction engine was added.
+
+E3.2 implementation, user-reported automated validation, and merge are complete. The next step is not automatically a visualization feature: evaluate the learning case and decide whether the missing schematic electron-domain representation is actually needed for the intended teaching interaction.
