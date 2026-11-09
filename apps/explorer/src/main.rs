@@ -86,7 +86,7 @@ impl ExplorerMode {
                 "Scientific Visualization Framework — colored tetrahedral isosurface".to_owned()
             }
             Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
-            Self::Vsepr => "SVF VSEPR schematic — methane: tetrahedral | water: bent".to_owned(),
+            Self::Vsepr => "SVF VSEPR schematic — left CH4: tetrahedral | right H2O: bent".to_owned(),
         }
     }
 }
@@ -495,8 +495,8 @@ impl ApplicationHandler for Explorer {
                 ExplorerMode::Vsepr => {
                     let demo = vsepr_demo::VseprDemo::build()?;
                     eprintln!("SVF VSEPR schematic sample");
-                    eprintln!("  Methane: 4 bonding-pair domains; tetrahedral molecular shape");
-                    eprintln!("  Water: 2 bonding-pair + 2 lone-pair domains; bent molecular shape");
+                    eprintln!("  Left: methane (CH4), 4 bonding-pair domains, tetrahedral molecular shape");
+                    eprintln!("  Right: water (H2O), 2 bonding-pair + 2 lone-pair domains, bent molecular shape");
                     eprintln!("  Marker legend: octahedral = bonding pair; tetrahedral = lone pair");
                     eprintln!("  Domain markers show electron-domain arrangement only; no molecular bonds or H-O-H angle are depicted.");
                     let renderer = pollster::block_on(
