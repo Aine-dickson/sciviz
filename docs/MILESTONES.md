@@ -984,12 +984,13 @@ Implementation: [PR #39](https://github.com/Aine-dickson/sciviz/pull/39). Squash
 The user reported no failures. The semantic core is complete. A schematic electron-domain adapter, renderer/Explorer integration, and lesson integration remain separate decisions; do not assume these are the next tasks without validating the concrete educational interaction.
 
 
-## E3.3 — SVF-only VSEPR schematic view (design accepted; implementation pending)
+## E3.3 — SVF-only VSEPR schematic view (core implementation complete; Explorer sample pending)
 
 - Design contract: `docs/vsepr-schematic-view.md`, PR #40. Merged commit: `5dc9c28e087bec165f6ed9bd8d9369c22731e2e4`.
 - User explicitly chose to evaluate SVF independently. Mava and Prismal are excluded from this evaluation and must not influence implementation scope.
-- Implement a graphics-independent schematic adapter for the existing four-domain tetrahedral VSEPR model, then a minimal standalone Explorer sample for methane and water.
-- Both molecules have tetrahedral electron-domain arrangements; methane's molecular shape is tetrahedral, while water's is bent. The schematic must not imply tetrahedral H–O–H molecular geometry.
-- Use dimensionless local schematic coordinates, preserve domain IDs and source provenance, and label the molecular-shape classification separately from the arrangement.
-- No generic VSEPR engine, molecule editor, general interaction framework, Mava/Prismal integration, or full lesson player.
-- Acceptance requires local tests and visual confirmation that the scientific distinction is clear. Implementation and local validation remain pending.
+- Core implementation is present on `main` in `crates/svf-core/src/vsepr_view.rs`, exported by `pub mod vsepr_view;`. PR #41 was closed as redundant because the implementation file had independently landed on `main`; module export commit: `368f1bbf1f7f8503fa0cf7de4f47da53ce39d8fb`.
+- API: `VseprSchematicPoint3`, `VseprDomainGlyph3`, and `VseprSchematicView3::from_centre`. Four validated domains map to deterministic normalized dimensionless tetrahedral directions; domain IDs, classification, bonding provenance, order, central atom, and molecular-shape metadata are preserved.
+- User-reported Windows validation: 5 focused schematic tests; 264 core tests; 311 workspace tests (264 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. No failures. Existing dead-code warnings remain for `VectorSource3::new` and `prepare_imported_scene_with_options`.
+- Scientific safeguards: methane and water both have tetrahedral electron-domain arrangements, but methane's molecular shape is tetrahedral and water's is bent. Do not place hydrogen atoms at tetrahedral domain anchors or imply a tetrahedral H–O–H angle. Schematic coordinates are dimensionless local arrangement coordinates, not molecular/world coordinates or ångström measurements. Lone-pair markers are classifications, not electron-density surfaces.
+- **Next bounded task:** a small standalone Explorer sample built directly from SVF's chemistry/VSEPR APIs. Show bonding-pair and lone-pair markers with a legend and molecular shape as separate metadata. Keep the display static if that is sufficient; do not add disproportionate picking/UI infrastructure.
+- No generic VSEPR engine, molecule editor, general interaction framework, lesson player, or Mava/Prismal integration. After local visual validation, evaluate the SVF result before selecting further work.
