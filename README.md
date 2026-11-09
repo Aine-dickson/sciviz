@@ -131,3 +131,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **E3.1/E3.2 — VSEPR electron-domain model:** design merged through PR #38; bounded semantic core implemented and merged through PR #39. Supports only the Senior Five CH₄/H₂O four-domain cases, with strict source provenance and no geometry inference from molecular coordinates. User validation: 259 core tests, 306 workspace tests, and `cargo check --workspace` passed. No schematic adapter, renderer, or general VSEPR engine has been added. See [design contract](docs/vsepr-electron-domain-design.md).
+
+
+- **E3.3 — VSEPR schematic core:** implemented and Windows-validated. Adds a deterministic dimensionless tetrahedral electron-domain schematic preserving domain identity and bonding provenance, with molecular shape kept separate. User validation: 5 focused tests, 264 core tests, 311 workspace tests (264 core, 40 Explorer, 7 renderer), and `cargo check --workspace` passed. A standalone Explorer sample for methane and water is the next bounded evaluation step. See [VSEPR schematic design](docs/vsepr-schematic-view.md) and [Milestones](docs/MILESTONES.md).
