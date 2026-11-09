@@ -109,11 +109,11 @@ reference data.
 Add one point scalar field:
 
 \[
-P(x,y,z)=x+2y+3z.
+P(x,y,z)=x/(1\;\mathrm m)+2y/(1\;\mathrm m)+3z/(1\;\mathrm m).
 \]
 
-Its unit is dimensionless for this synthetic test. It is intentionally
-independent of temperature and is exactly linear in space. It provides
+It is dimensionless because coordinates are normalized by one metre. It is
+intentionally independent of temperature and exactly linear in space. It provides
 a strong check of interpolation and provenance transfer onto extracted
 isosurfaces: linear interpolation within a tetrahedron should reproduce
 this field up to floating-point serialization error.
@@ -228,13 +228,11 @@ Run the same sequence against both resolutions where applicable.
 ### C. Temperature scalar visualization
 
 - Map temperature_t0 on the boundary.
-- Check the six boundary faces are at the zero end of the scalar range.
-  Since the Dirichlet field is zero on the entire boundary, the boundary
-  rendering should be constant rather than show an invented gradient.
-- Treat this as a deliberate constant-field/range challenge, not a request
-  to fabricate interior temperature values on the boundary.
-- Record the resolved range and verify it is finite and constant (within
-  serialization tolerance).
+- Verify the boundary scalar range is exactly the constant interval [0, 0]
+  within serialization tolerance. There is no low/high gradient on the
+  boundary because the Dirichlet field is zero on all six faces.
+- Verify the renderer applies its existing constant-field mapping policy;
+  do not fabricate an interior temperature gradient on the boundary.
 
 ### D. Interior isosurface and independent scalar transfer
 
@@ -356,3 +354,27 @@ Classify failures rather than immediately adding features:
 
 The fixture generator must be deterministic, and the committed VTK files
 must be reproducible from the documented formulas and mesh algorithm.
+
+
+## Fixture implementation status (2026-11-09)
+
+The design was accepted and merged through PR #43 (merge commit
+`0999f67058fe332a067667933cb30419e39910b8`). The deterministic fixture
+generator and independent VTK verifier are now implemented on branch
+`analytical-heat-diffusion-fixtures`, together with coarse and fine fixture
+files and a fixture README.
+
+- Generator: `tools/analytical-heat-diffusion/generate.py`.
+- Independent verifier: `tools/analytical-heat-diffusion/verify.py`.
+- Fixtures: `fixtures/analytical-heat-diffusion/heat-diffusion-coarse.vtk`
+  and `heat-diffusion-fine.vtk`.
+- The probe scalar is explicitly dimensionless, using coordinates normalized
+  by one metre.
+- The imported boundary temperature range is [0, 0], not a nonzero range
+  endpoint. The renderer's existing constant-field policy is the expected
+  behavior.
+- The fine mesh's preliminary maximum continuous isosurface residual is
+  approximately 0.0333587000791 K; the coarse result is approximately
+  0.150410743745 K.
+- Local execution of the generator/verifier and SVF has not yet been reported.
+  Do not treat the challenge as passed until those checks are run.
