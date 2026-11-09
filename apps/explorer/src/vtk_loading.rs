@@ -497,7 +497,7 @@ LOOKUP_TABLE default
     #[test]
     fn rejects_invalid_independent_isosurface_color_fields() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
-        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), Some("missing"));
+        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), None, Some("missing"));
         assert!(missing.unwrap_err().contains("was not found"));
         let cell = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(25.0), Some("density"));
         assert!(cell.unwrap_err().contains("Point association"));
@@ -651,8 +651,6 @@ LOOKUP_TABLE default
         assert!(parsed.scalar_field.is_none());
         let colored = parse_vtk_args(&config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25", "--vtk-isosurface-color", "pressure"])).unwrap().unwrap();
         assert_eq!(colored.isosurface_color_field.as_deref(), Some("pressure"));
-        let colored = parse_vtk_args(&config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25", "--vtk-isosurface-color", "pressure"])).unwrap().unwrap();
-        assert_eq!(colored.isosurface_color_field.as_deref(), Some("pressure"));
     }
 
     #[test]
@@ -703,13 +701,13 @@ LOOKUP_TABLE default
             VectorBasis3::World,
             vec![VectorValue3::from_f64(1.0, 0.0, 0.0); 4],
         ).unwrap()).unwrap();
-        assert!(prepare_imported_scene_with_options(dataset.clone(), None, Some("missing"), Some(25.0))
+        assert!(prepare_imported_scene_with_options(dataset.clone(), None, Some("missing"), Some(25.0), None)
             .unwrap_err().contains("not found"));
-        assert!(prepare_imported_scene_with_options(dataset, None, Some("velocity"), Some(25.0))
+        assert!(prepare_imported_scene_with_options(dataset, None, Some("velocity"), Some(25.0), None)
             .unwrap_err().contains("vector field"));
 
         let cell_dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
-        assert!(prepare_imported_scene_with_options(cell_dataset, None, Some("density"), Some(7.0))
+        assert!(prepare_imported_scene_with_options(cell_dataset, None, Some("density"), Some(7.0), None)
             .unwrap_err().contains("Cell association"));
     }
 
@@ -727,7 +725,7 @@ LOOKUP_TABLE default
             ],
         ).unwrap()).unwrap();
         let scene = prepare_imported_scene_with_options(
-            dataset, None, Some("pressure"), Some(50.0),
+            dataset, None, Some("pressure"), Some(50.0), None,
         ).unwrap();
         assert_eq!(scene.isosurface_field_name.as_deref(), Some("pressure"));
         assert_eq!(scene.isosurface.as_ref().unwrap().isovalue(), 50.0);
@@ -743,7 +741,7 @@ LOOKUP_TABLE default
             vec![SampleValue::Finite(25.0)],
         ).unwrap()).unwrap();
         let error = prepare_imported_scene_with_options(
-            dataset, None, Some("ambient"), Some(25.0),
+            dataset, None, Some("ambient"), Some(25.0), None,
         ).unwrap_err();
         assert!(error.contains("Dataset association"));
     }
@@ -751,7 +749,7 @@ LOOKUP_TABLE default
     #[test]
     fn rejects_isosurface_that_produces_no_triangles() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
-        let error = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(1000.0))
+        let error = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(1000.0), None)
             .unwrap_err();
         assert!(error.contains("produced no triangles"));
     }
