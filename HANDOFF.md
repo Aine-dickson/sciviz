@@ -1525,3 +1525,16 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   mapping behavior rather than expecting a boundary gradient.
 - **Not yet locally executed or validated.** The next step is to pull this
   branch and run the generator/verifier before any SVF runtime evaluation.
+
+
+## Next SVF evaluation — B1 human heart anatomy (design proposal)
+
+- The user approved evaluating human heart anatomy as the next biology use case.
+- Design contract: [B1 — Human heart anatomy and spatial relationships](docs/biology-heart-anatomy-challenge.md), branch `biology-heart-anatomy-design`.
+- This is an SVF-only evaluation. Mava and Prismal are explicitly excluded.
+- Primary source candidate: BodyParts3D 4.0 PART-OF tree. The official catalogue exposes concept/representation IDs, inclusion relationships, compound-organ element mappings, and a 99%-reduced OBJ polygon-mesh archive (listed as 62 MB). Required heart structures are present in the online concept list; exact archive membership, file mapping, units, axes, and mesh quality are not yet verified locally.
+- Secondary reference: HuBMAP CCF / Human Reference Atlas heart reference objects in GLB format; expert-developed and organ-expert-approved. Use as independent reference, not a substitute for the separate structure inventory.
+- BodyParts3D and HuBMAP CCF data are CC BY 4.0; preserve the exact required attribution and source release details for every dataset actually used.
+- The design document includes the required inventory with FMA and BodyParts3D representation IDs, data-contract requirements, anatomical interpretation guardrails, acceptance criteria, reproducible evaluation views, and explicit non-goals.
+- **Current state:** design proposal only. The archive has not been downloaded/audited locally; no fixture, conversion, importer, or SVF production code has been created. Do not claim source geometry availability solely from catalogue entries.
+- Next step after design review: B1.1 source-data audit. Do not start fixture generation or implementation until the archive audit is complete and the final challenge contract is accepted.
