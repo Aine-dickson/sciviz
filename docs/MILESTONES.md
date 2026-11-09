@@ -1045,12 +1045,12 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 
 ## B1.1 — Human heart anatomy source audit (in progress)
 
-- B1 design approved and merged through PR #45.
-- Official BodyParts3D 4.0 PART-OF metadata confirms the required concept IDs and BP representation IDs; pulmonary trunk correction is BP9912, not BP9911.
-- BodyParts3D provides OBJ meshes for atomic ELEMENT concepts; compound concepts map to FJ element IDs. The published mappings show substantial overlap between the four chamber concepts and valve concepts, so the four valves are not independently represented as separate meshes from the chambers in this source.
-- Official coordinate diagram: millimetres; body centreline approximately +Z; anatomical left X>0/right X<0; posterior Y>0/anterior Y<0; superior increases Z.
-- Official release note cautions that the 4.0 model may contain errors if treated as canonical anatomy and describes an adult male reference model.
-- HuBMAP CCF provides male/female whole-heart GLB references but does not establish the full independent chamber/valve inventory.
-- Added `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` to download the official 62 MB archive and metadata, verify required FJ OBJ membership, and report basic geometry integrity and bounds.
-- **Local archive audit pending.** No archive has been downloaded in this environment; no fixture or SVF production code has been created.
-- Next: user runs the audit script on Windows and shares its report. Then finalize source selection and B1 structure scope before fixture preparation.
+- B1 design approved and merged through PR #45; revised primary source selection is under review in PR #46.
+- BodyParts3D 4.0 PART-OF was rejected as primary because its four valve concepts share FJ mesh elements with chamber concepts; it does not provide separate valve surfaces.
+- Preferred primary candidate: Rodero et al. (2021) healthy/asymptomatic four-chamber CT cohort, Zenodo DOI 10.5281/zenodo.4590294.
+- 20 patient-derived tetrahedral meshes, approximately 1 mm average edge length, ASCII VTK UNSTRUCTURED_GRID, coordinates in mm, 24 cell anatomical tags, point UVCs, and supplied ventricular fibre vectors. One case archive is 54.9–103.2 MB; proposed case 01 is 91.1 MB.
+- CC BY 4.0 confirmed by CEMRG and PyAnsys Heart acknowledgements. Valve labels are planes, not leaflets; vessel labels are inlets/borders, not complete tubes.
+- The cohort has four chamber myocardium regions, aorta/pulmonary artery walls, valve planes, and appendage/vessel inlets and borders. It is a static anatomy dataset; no cardiac simulation is in scope.
+- **Local audit pending.** No dataset has been downloaded; no fixture or production implementation has been created.
+- Next: accept revised source choice, then audit one case before fixture preparation or SVF changes.
+
