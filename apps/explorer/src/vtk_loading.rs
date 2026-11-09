@@ -495,6 +495,15 @@ LOOKUP_TABLE default
     }
 
     #[test]
+    fn rejects_invalid_independent_isosurface_color_fields() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), Some("missing"));
+        assert!(missing.unwrap_err().contains("was not found"));
+        let cell = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(25.0), Some("density"));
+        assert!(cell.unwrap_err().contains("Point association"));
+    }
+
+    #[test]
     fn committed_smoke_fixture_loads_and_reports_omitted_line_cell() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
         let scene = prepare_imported_scene_with_options(dataset, None, None, None, None).unwrap();
@@ -640,6 +649,8 @@ LOOKUP_TABLE default
         assert_eq!(parsed.isosurface_field.as_deref(), Some("temperature"));
         assert_eq!(parsed.isovalue, Some(25.5));
         assert!(parsed.scalar_field.is_none());
+        let colored = parse_vtk_args(&config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25", "--vtk-isosurface-color", "pressure"])).unwrap().unwrap();
+        assert_eq!(colored.isosurface_color_field.as_deref(), Some("pressure"));
         let colored = parse_vtk_args(&config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25", "--vtk-isosurface-color", "pressure"])).unwrap().unwrap();
         assert_eq!(colored.isosurface_color_field.as_deref(), Some("pressure"));
     }
