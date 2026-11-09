@@ -134,3 +134,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **E3.3 — VSEPR schematic core:** implemented and Windows-validated. Adds a deterministic dimensionless tetrahedral electron-domain schematic preserving domain identity and bonding provenance, with molecular shape kept separate. User validation: 5 focused tests, 264 core tests, 311 workspace tests (264 core, 40 Explorer, 7 renderer), and `cargo check --workspace` passed. A standalone Explorer sample for methane and water is the next bounded evaluation step. See [VSEPR schematic design](docs/vsepr-schematic-view.md) and [Milestones](docs/MILESTONES.md).
+
+
+- **E3.4 — Standalone VSEPR Explorer sample:** implementation is on branch `e3-vsepr-standalone-explorer-sample`, awaiting local Windows validation. Run `cargo run -p svf-explorer -- --vsepr` to display methane (left) and water (right). Bonding-pair domains use octahedral markers; lone-pair domains use tetrahedral markers. Molecular shape is identified separately. The sample is static and standalone; no molecular bonds or H–O–H angle are depicted. See [handoff](HANDOFF.md) and [milestones](docs/MILESTONES.md).

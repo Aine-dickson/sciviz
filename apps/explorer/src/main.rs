@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 mod vtk_loading;
+mod vsepr_demo;
 
 use vtk_loading::ImportedScene;
 
@@ -55,6 +56,7 @@ enum ExplorerMode {
     Isosurface,
     ColoredIsosurface,
     Imported,
+    Vsepr,
 }
 
 impl ExplorerMode {
@@ -84,6 +86,7 @@ impl ExplorerMode {
                 "Scientific Visualization Framework — colored tetrahedral isosurface".to_owned()
             }
             Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
+            Self::Vsepr => "SVF VSEPR schematic — left CH4: tetrahedral | right H2O: bent".to_owned(),
         }
     }
 }
@@ -489,6 +492,18 @@ impl ApplicationHandler for Explorer {
                     self._mapped_isosurface = Some(mapped);
                     Ok(renderer)
                 }
+                ExplorerMode::Vsepr => {
+                    let demo = vsepr_demo::VseprDemo::build()?;
+                    eprintln!("SVF VSEPR schematic sample");
+                    eprintln!("  Left: methane (CH4), 4 bonding-pair domains, tetrahedral molecular shape");
+                    eprintln!("  Right: water (H2O), 2 bonding-pair + 2 lone-pair domains, bent molecular shape");
+                    eprintln!("  Marker legend: octahedral = bonding pair; tetrahedral = lone pair");
+                    eprintln!("  Domain markers show electron-domain arrangement only; no molecular bonds or H-O-H angle are depicted.");
+                    let renderer = pollster::block_on(
+                        SceneRenderer::new(window.clone(), &demo.mesh),
+                    )?;
+                    Ok(renderer)
+                }
                 ExplorerMode::Imported => {
                     let scene = self.imported_scene.as_ref()
                         .ok_or("imported VTK scene was not prepared before window creation")?;
@@ -688,7 +703,9 @@ fn main() {
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
     let arguments = args.into_iter().collect::<Vec<_>>();
-    if arguments.iter().any(|argument| argument == "--cell-vectors") {
+    if arguments.iter().any(|argument| argument == "--vsepr") {
+        ExplorerMode::Vsepr
+    } else if arguments.iter().any(|argument| argument == "--cell-vectors") {
         ExplorerMode::CellVectors
     } else if arguments.iter().any(|argument| argument == "--vectors") {
         ExplorerMode::Vectors
@@ -969,6 +986,14 @@ fn invalid_color() -> Result<ColorRgba, svf_core::scalar_visualization::ColorMap
 mod tests {
     use super::*;
     use svf_core::boundary_surface::BoundaryFaceVertices3;
+
+    #[test]
+    fn vsepr_mode_is_selected_from_command_line() {
+        assert_eq!(
+            mode_from_args(vec!["svf-explorer".to_owned(), "--vsepr".to_owned()]),
+            ExplorerMode::Vsepr
+        );
+    }
 
     #[test]
     fn tetrahedral_isosurface_demo_builds_connected_provenance_mapped_geometry() {
