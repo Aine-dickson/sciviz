@@ -1469,3 +1469,35 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Visual limitation recorded by the user: the sample does not show hydrogen atoms or molecular bonds, so molecular shapes are conveyed by the title/labels rather than independently apparent from the marker geometry. There are no connecting spokes or bond-angle annotations.
 - Non-blocking compiler warnings: existing `VectorSource3::new` and `prepare_imported_scene_with_options` dead-code warnings, plus unused `methane` and `water` fields in `VseprDemo`.
 - **Evaluation outcome:** the sample demonstrates the four-domain electron arrangement and distinguishes bonding-pair from lone-pair classifications, but it is not by itself a complete visual explanation of molecular shape. Do not add more geometry or expand VSEPR automatically; select the next SVF task only from a concrete scientific learning/use case.
+
+
+## Next evaluation proposal — analytical heat-diffusion challenge (design PR pending review)
+
+- Design document: `docs/analytical-heat-diffusion-challenge.md`.
+- Branch: `analytical-heat-diffusion-challenge-design`.
+- Scope is an SVF-only evaluation of existing capabilities using a manufactured
+  3D heat-diffusion solution on coarse and fine tetrahedral meshes. It is not a
+  heat-equation solver project.
+- Unit-cube domain; exact temperature
+  `T = exp(-3*pi^2*alpha*t) sin(pi*x) sin(pi*y) sin(pi*z)`,
+  with `alpha = 1 m^2/s), `k = 1 W/(m K)`, and snapshots at zero and
+  `ln(2)/(3*pi^2*alpha)` seconds. The later snapshot is exactly half the
+  earlier one.
+- Exact Fourier heat-flux vectors are supplied as independent point fields;
+  SVF is not asked to compute gradients. A separate linear scalar probe
+  `P=x+2y+3z` checks interpolation/transfer provenance.
+- Coarse mesh: 5 points/axis, 125 points, 384 tetrahedra. Fine mesh:
+  9 points/axis, 729 points, 3,072 tetrahedra. Both use a conforming
+  six-tetrahedra-per-cube Freudenthal decomposition.
+- Five point arrays: `temperature_t0`, `temperature_t1`,
+  `probe_linear`, `heat_flux_t0`, `heat_flux_t1`.
+- Evaluation exercises existing VTK import, tetrahedral boundary extraction,
+  constant boundary scalar mapping, interior isosurface extraction, scalar
+  transfer, point-vector glyphs, combined scalar/vector rendering, and
+  source-aware inspection.
+- The design document states exact counts, formulas, invariants, tolerances,
+  CLI workflows, topology and convergence checks, scientific limitations,
+  failure classification, and explicit non-goals.
+- No fixture or implementation has been created yet. Do not claim local
+  validation. Await user review of the challenge contract before generating
+  fixtures.
