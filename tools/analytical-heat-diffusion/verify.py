@@ -150,13 +150,16 @@ def verify_topology(points, cells, n):
     require(len(points) == n**3, "point count mismatch")
     require(len(cells) == 6 * (n - 1) ** 3, "tetrahedron count mismatch")
     faces = Counter()
+    total_volume = 0.0
     for cell_id, tet in enumerate(cells):
         require(len(set(tet)) == 4, f"tetrahedron {cell_id} repeats a point")
         require(all(0 <= index < len(points) for index in tet), f"tetrahedron {cell_id} index out of range")
         volume6 = determinant(*(points[index] for index in tet))
         require(volume6 > 0.0, f"tetrahedron {cell_id} has non-positive signed volume")
+        total_volume += volume6 / 6.0
         for face in itertools.combinations(tet, 3):
             faces[tuple(sorted(face))] += 1
+    require(abs(total_volume - 1.0) <= VALUE_TOL, "tetrahedral volumes do not sum to the unit-cube volume")
     require(all(count in (1, 2) for count in faces.values()), "non-manifold face incidence")
     boundary = [face for face, count in faces.items() if count == 1]
     expected_per_side = 2 * (n - 1) ** 2
