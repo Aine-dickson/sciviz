@@ -1169,7 +1169,7 @@ acceptance, and merge are complete.
 
 ## Current project state and next planning step
 
-M0–M9.3 are implemented and merged to `main`. The next milestone has not
+M0–M10.1 are implemented and merged to `main`. The next milestone has not
 yet been selected. Before implementation, review the current architecture,
 remaining design constraints, and desired scientific workflows; then define
 one focused increment with an explicit design contract and testable acceptance
@@ -1289,3 +1289,47 @@ User-reported Windows validation (2026-11-09):
 M9.3 implementation, Windows automated validation, visual acceptance, and
 merge are complete. No next milestone is selected; define its scope and
 design contract before implementation.
+
+## M10.1 — Scientific inspection of imported surfaces (complete; merged 2026-11-09)
+
+Design contract: `docs/surface-inspection.md` (PR #28).
+
+- Implementation PR #29: https://github.com/Aine-dickson/sciviz/pull/29
+- Merge commit: `5baadb4d80da0ec1ad1810f8e1ca77015c610f5f`.
+
+Implemented:
+- Add graphics-independent `svf-core::surface_inspection` ray-hit APIs for
+  imported boundary surfaces and tetrahedral isosurfaces.
+- Resolve boundary hits to source cell, source face, local face, and source
+  triangle identity; resolve isosurface hits to their original source cell.
+- Evaluate point-associated scalar values barycentrically, cell-associated
+  values from the exact source cell, and dataset-associated values directly.
+- Evaluate isosurface fields through source-point/source-edge provenance before
+  barycentric interpolation; retain field names, associations, units, and
+  explicit non-finite classifications.
+- Explorer hover updates the window title with representation, source cell,
+  and world position. Click diagnostics report entity identity, triangle,
+  ray distance, world position, barycentric weights, and scalar values.
+- Preserve existing parametric inspection, camera gestures, and
+  click-versus-drag behavior.
+
+User-reported Windows validation (2026-11-09):
+- `cargo test -p svf-core surface_inspection`: 4 passed.
+- `cargo test -p svf-explorer`: 35 passed.
+- `cargo test --workspace`: 262 passed (220 core, 35 Explorer,
+  7 renderer); doc-tests passed.
+- `cargo check --workspace`: passed.
+- Boundary-surface runtime inspection resolved source cell 0 and its boundary
+  faces; point-associated `temperature` and `pressure` values were
+  barycentrically evaluated, and cell-associated `density` resolved to 7.0.
+- Colored-isosurface runtime inspection resolved both triangles to source
+  cell 0; `temperature` evaluated to approximately 25 at the isosurface,
+  `pressure` was interpolated, and `density` remained 7.0.
+- Camera orbit, pan, zoom, and click-versus-drag interactions remained correct.
+- The only compiler warning was the pre-existing
+  `VectorSource3::new` dead-code warning.
+
+M10.1 implementation, automated Windows validation, runtime inspection,
+interaction checks, and merge are complete. No next milestone is selected;
+agree on the next scientific workflow and write its design contract before
+implementation.
