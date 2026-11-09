@@ -1438,3 +1438,14 @@ E2 implementation, automated validation, and merge are complete. Renderer integr
 - No schematic adapter, renderer, Explorer UI, Prismal/Mava integration, or general VSEPR prediction engine was added.
 
 E3.2 implementation, user-reported automated validation, and merge are complete. The next step is not automatically a visualization feature: evaluate the learning case and decide whether the missing schematic electron-domain representation is actually needed for the intended teaching interaction.
+
+
+## Current SVF-only chemistry evaluation — VSEPR schematic
+
+- The user explicitly limited evaluation to SVF independently. Mava and Prismal are not part of this evaluation; no integration assumptions or requirements should be introduced.
+- PR #40 (`docs/vsepr-schematic-view.md`) was accepted and merged. Merge commit: `5dc9c28e087bec165f6ed9bd8d9369c22731e2e4`.
+- The next bounded increment is the graphics-independent VSEPR schematic adapter plus a small standalone Explorer sample for methane and water.
+- Preserve the distinction between tetrahedral electron-domain arrangement and molecular shape: methane is tetrahedral; water is bent. Do not place hydrogen atoms at tetrahedral domain anchors or imply that the H–O–H angle is 109.5°.
+- Schematic coordinates are dimensionless local arrangement coordinates, not molecular coordinates, world coordinates, or ångström measurements. Lone-pair markers are schematic classifications, not electron-density surfaces.
+- First implement/test the adapter in `svf-core`; then add only the minimum Explorer sample needed for visual evaluation. No generic VSEPR engine, interaction framework, or lesson player.
+- After the sample is locally validated, assess what SVF itself demonstrates and what remains missing. Do not scope Mava/Prismal integration.
