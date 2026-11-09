@@ -1333,3 +1333,46 @@ M10.1 implementation, automated Windows validation, runtime inspection,
 interaction checks, and merge are complete. No next milestone is selected;
 agree on the next scientific workflow and write its design contract before
 implementation.
+
+
+## M10.2 — Imported VTK point-vector visualization (complete; merged 2026-11-09)
+
+Design contract: `docs/vtk-point-vector-visualization.md` (PR #30).
+
+- Implementation PR #31: https://github.com/Aine-dickson/sciviz/pull/31
+- Merge commit: `1fe8fa051dbeb1f61d374a56b9be8c1570938d66`.
+
+Implemented:
+- Add `--vtk-vectors <field-name>` for point-associated, world-basis VTK
+  Vector3 fields on imported volume-boundary scenes.
+- Reuse the existing core vector-source resolution, analysis, uniform-length
+  glyph construction, and renderer paths; no new vector algorithm or renderer
+  pipeline was introduced.
+- Preserve original source point anchors, vector order, values, and the source
+  Dataset. Zero/non-finite entries remain represented in the glyph set even
+  when they do not produce displayable arrows.
+- Derive uniform display length as 5% of the imported boundary bounding-box
+  diagonal, with a positive floor. This communicates direction without
+  implying that arrow length represents physical magnitude.
+- Support simultaneous `--vtk-scalar` surface coloring and vector glyphs;
+  reject unsupported associations and incompatible isosurface options.
+- Extend the VTK fixture and Explorer tests for CLI, source identity,
+  zero-vector behavior, scalar-plus-vector preparation, and invalid fields.
+
+User-reported Windows validation (2026-11-09):
+- `cargo test -p svf-explorer`: passed.
+- `cargo test --workspace`: passed; exact test count was not included in the
+  report.
+- `cargo check --workspace`: passed.
+- User confirmed the vector visualization rendered. The implementation was
+  merged only after that local validation and visual confirmation.
+
+M10.2 implementation, user-reported automated validation, runtime rendering,
+and merge are complete. The M10.2 implementation is the end of the currently
+selected general-purpose sequence. **Do not automatically select another
+framework-wide milestone.** Future work must begin with the user's own
+scientific, engineering, educational, or research use case: the concrete
+problem, dataset/model, desired analysis, and required output. Build reusable
+capabilities where they serve that use case, not to pursue feature parity or
+hypothetical general-user demand. Preserve the framework's scientific
+correctness and architecture constraints.
