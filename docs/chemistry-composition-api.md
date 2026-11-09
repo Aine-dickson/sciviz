@@ -1,44 +1,38 @@
-# Chemistry composition: initial core API proposal
+# Chemistry composition: initial core API
 
-Status: proposed API/design contract for review. No implementation is authorized by this document alone.
+Status: design decisions resolved; ready for implementation planning. This document authorizes the bounded core-model implementation described below, not a renderer integration or generic component framework.
 
 Related study: [Experimental chemistry composition](experimental-chemistry-composition.md).
 
 ## Goal
 
-Define the smallest graphics-independent svf-core model that can represent reusable chemical element definitions, distinct atom instances, bond relationships, and molecule assemblies. Validate the model with water (H2O) and methane (CH4).
+Define the smallest graphics-independent `svf-core` model that can represent reusable chemical element definitions, distinct atom instances, bond relationships, and molecule assemblies. Validate the model with water (H2O) and methane (CH4).
 
-The API should preserve scientific identity and connectivity independently of generated geometry. This is a structural representation experiment, not a chemistry simulator.
+The API preserves scientific identity and connectivity independently of generated geometry. This is a structural representation experiment, not a chemistry simulator.
 
-## Proposed module
+## Module and scope
 
-svf_core::chemistry
+Use the domain-specific module `svf_core::chemistry`. Do not introduce a generic component/assembly framework in this increment.
 
-The module is domain-specific by design. Do not introduce a generic component/assembly framework in this increment.
+Implementation is limited to `svf-core`. Existing dataset, geometry, renderer, and Explorer behavior must remain unchanged.
 
-## Proposed model
+## Resolved API decisions
 
-### Element
+### Element: immutable value type with domain-defined constants
 
-A reusable, immutable domain definition. For the initial experiment, provide definitions for Hydrogen, Carbon, and Oxygen.
+Use an immutable `Element` struct with private fields for atomic number, symbol, and name. Expose predefined Hydrogen, Carbon, and Oxygen values as associated constants (for example, `Element::HYDROGEN`). Provide read-only accessors.
 
-Candidate public type:
+This is preferred over an enum: the type remains open to additional element definitions without changing its fundamental representation, while controlled construction prevents invalid definitions. Do not add a complete periodic table or speculative properties such as valence, electronegativity, or atomic radius.
 
-\`\`\`rust
-pub struct Element {
-    atomic_number: u8,
-    symbol: &'static str,
-    name: &'static str,
-}
-\`\`\`
+### Atom identity and instances
 
-The initial API may expose constants or a small enum-backed lookup. It should not require users to manually construct invalid element definitions. Do not add a complete periodic table or speculative properties such as valence, electronegativity, or atomic radius until a concrete use case requires them.
+Each atom occurrence has an `AtomId` distinct from its element definition. Multiple atoms may share the same `Element` value.
 
-### AtomId and Atom
+Use small ID newtypes and explicit IDs supplied when constructing atoms and bonds. The validated molecule constructor checks uniqueness. Caller-supplied IDs keep identity stable and make provenance predictable across adapters and serialized representations; do not add an ID-generating builder in this first API.
 
-Each atom occurrence has an identity distinct from its element definition.
+Conceptual shape:
 
-\`\`\`rust
+```rust
 pub struct AtomId(u32);
 
 pub struct Atom {
@@ -46,23 +40,21 @@ pub struct Atom {
     element: Element,
     position: MolecularPoint3,
 }
-\`\`\`
+```
 
-The same Element definition may be used by many atoms. Atom IDs are unique within a molecule and stable for the lifetime of that immutable molecule value. IDs should be assigned deterministically by the molecule builder or explicitly supplied if the API has a strong reason to support caller-provided IDs.
+Keep fields private and expose read-only accessors.
 
-### MolecularPoint3
+### MolecularPoint3: dedicated ångström type
 
-Molecular coordinates need an explicit unit convention. Do not silently reuse generic world coordinates as though their units were physical molecular units.
+Define a dedicated `MolecularPoint3` with f64 coordinates in ångströms (Å), with a fallible constructor that rejects non-finite values. This makes units explicit at the API boundary and avoids confusing molecular coordinates with generic scene/world coordinates.
 
-Proposed initial convention: coordinates are expressed in ångströms (Å). A small domain-specific point type or clearly named coordinate wrapper should make that convention discoverable and prevent confusion with renderer world-space units. It should preserve f64 values and reject non-finite coordinates.
-
-The exact conversion from molecular coordinates to visualization/world coordinates belongs in a later representation adapter, not in the chemistry model.
+Conversion to visualization/world coordinates belongs in a later representation adapter, not in the chemistry model.
 
 ### BondOrder and Bond
 
 A bond is a semantic relationship between two atom instances, not a line or cylinder.
 
-\`\`\`rust
+```rust
 pub enum BondOrder {
     Single,
     Double,
@@ -75,41 +67,17 @@ pub struct Bond {
     atom_b: AtomId,
     order: BondOrder,
 }
-\`\`\`
+```
 
-BondId is unique within the molecule. Endpoints must refer to existing atoms. A bond must not connect an atom to itself. The initial contract should reject duplicate undirected atom pairs rather than silently creating parallel duplicate bonds. Aromatic, coordinate, partial, and other bond models are deferred.
+Use a `BondId` newtype and explicit IDs. Keep fields private with read-only accessors. Aromatic, coordinate, partial, and other bond models are deferred.
 
-### Molecule
+### Molecule: validated constructor, no builder initially
 
-A molecule owns its atom instances and bond relationships.
+A molecule owns its atom instances and bond relationships. Construct it through a validated `Molecule::new(atoms, bonds) -> Result<Molecule, ChemistryError>`.
 
-\`\`\`rust
-pub struct Molecule {
-    atoms: Vec<Atom>,
-    bonds: Vec<Bond>,
-}
-\`\`\`
+The constructor validates the complete assembly atomically and returns no partial molecule on failure. It checks unique atom and bond IDs, endpoint existence, no self-bonds, and no duplicate undirected atom pairs. Preserve input atom and bond order deterministically.
 
-Construction should go through a validating constructor or builder. The resulting molecule should expose read-only accessors and deterministic iteration. Atom and bond IDs must resolve to their corresponding entries. The model should not infer chemical validity from connectivity alone: valence, charge, stereochemistry, and chemical stability are outside the initial validation contract.
-
-## Construction API
-
-Prefer a small builder if it materially improves safe reference creation and error reporting. For example:
-
-\`\`\`rust
-let mut builder = MoleculeBuilder::new();
-
-let oxygen = builder.add_atom(Element::OXYGEN, point(0.0, 0.0, 0.0))?;
-let hydrogen_a = builder.add_atom(Element::HYDROGEN, point(...))?;
-let hydrogen_b = builder.add_atom(Element::HYDROGEN, point(...))?;
-
-builder.add_bond(oxygen, hydrogen_a, BondOrder::Single)?;
-builder.add_bond(oxygen, hydrogen_b, BondOrder::Single)?;
-
-let water = builder.build()?;
-\`\`\`
-
-This is illustrative rather than a fixed signature. The implementation should avoid redundant validation at every layer and return structured errors. If a builder introduces unnecessary complexity, a direct validated Molecule::new(atoms, bonds) is preferable.
+A builder is deliberately deferred: explicit IDs plus a single validated constructor provide a smaller API and avoid introducing mutable intermediate state before examples demonstrate a need for it.
 
 ## Required invariants
 
@@ -119,24 +87,24 @@ This is illustrative rather than a fixed signature. The implementation should av
 4. Atom positions are finite f64 coordinates in ångströms.
 5. Every bond endpoint resolves to an atom in the same molecule.
 6. A bond cannot connect an atom to itself.
-7. Duplicate undirected atom pairs are rejected in this initial model.
+7. Duplicate undirected atom pairs are rejected; reversing endpoint order cannot bypass this check.
 8. Atom and bond order is deterministic and preserved.
-9. The model does not contain renderer/GPU types or depend on svf-render.
-10. Geometry generation is derived from the molecule and cannot replace or mutate its scientific identity.
+9. The model has no renderer/GPU types and does not depend on `svf-render`.
+10. Geometry is derived from the molecule and cannot replace or mutate its scientific identity.
 
-Do not validate valence or assert that a molecule is chemically stable in this increment. The selected examples are intentionally simple, but general chemical validity requires richer concepts than bond order alone.
+Do not validate valence or assert chemical stability in this increment. Bond order and connectivity alone are insufficient for general chemical validity.
 
 ## Initial tests
 
 ### Element definitions
 - Hydrogen, Carbon, and Oxygen expose correct atomic numbers, symbols, and names.
-- Definitions are reusable and immutable.
+- Definitions are immutable and reusable across atom instances and molecules.
 
 ### Atom instances
-- Multiple hydrogen atom instances can reference the same element definition.
+- Multiple hydrogen instances can reference the same element definition.
 - Those instances have distinct IDs and independent positions.
 - Atom order is preserved.
-- Non-finite coordinates are rejected.
+- Non-finite molecular coordinates are rejected.
 
 ### Bond relationships
 - Single, double, and triple bond orders are preserved.
@@ -148,23 +116,23 @@ Do not validate valence or assert that a molecule is chemically stable in this i
 - Water contains one oxygen, two distinct hydrogens, and two single bonds.
 - Methane contains one carbon, four distinct hydrogens, and four single bonds.
 - The same element definitions are reused across both molecules.
-- Connectivity queries or accessors can identify bonds incident to a given atom without losing source IDs.
+- Accessors can identify bonds incident to an atom without losing source IDs.
 - Invalid construction returns structured errors and no partial molecule.
 
 ### Domain/presentation separation
 - The chemistry module compiles and tests without renderer dependencies.
-- A test or small adapter-level example can derive simple ball-and-stick primitives from a molecule while the original molecule remains unchanged.
+- A small adapter-level test or example may derive simple ball-and-stick primitives while leaving the original molecule unchanged, if this can be done without expanding the core-model scope.
 - No mesh, material, colour, GPU buffer, or camera data is stored as authoritative chemistry state.
 
 ## Representation boundary
 
-Do not implement the renderer integration in the first core-model change unless it is required to prove the boundary. The intended later flow is:
+The intended later flow is:
 
-Molecule -> molecular representation adapter -> prepared geometry with source AtomId/BondId provenance -> renderer
+`Molecule -> molecular representation adapter -> prepared geometry with source AtomId/BondId provenance -> renderer`
 
 The adapter should eventually support more than one representation without changing the molecule. Ball-and-stick is the first candidate. Space-filling and other representations are deferred.
 
-Selection/inspection should ultimately resolve rendered parts back to atom or bond identity, but full Explorer UI integration is not required to validate this initial data model.
+Selection and inspection should ultimately resolve rendered parts back to atom or bond identity, but Explorer UI integration is not required to validate this initial data model.
 
 ## Explicit non-goals
 
@@ -178,14 +146,6 @@ Selection/inspection should ultimately resolve rendered parts back to atom or bo
 - Materials, lighting, rendering, or Explorer UI in the core model.
 - Automatic molecule generation or chemical structure inference.
 
-## Review questions
-
-1. Is a small immutable Element definition appropriate, or should the initial API use an Element enum?
-2. Should molecular coordinates use a dedicated ångström point type, or a unit-explicit wrapper around the existing spatial type?
-3. Is a builder useful for generating stable atom/bond IDs and safe bond references, or is a validated constructor simpler?
-4. Are duplicate undirected bonds and self-bonds the right initial rejection rules?
-5. Are water and methane sufficient to validate this first model before adding a second molecular representation?
-
 ## Acceptance criteria
 
-The API design is ready for implementation when the identity model, coordinate unit convention, construction approach, validation rules, and test scope are agreed. Implementation should remain limited to svf-core and should not alter existing dataset, geometry, renderer, or Explorer behavior.
+The implementation adds the domain model and focused tests in `svf-core`, demonstrates water and methane composition, validates all invariants above, and introduces no renderer or Explorer changes. It must not claim general chemical validity beyond the explicitly implemented structural rules.
