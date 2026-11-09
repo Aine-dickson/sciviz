@@ -1443,9 +1443,11 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 ## Current SVF-only chemistry evaluation — VSEPR schematic
 
 - The user explicitly limited evaluation to SVF independently. Mava and Prismal are not part of this evaluation; no integration assumptions or requirements should be introduced.
-- PR #40 (`docs/vsepr-schematic-view.md`) was accepted and merged. Merge commit: `5dc9c28e087bec165f6ed9bd8d9369c22731e2e4`.
-- The next bounded increment is the graphics-independent VSEPR schematic adapter plus a small standalone Explorer sample for methane and water.
-- Preserve the distinction between tetrahedral electron-domain arrangement and molecular shape: methane is tetrahedral; water is bent. Do not place hydrogen atoms at tetrahedral domain anchors or imply that the H–O–H angle is 109.5°.
-- Schematic coordinates are dimensionless local arrangement coordinates, not molecular coordinates, world coordinates, or ångström measurements. Lone-pair markers are schematic classifications, not electron-density surfaces.
-- First implement/test the adapter in `svf-core`; then add only the minimum Explorer sample needed for visual evaluation. No generic VSEPR engine, interaction framework, or lesson player.
-- After the sample is locally validated, assess what SVF itself demonstrates and what remains missing. Do not scope Mava/Prismal integration.
+- Design contract PR #40 (`docs/vsepr-schematic-view.md`) was accepted and merged; merge commit: `5dc9c28e087bec165f6ed9bd8d9369c22731e2e4`.
+- The graphics-independent schematic adapter is implemented in `svf-core` as `vsepr_view`. It exposes `VseprSchematicPoint3`, `VseprDomainGlyph3`, and `VseprSchematicView3::from_centre`.
+- It maps four validated tetrahedral electron domains to deterministic normalized dimensionless directions, preserving central atom, domain identity/classification, source bond/neighbour provenance, input order, and molecular-shape metadata.
+- Scientific safeguards: schematic anchors are not molecular/world coordinates or ångström measurements; lone-pair markers are classifications, not electron-density surfaces; the schematic does not position neighbouring atoms or depict molecular bond angles.
+- Implementation source is on `main`: `crates/svf-core/src/vsepr_view.rs`, exported from `svf-core/src/lib.rs`. PR #41 was closed as redundant because its implementation file had independently landed on `main`; the missing module export was added directly in commit `368f1bbf1f7f8503fa0cf7de4f47da53ce39d8fb`.
+- User-reported Windows validation: focused `vsepr_view` tests 5 passed; `cargo test -p svf-core` 264 passed; `cargo test --workspace` 311 passed (264 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. Existing dead-code warnings remain for `VectorSource3::new` and `prepare_imported_scene_with_options`; no failures.
+- **Next bounded task:** add a minimal standalone Explorer sample for methane and water, constructed directly from SVF's chemistry/VSEPR APIs. Show bonding-pair and lone-pair markers with a legend, and state molecular shape separately (methane tetrahedral; water bent). Do not place hydrogen atoms at schematic domain anchors or imply a tetrahedral H–O–H angle. Reuse the existing Explorer rendering path; avoid disproportionate UI/picking infrastructure.
+- After the sample is locally validated, evaluate what SVF itself demonstrates and what remains missing. Do not scope Mava/Prismal integration or automatically expand VSEPR beyond the four-domain cases.
