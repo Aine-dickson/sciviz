@@ -128,3 +128,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **E3 — Upper-secondary chemistry VSEPR learning case:** design merged through PR #37. Grounded in Uganda's NCDC Senior Five Sub-topic 3.2; uses methane and water to teach the difference between electron-domain arrangement and molecular shape. Identifies missing lone-pair/electron-domain semantics in the current E1/E2 model. No implementation or renderer work has been started. See [learning case](docs/upper-secondary-chemistry-vsepr-learning-case.md).
+
+
+- **E3.1 — VSEPR electron-domain model design:** design merged through PR #38. Defines the bounded Senior Five CH₄/H₂O domain model, separates molecular geometry from idealized electron-domain arrangement, and preserves provenance for bonding and lone-pair domains. Implementation is the next proposed step; no renderer or general VSEPR engine. See [design contract](docs/vsepr-electron-domain-design.md).
