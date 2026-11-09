@@ -10,6 +10,8 @@ use svf_core::{
     dataset::{Dataset, DatasetField, DatasetGeometry},
     fields::FieldAssociation,
     geometry::TriangleMesh3,
+    isosurface::{extract_tetrahedral_isosurface, Isosurface3},
+    isosurface_field_transfer::{map_transferred_scalar_field, transfer_point_scalar_field, MappedIsosurface3},
     scalar_visualization::{
         map_scalar_field, ColorMap, ColorRgba, MappedSurface3, ScalarRangeMode,
         SurfaceProvenance3,
@@ -22,10 +24,13 @@ use svf_core::{
 const FIT_VERTICAL_FOV: f64 = 45.0_f64.to_radians();
 const INVALID_COLOR: [f64; 4] = [0.35, 0.05, 0.22, 1.0];
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct VtkLoadConfig {
     pub path: PathBuf,
     pub scalar_field: Option<String>,
+    pub isosurface_field: Option<String>,
+    pub isovalue: Option<f64>,
+    pub isosurface_color_field: Option<String>,
 }
 
 #[derive(Debug)]
@@ -38,19 +43,37 @@ pub struct ImportedScene {
     pub mapped_surface: Option<MappedSurface3>,
     pub omitted_lower_dimension_cells: usize,
     pub scalar_field_name: Option<String>,
+    pub isosurface: Option<Isosurface3>,
+    pub isosurface_field_name: Option<String>,
+    pub isosurface_color_field_name: Option<String>,
+    pub mapped_isosurface: Option<MappedIsosurface3>,
 }
 
 impl ImportedScene {
     pub fn summary(&self) -> String {
-        let scalar = self.scalar_field_name.as_deref()
-            .map(|name| format!(", scalar field '{name}'"))
-            .unwrap_or_default();
+        let representation = if let Some(isosurface) = self.isosurface.as_ref() {
+            let color = self.isosurface_color_field_name.as_deref()
+                .map(|name| format!(", colored by '{name}' (Viridis) with edge overlay"))
+                .unwrap_or_else(|| ", uncolored".to_owned());
+            format!(
+                "extracted {} isosurface triangles from '{}' at {}{} ({} unsupported cells, {} skipped cells)",
+                isosurface.mesh().triangle_count(),
+                self.isosurface_field_name.as_deref().unwrap_or("<unknown>"),
+                isosurface.isovalue(), color,
+                isosurface.metadata().unsupported_cells().len(),
+                isosurface.metadata().skipped_cells().len(),
+            )
+        } else {
+            let scalar = self.scalar_field_name.as_deref()
+                .map(|name| format!(", scalar field '{name}'"))
+                .unwrap_or_default();
+            format!("rendered {} boundary triangles{}", self.surface.triangle_count(), scalar)
+        };
         format!(
-            "Loaded {} points and {} cells; rendered {} boundary triangles{}; omitted {} lower-dimensional cells.",
+            "Loaded {} points and {} cells; {}; omitted {} lower-dimensional cells.",
             self.dataset.point_count(),
             self.dataset.cell_count(),
-            self.surface.triangle_count(),
-            scalar,
+            representation,
             self.omitted_lower_dimension_cells,
         )
     }
@@ -61,9 +84,12 @@ impl ImportedScene {
 pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> {
     let has_vtk = args.iter().any(|arg| arg == "--vtk");
     let has_scalar = args.iter().any(|arg| arg == "--vtk-scalar");
+    let has_isosurface = args.iter().any(|arg| arg == "--vtk-isosurface");
+    let has_isovalue = args.iter().any(|arg| arg == "--vtk-isovalue");
+    let has_isosurface_color = args.iter().any(|arg| arg == "--vtk-isosurface-color");
     if !has_vtk {
-        return if has_scalar {
-            Err("--vtk-scalar requires --vtk <path>".to_owned())
+        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color {
+            Err("VTK field and isosurface options require --vtk <path>".to_owned())
         } else {
             Ok(None)
         };
@@ -85,6 +111,9 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
 
     let mut path = None;
     let mut scalar_field = None;
+    let mut isosurface_field = None;
+    let mut isovalue = None;
+    let mut isosurface_color_field = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -108,6 +137,38 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 scalar_field = Some(value.clone());
                 index += 2;
             }
+            "--vtk-isosurface" => {
+                if isosurface_field.is_some() {
+                    return Err("--vtk-isosurface may only be supplied once".to_owned());
+                }
+                let value = args.get(index + 1)
+                    .filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-isosurface requires a field name".to_owned())?;
+                isosurface_field = Some(value.clone());
+                index += 2;
+            }
+            "--vtk-isosurface-color" => {
+                if isosurface_color_field.is_some() { return Err("--vtk-isosurface-color may only be supplied once".to_owned()); }
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-isosurface-color requires a point scalar field name".to_owned())?;
+                isosurface_color_field = Some(value.clone());
+                index += 2;
+            }
+            "--vtk-isovalue" => {
+                if isovalue.is_some() {
+                    return Err("--vtk-isovalue may only be supplied once".to_owned());
+                }
+                let value = args.get(index + 1)
+                    .filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-isovalue requires a finite f64 value".to_owned())?;
+                let parsed = value.parse::<f64>()
+                    .map_err(|_| format!("invalid --vtk-isovalue '{value}': expected a finite f64"))?;
+                if !parsed.is_finite() {
+                    return Err("--vtk-isovalue must be finite".to_owned());
+                }
+                isovalue = Some(parsed);
+                index += 2;
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in VTK mode"));
             }
@@ -117,9 +178,23 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         }
     }
 
+    if scalar_field.is_some() && (isosurface_field.is_some() || isovalue.is_some()) {
+        return Err("--vtk-scalar cannot be combined with --vtk-isosurface/--vtk-isovalue".to_owned());
+    }
+    if isosurface_field.is_some() != isovalue.is_some() {
+        return Err("--vtk-isosurface and --vtk-isovalue must be supplied together".to_owned());
+    }
+
+    if isosurface_color_field.is_some() && isosurface_field.is_none() {
+        return Err("--vtk-isosurface-color requires --vtk-isosurface and --vtk-isovalue".to_owned());
+    }
+
     Ok(Some(VtkLoadConfig {
         path: path.ok_or_else(|| "--vtk requires a file path".to_owned())?,
         scalar_field,
+        isosurface_field,
+        isovalue,
+        isosurface_color_field,
     }))
 }
 
@@ -130,15 +205,33 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
     let dataset = parse_legacy_ascii_unstructured_grid(&input).map_err(|error| {
         format!("could not import VTK file '{}': {error}", config.path.display())
     })?;
-    prepare_imported_scene(dataset, config.scalar_field.as_deref()).map_err(|error| {
+    prepare_imported_scene_with_options(
+        dataset,
+        config.scalar_field.as_deref(),
+        config.isosurface_field.as_deref(),
+        config.isovalue,
+        config.isosurface_color_field.as_deref(),
+    ).map_err(|error| {
         format!("could not prepare VTK file '{}': {error}", config.path.display())
     })
 }
 
-pub fn prepare_imported_scene(
+pub fn prepare_imported_scene_with_options(
     dataset: Dataset,
     scalar_field_name: Option<&str>,
+    isosurface_field_name: Option<&str>,
+    isovalue: Option<f64>,
+    isosurface_color_field_name: Option<&str>,
 ) -> Result<ImportedScene, String> {
+    if isosurface_field_name.is_some() != isovalue.is_some() {
+        return Err("isosurface field and isovalue must be supplied together".to_owned());
+    }
+    if isosurface_color_field_name.is_some() && isosurface_field_name.is_none() {
+        return Err("isosurface color field requires isosurface extraction".to_owned());
+    }
+    if scalar_field_name.is_some() && isosurface_field_name.is_some() {
+        return Err("scalar mapping and isosurface extraction are mutually exclusive".to_owned());
+    }
     let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else {
         return Err("VTK importer returned a non-unstructured dataset".to_owned());
     };
@@ -166,9 +259,39 @@ pub fn prepare_imported_scene(
         .collect();
     let mesh = TriangleMesh3::new(surface.points().to_vec(), indices)
         .map_err(|error| format!("could not construct render mesh: {error}"))?;
-    validate_render_mesh(&mesh)?;
 
-    let camera = fit_camera(&mesh, 1280.0 / 800.0)?;
+    let isosurface = if let Some(name) = isosurface_field_name {
+        let field = match dataset.field(name) {
+            None => return Err(format!("field '{name}' was not found in the imported dataset")),
+            Some(DatasetField::Vector3(_)) => {
+                return Err(format!("field '{name}' is a vector field; isosurface extraction requires a point-associated scalar field"));
+            }
+            Some(DatasetField::Scalar(field)) => field,
+        };
+        if field.association() != FieldAssociation::Point {
+            return Err(format!(
+                "scalar field '{name}' has {:?} association; isosurface extraction requires Point association",
+                field.association()
+            ));
+        }
+        let value = isovalue.ok_or_else(|| "isosurface isovalue is required".to_owned())?;
+        let extracted = extract_tetrahedral_isosurface(&dataset, name, value)
+            .map_err(|error| format!("could not extract isosurface for field '{name}': {error}"))?;
+        if extracted.mesh().triangle_count() == 0 {
+            return Err(format!(
+                "isosurface extraction for field '{name}' at {value} produced no triangles ({} unsupported cells, {} skipped cells)",
+                extracted.metadata().unsupported_cells().len(),
+                extracted.metadata().skipped_cells().len(),
+            ));
+        }
+        Some(extracted)
+    } else {
+        None
+    };
+
+    let render_mesh = isosurface.as_ref().map_or(&mesh, Isosurface3::mesh);
+    validate_render_mesh(render_mesh)?;
+    let camera = fit_camera(render_mesh, 1280.0 / 800.0)?;
 
     let (provenance, mapped_surface) = if let Some(name) = scalar_field_name {
         let field = match dataset.field(name) {
@@ -201,15 +324,37 @@ pub fn prepare_imported_scene(
         (None, None)
     };
 
+    let mapped_isosurface = if let Some(color_name) = isosurface_color_field_name {
+        let extracted = isosurface.as_ref().ok_or_else(|| "--vtk-isosurface-color requires an extracted isosurface".to_owned())?;
+        let field = match dataset.field(color_name) {
+            None => return Err(format!("isosurface color field '{color_name}' was not found")),
+            Some(DatasetField::Vector3(_)) => return Err(format!("isosurface color field '{color_name}' is a vector field; a point-associated scalar field is required")),
+            Some(DatasetField::Scalar(field)) => field,
+        };
+        if field.association() != FieldAssociation::Point {
+            return Err(format!("isosurface color field '{color_name}' has {:?} association; coloring requires Point association", field.association()));
+        }
+        let transferred = transfer_point_scalar_field(&dataset, extracted, color_name)
+            .map_err(|error| format!("could not transfer isosurface color field '{color_name}': {error}"))?;
+        let invalid_color = ColorRgba::new(INVALID_COLOR[0], INVALID_COLOR[1], INVALID_COLOR[2], INVALID_COLOR[3])
+            .map_err(|error| format!("invalid fallback color: {error}"))?;
+        Some(map_transferred_scalar_field(transferred, ScalarRangeMode::Automatic, &ColorMap::viridis(), invalid_color)
+            .map_err(|error| format!("could not map isosurface color field '{color_name}': {error}"))?)
+    } else { None };
+
     Ok(ImportedScene {
         dataset,
         surface,
-        mesh,
+        mesh: render_mesh.clone(),
         camera,
         _provenance: provenance,
         mapped_surface,
         omitted_lower_dimension_cells,
         scalar_field_name: scalar_field_name.map(str::to_owned),
+        isosurface,
+        isosurface_field_name: isosurface_field_name.map(str::to_owned),
+        isosurface_color_field_name: isosurface_color_field_name.map(str::to_owned),
+        mapped_isosurface,
     })
 }
 
@@ -339,9 +484,29 @@ LOOKUP_TABLE default
     }
 
     #[test]
+    fn transfers_independent_point_scalar_to_isosurface_for_coloring() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(25.0), Some("pressure")).unwrap();
+        let mapped = scene.mapped_isosurface.as_ref().unwrap();
+        assert_eq!(mapped.transferred().metadata().name(), "pressure");
+        assert_eq!(mapped.colors().len(), mapped.isosurface().mesh().vertex_count());
+        assert_eq!(mapped.isosurface().mesh().triangle_count(), 2);
+        assert!(scene.summary().contains("colored by 'pressure'"));
+    }
+
+    #[test]
+    fn rejects_invalid_independent_isosurface_color_fields() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), Some("missing"));
+        assert!(missing.unwrap_err().contains("was not found"));
+        let cell = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(25.0), Some("density"));
+        assert!(cell.unwrap_err().contains("Point association"));
+    }
+
+    #[test]
     fn committed_smoke_fixture_loads_and_reports_omitted_line_cell() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
-        let scene = prepare_imported_scene(dataset, None).unwrap();
+        let scene = prepare_imported_scene_with_options(dataset, None, None, None, None).unwrap();
         assert_eq!(scene.dataset.point_count(), 5);
         assert_eq!(scene.dataset.cell_count(), 2);
         assert_eq!(scene.surface.triangle_count(), 4);
@@ -357,6 +522,9 @@ LOOKUP_TABLE default
             Some(VtkLoadConfig {
                 path: PathBuf::from("mesh with spaces.vtk"),
                 scalar_field: Some("temperature".to_owned()),
+                isosurface_field: None,
+                isovalue: None,
+                isosurface_color_field: None,
             }),
         );
     }
@@ -393,7 +561,7 @@ LOOKUP_TABLE default
             _ => unreachable!(),
         };
         assert_eq!(grid.cell_types(), &[CellType3::Tetrahedron4]);
-        let scene = prepare_imported_scene(dataset.clone(), None).unwrap();
+        let scene = prepare_imported_scene_with_options(dataset.clone(), None, None, None, None).unwrap();
         assert_eq!(scene.dataset.point_count(), 4);
         assert_eq!(scene.dataset.cell_count(), 1);
         assert_eq!(scene.surface.triangle_count(), 4);
@@ -413,19 +581,19 @@ LOOKUP_TABLE default
             vec![0, 4, 6],
             vec![0, 1, 2, 3, 0, 4],
         ).unwrap();
-        let mixed_scene = prepare_imported_scene(Dataset::new(mixed), None).unwrap();
+        let mixed_scene = prepare_imported_scene_with_options(Dataset::new(mixed), None, None, None, None).unwrap();
         assert_eq!(mixed_scene.omitted_lower_dimension_cells, 1);
     }
 
     #[test]
     fn maps_point_and_cell_scalar_fields_onto_the_volume_boundary() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
-        let point_scene = prepare_imported_scene(dataset.clone(), Some("temperature")).unwrap();
+        let point_scene = prepare_imported_scene_with_options(dataset.clone(), Some("temperature"), None, None, None).unwrap();
         assert_eq!(point_scene.mapped_surface.as_ref().unwrap().triangle_count(), 4);
         assert_eq!(point_scene.mapped_surface.as_ref().unwrap().colors().len(), 12);
         assert_eq!(point_scene._provenance.as_ref().unwrap().source_cell_ids(), &[0, 0, 0, 0]);
 
-        let cell_scene = prepare_imported_scene(dataset, Some("density")).unwrap();
+        let cell_scene = prepare_imported_scene_with_options(dataset, Some("density"), None, None, None).unwrap();
         assert_eq!(cell_scene.mapped_surface.as_ref().unwrap().triangle_count(), 4);
         assert!(cell_scene.mapped_surface.as_ref().unwrap().colors().iter().all(|color| {
             *color == cell_scene.mapped_surface.as_ref().unwrap().colors()[0]
@@ -444,9 +612,9 @@ LOOKUP_TABLE default
             vec![VectorValue3::from_f64(1.0, 0.0, 0.0); 4],
         ).unwrap()).unwrap();
 
-        assert!(prepare_imported_scene(dataset.clone(), Some("absent"))
+        assert!(prepare_imported_scene_with_options(dataset.clone(), Some("absent"), None, None, None)
             .unwrap_err().contains("not found"));
-        assert!(prepare_imported_scene(dataset, Some("velocity"))
+        assert!(prepare_imported_scene_with_options(dataset, Some("velocity"), None, None, None)
             .unwrap_err().contains("vector field"));
 
         let no_volume = UnstructuredGrid3::new(
@@ -455,7 +623,7 @@ LOOKUP_TABLE default
             vec![0, 3],
             vec![0, 1, 2],
         ).unwrap();
-        assert!(prepare_imported_scene(Dataset::new(no_volume), None)
+        assert!(prepare_imported_scene_with_options(Dataset::new(no_volume), None, None, None, None)
             .unwrap_err().contains("no renderable volume boundary"));
     }
 
@@ -467,8 +635,123 @@ LOOKUP_TABLE default
             FieldAssociation::Point,
             vec![SampleValue::NonFinite(NonFiniteValue::NaN); 4],
         ).unwrap()).unwrap();
-        assert!(prepare_imported_scene(dataset, Some("invalid"))
+        assert!(prepare_imported_scene_with_options(dataset, Some("invalid"), None, None, None)
             .unwrap_err().contains("no finite values"));
+    }
+
+    #[test]
+    fn parses_vtk_isosurface_field_and_finite_isovalue() {
+        let parsed = parse_vtk_args(&config(&[
+            "svf-explorer", "--vtk", "mesh.vtk",
+            "--vtk-isosurface", "temperature", "--vtk-isovalue", "25.5",
+        ])).unwrap().unwrap();
+        assert_eq!(parsed.path, PathBuf::from("mesh.vtk"));
+        assert_eq!(parsed.isosurface_field.as_deref(), Some("temperature"));
+        assert_eq!(parsed.isovalue, Some(25.5));
+        assert!(parsed.scalar_field.is_none());
+        let colored = parse_vtk_args(&config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25", "--vtk-isosurface-color", "pressure"])).unwrap().unwrap();
+        assert_eq!(colored.isosurface_color_field.as_deref(), Some("pressure"));
+    }
+
+    #[test]
+    fn rejects_incomplete_conflicting_and_non_finite_isosurface_cli_options() {
+        for args in [
+            config(&["svf-explorer", "--vtk-isosurface", "temperature"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isovalue", "25"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "NaN"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "inf"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "-inf"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-scalar", "temperature", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "a", "--vtk-isosurface", "b", "--vtk-isovalue", "25"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface", "temperature", "--vtk-isovalue", "bad"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-isosurface-color", "pressure"]),
+        ] {
+            assert!(parse_vtk_args(&args).is_err(), "accepted invalid args: {args:?}");
+        }
+    }
+
+    #[test]
+    fn extracts_imported_tetrahedral_isosurface_and_retains_provenance() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_options(
+            dataset.clone(), None, Some("temperature"), Some(25.0), None,
+        ).unwrap();
+        let iso = scene.isosurface.as_ref().unwrap();
+        assert_eq!(iso.isovalue(), 25.0);
+        assert_eq!(iso.mesh().triangle_count(), 2);
+        assert_eq!(iso.mesh().vertex_count(), 4);
+        assert_eq!(iso.vertex_provenance().len(), 4);
+        assert_eq!(iso.triangle_source_cells(), &[0, 0]);
+        assert_eq!(iso.metadata().unsupported_cells().len(), 1);
+        assert_eq!(iso.metadata().unsupported_cells()[0].cell_id, 1);
+        assert_eq!(scene.mesh, *iso.mesh());
+        assert_eq!(scene.dataset, dataset);
+        assert!(scene.mapped_surface.is_none());
+        assert!(scene.camera.view_projection_matrix().to_cols_array().iter().all(|v| v.is_finite()));
+        assert!(scene.summary().contains("extracted 2 isosurface triangles"));
+    }
+
+    #[test]
+    fn rejects_missing_vector_and_non_point_associated_isosurface_fields() {
+        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        dataset.add_vector_field3(VectorField3::new(
+            FieldMetadata::new("velocity", None).unwrap(),
+            FieldAssociation::Point,
+            VectorBasis3::World,
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0); 4],
+        ).unwrap()).unwrap();
+        assert!(prepare_imported_scene_with_options(dataset.clone(), None, Some("missing"), Some(25.0), None)
+            .unwrap_err().contains("not found"));
+        assert!(prepare_imported_scene_with_options(dataset, None, Some("velocity"), Some(25.0), None)
+            .unwrap_err().contains("vector field"));
+
+        let cell_dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        assert!(prepare_imported_scene_with_options(cell_dataset, None, Some("density"), Some(7.0), None)
+            .unwrap_err().contains("Cell association"));
+    }
+
+    #[test]
+    fn selects_an_alternate_point_scalar_field_by_exact_name() {
+        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("pressure", Some("kPa".to_owned())).unwrap(),
+            FieldAssociation::Point,
+            vec![
+                SampleValue::Finite(0.0),
+                SampleValue::Finite(100.0),
+                SampleValue::Finite(0.0),
+                SampleValue::Finite(100.0),
+            ],
+        ).unwrap()).unwrap();
+        let scene = prepare_imported_scene_with_options(
+            dataset, None, Some("pressure"), Some(50.0), None,
+        ).unwrap();
+        assert_eq!(scene.isosurface_field_name.as_deref(), Some("pressure"));
+        assert_eq!(scene.isosurface.as_ref().unwrap().isovalue(), 50.0);
+        assert_eq!(scene.isosurface.as_ref().unwrap().mesh().triangle_count(), 2);
+    }
+
+    #[test]
+    fn rejects_dataset_associated_isosurface_scalar_field() {
+        let mut dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("ambient", None).unwrap(),
+            FieldAssociation::Dataset,
+            vec![SampleValue::Finite(25.0)],
+        ).unwrap()).unwrap();
+        let error = prepare_imported_scene_with_options(
+            dataset, None, Some("ambient"), Some(25.0), None,
+        ).unwrap_err();
+        assert!(error.contains("Dataset association"));
+    }
+
+    #[test]
+    fn rejects_isosurface_that_produces_no_triangles() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
+        let error = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(1000.0), None)
+            .unwrap_err();
+        assert!(error.contains("produced no triangles"));
     }
 
     #[test]
