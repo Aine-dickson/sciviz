@@ -998,3 +998,17 @@ The user reported no failures. The semantic core is complete. A schematic electr
 - Visual limitation: the sample contains no hydrogen atoms or molecular bonds, so methane's tetrahedral and water's bent molecular shapes are identified by title/labels, not independently reconstructed by the marker geometry. No connecting spokes or bond-angle annotation is shown.
 - Non-blocking warnings: existing `VectorSource3::new` and `prepare_imported_scene_with_options` dead-code warnings, plus unused `methane` and `water` fields in `VseprDemo`.
 - **Evaluation:** SVF can represent the four-domain electron arrangement and preserve the bonding/lone-pair distinction in a standalone 3D view. The sample is not a complete visual explanation of molecular shape. Do not add geometry or broaden VSEPR automatically; choose further SVF work only from a concrete scientific use case.
+
+
+## Analytical heat-diffusion challenge — design proposal (pending review)
+
+Design contract: [analytical heat-diffusion challenge](analytical-heat-diffusion-challenge.md), branch `analytical-heat-diffusion-challenge-design`.
+
+- Manufactured exact solution on a unit cube with zero-temperature boundary conditions.
+- Two time snapshots with an exact factor-of-two relation for temperature and heat flux.
+- Coarse/fine conforming tetrahedral meshes: 125 points / 384 tetrahedra and 729 points / 3,072 tetrahedra.
+- Five point-associated arrays: two temperature snapshots, one independent linear probe scalar, and two analytical Fourier heat-flux vector snapshots.
+- Challenge scope: existing VTK import, boundary extraction, scalar mapping, isosurface extraction, provenance transfer, vector glyphs, combined scalar/vector rendering, and surface inspection.
+- Acceptance includes exact analytical invariants, topology/provenance checks, and coarse-to-fine isosurface approximation improvement.
+- This is a dataset and validation challenge only. It does not authorize a heat solver, gradient/flux computation, streamlines, volume rendering, new import formats, or Mava/Prismal integration.
+- No fixtures or implementation are included in this design proposal. Review and accept the specification before proceeding.
