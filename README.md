@@ -119,3 +119,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 - **M10.2 — Imported VTK point-vector visualization:** implemented and merged through PR #31. Adds point-associated vector glyphs to imported VTK boundary scenes, optionally alongside scalar surface coloring. User-reported Windows tests and workspace check passed; vector rendering was visually confirmed.
 
 **Development direction:** after M10.2, work is driven by the user's own scientific and engineering use cases. No further general-purpose milestone is selected automatically.
+
+
+- **E1 — Chemistry composition core:** implemented, Windows-validated, and merged through PR #33. Adds graphics-independent element, atom, bond, and molecule types with structural validation. User validation: 16 chemistry tests, 236 core tests, 283 workspace tests, and `cargo check --workspace` passed.
