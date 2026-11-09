@@ -930,3 +930,19 @@ Research/API proposal: PR #32. Implementation: [PR #33](https://github.com/Aine-
 - [x] Merge PR #33
 
 The core represents structural composition and semantic connectivity, not full chemical validity or behaviour. Geometry/rendering adapters and interactive educational views remain future work and must be driven by the learning objectives and actual examples.
+
+
+### E2 — Chemistry molecular views (design complete; implementation pending)
+
+Design contract: [PR #34](https://github.com/Aine-dickson/sciviz/pull/34), merged 2026-11-09. Document: `docs/chemistry-molecular-views.md`. Merge commit: `0b5b96ee4c99a323348a10d47464f572b8796e89`.
+
+- [x] Define graphics-independent ball-and-stick view over the E1 molecule model
+- [x] Preserve AtomId and BondId/endpoint/bond-order provenance in derived glyphs
+- [x] Keep representation dimensions explicitly in ångströms
+- [x] Specify domain-defined styles, deterministic multiple-bond axes, and validation requirements
+- [x] Bound initial examples to water and methane
+- [x] Exclude renderer, Explorer, GPU, simulation, and generic component framework
+- [ ] Implement the core representation adapter and tests
+- [ ] Validate focused tests, workspace tests, and workspace check on Windows
+
+The design is approved and merged. Implementation is the next bounded task; no renderer integration is implied until the core output is validated and the user confirms its educational value.
