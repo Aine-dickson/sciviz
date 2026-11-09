@@ -247,8 +247,7 @@ User-reported validation: formatting check and workspace check passed;
 
 Implementation committed and user-validated on Windows (2026-11-08). User reports `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, and `cargo test --workspace` all passed: 58 core tests and 60 workspace tests (58 core, 2 renderer).
 
-Public API is exposed from `svf_core::sampling`:- `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided
-  `FnMut(f64) -> f64`.
+Public API is exposed from `svf_core::sampling`:- `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided  `FnMut(f64) -> f64`.
 - `sample_scalar_2d(domain, spec, function)` evaluates a caller-provided
   `FnMut(f64, f64) -> f64`.
 - `ScalarSample1D` and `ScalarSample2D` retain sample indices, source
@@ -497,8 +496,7 @@ included and remain unconfirmed.
 
 Implementation is committed and the user has now validated the interaction
 on Windows (2026-11-08).
-The camera exposes
-`Camera3::ray_from_viewport(pixel_x, pixel_y, width, height)`. It accepts
+The camera exposes`Camera3::ray_from_viewport(pixel_x, pixel_y, width, height)`. It accepts
 physical-pixel coordinates from a top-left-origin viewport, unprojects NDC
 depth 0 and 1 through the inverse view-projection matrix, and returns a
 validated f64 `Ray3`. Perspective rays originate at the camera position;
@@ -750,7 +748,6 @@ No formatter was run. Continue preserving the user's formatting-only stash;
 do not run formatting routines as cleanup.
 
 
-
 ## M6.5 — Unstructured boundary surface representation (in progress)
 
 Branch: `m6-5-boundary-surface`, based on synchronized `main` at
@@ -997,8 +994,7 @@ PR #11 merged to `main`; merge commit:
 Design contract: `docs/cell-vector-visualization.md`.
 Implemented:
 - `--cell-vectors` uses a 9 × 9 structured graph grid (64 logical cells).
-- Dataset geometry and displayed surface come from the same
-  `StructuredGrid2D` instance.
+- Dataset geometry and displayed surface come from the same  `StructuredGrid2D` instance.
 - A cell-associated, world-basis `VectorField3` has 64 deterministic values.
 - Each glyph anchor is the arithmetic mean of its source cell's four
   graph-surface corner positions; this is not an area-weighted centroid.
@@ -1247,8 +1243,7 @@ or silently begin an M9.3 scope.
 
 Design contract: M9.3 Explorer isosurface design PR #26 (merged).
 
-- PR #27: https://github.com/Aine-dickson/sciviz/pull/27
-- Merge commit: `b05f59371a7023460ac60b22f6787839ef23a4e4`.
+- PR #27: https://github.com/Aine-dickson/sciviz/pull/27- Merge commit: `b05f59371a7023460ac60b22f6787839ef23a4e4`.
 - Feature head: `93e348d1ea300b41e8666ff74fd2eb0273aa28b4`.
 
 Implemented:
@@ -1420,3 +1415,13 @@ E2 implementation, automated validation, and merge are complete. Renderer integr
 - Critical E1/E2 gap: the current chemistry model has no lone-pair/electron-domain entities, VSEPR arrangement/shape semantics, or validated bond-angle provenance. Ball-and-stick atoms and bonds alone cannot explain the central learning outcome.
 - SVF is the likely owner of scientific electron-domain semantics and inspection; Mava owns lesson sequencing, prompts, reveal and assessment; Prismal is not required for this static structural lesson.
 - No implementation is authorized by the design alone. Next work must design the smallest scientifically correct electron-domain representation and validate it against the CH₄/H₂O learning case before renderer/Explorer or lesson integration is scoped. Do not build a general VSEPR engine or molecule editor by default.
+
+## E3.1 — VSEPR electron-domain model design (complete; merged 2026-11-09)
+
+- Design contract: `docs/vsepr-electron-domain-design.md`, PR #38. Merge commit: `89b9aaa273e9ac38b643c227367dea8268dc9c76`.
+- Defines a separate VSEPR semantic layer over the E1 molecule model, with stable electron-domain identities and explicit bonding-pair/lone-pair classification.
+- Bonding domains retain exact source `BondId` and neighbouring `AtomId`; lone-pair domains belong only to the central atom and are not represented as atoms or bonds.
+- Initial scope is only the four-domain tetrahedral cases: methane (4 bonding, 0 lone pairs; tetrahedral molecular shape) and water (2 bonding, 2 lone pairs; bent molecular shape).
+- Separates molecular coordinates from an idealized electron-domain arrangement schematic. It does not claim schematic lone-pair positions are measured electron-density maxima.
+- Does not hardcode measured bond angles into the semantic model. Angle values require explicit coordinate/reference provenance.
+- No implementation, renderer/Explorer integration, Prismal/Mava integration, or general VSEPR engine has been started. Next increment should implement and test the bounded semantic model in `svf-core`; representation adapter is a separate decision after semantic review.
