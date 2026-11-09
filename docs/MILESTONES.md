@@ -247,8 +247,7 @@ Windows (2026-11-08).
 
 User-reported Windows validation is complete. The user ran `cargo fmt --all`,
 then confirmed formatting check, workspace compilation, and all 84 workspace
-tests passed. The formatting-only cleanup was committed locally as`d545466` (`style: format workspace`). Copilot's read-only diff inspection
-found no semantic changes. The pre-sync stash remains untouched and must not
+tests passed. The formatting-only cleanup was committed locally as`d545466` (`style: format workspace`). Copilot's read-only diff inspectionfound no semantic changes. The pre-sync stash remains untouched and must not
 be blindly restored; it is an older pre-picking snapshot.
 
 ### M3.3 — Mesh topology queries
@@ -497,8 +496,7 @@ Status: complete and merged to `main` through PR #7 on 2026-11-08
 (merge commit `09c99da`). Implementation, Windows automated validation,
 numerical edge-case validation, and all four Explorer-mode visual checks
 are complete.
-- [x] Define a common surface representation with source point IDs per render
-  vertex and source logical cell IDs per render triangle
+- [x] Define a common surface representation with source point IDs per render  vertex and source logical cell IDs per render triangle
 - [x] Adapt structured `SampledSurface3`, unstructured
   `TriangulatedSurface3`, and identity-mapped `TriangleMesh3`
 - [x] Implement reusable scalar range resolution and continuous color maps in
@@ -748,7 +746,6 @@ Design contract: `docs/vtk-legacy-ascii-import.md`.
 PR #23: https://github.com/Aine-dickson/sciviz/pull/23  
 Merge commit: `efa1cdbd59c09ca97a67a7e674f5c5483cc948c8`  
 Feature head: `fd48c4b10900f19558eca59d681c7fde6cb3068f`.
-
 - [x] Add a pure, graphics-independent VTK legacy ASCII `UNSTRUCTURED_GRID` parser to `svf-core`
 - [x] Preserve supported mixed-cell topology, point/cell ordering, and point/cell scalar/vector field associations
 - [x] Support LINE, TRIANGLE, QUAD, TETRA, and HEXAHEDRON cells
@@ -958,3 +955,13 @@ The representation is a graphics-independent adapter, not a renderer or interact
 - Critical E1/E2 gap: the current chemistry model has no lone-pair/electron-domain entities, VSEPR arrangement/shape semantics, or validated bond-angle provenance. Ball-and-stick atoms and bonds alone cannot explain the central learning outcome.
 - SVF is the likely owner of scientific electron-domain semantics and inspection; Mava owns lesson sequencing, prompts, reveal and assessment; Prismal is not required for this static structural lesson.
 - No implementation is authorized by the design alone. Next work must design the smallest scientifically correct electron-domain representation and validate it against the CH₄/H₂O learning case before renderer/Explorer or lesson integration is scoped. Do not build a general VSEPR engine or molecule editor by default.
+
+## E3.1 — VSEPR electron-domain model design (complete; merged 2026-11-09)
+
+- Design contract: `docs/vsepr-electron-domain-design.md`, PR #38. Merge commit: `89b9aaa273e9ac38b643c227367dea8268dc9c76`.
+- Defines a separate VSEPR semantic layer over the E1 molecule model, with stable electron-domain identities and explicit bonding-pair/lone-pair classification.
+- Bonding domains retain exact source `BondId` and neighbouring `AtomId`; lone-pair domains belong only to the central atom and are not represented as atoms or bonds.
+- Initial scope is only the four-domain tetrahedral cases: methane (4 bonding, 0 lone pairs; tetrahedral molecular shape) and water (2 bonding, 2 lone pairs; bent molecular shape).
+- Separates molecular coordinates from an idealized electron-domain arrangement schematic. It does not claim schematic lone-pair positions are measured electron-density maxima.
+- Does not hardcode measured bond angles into the semantic model. Angle values require explicit coordinate/reference provenance.
+- No implementation, renderer/Explorer integration, Prismal/Mava integration, or general VSEPR engine has been started. Next increment should implement and test the bounded semantic model in `svf-core`; representation adapter is a separate decision after semantic review.
