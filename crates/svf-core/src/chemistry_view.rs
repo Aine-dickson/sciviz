@@ -3,7 +3,7 @@
 //! All positions, radii, and offsets are expressed in ångströms (Å). These
 //! dimensions are presentation parameters, not measured atomic boundaries.
 
-use super::{AtomId, BondId, BondOrder, Element, MolecularPoint3, Molecule};
+use crate::chemistry::{AtomId, BondId, BondOrder, Element, MolecularPoint3, Molecule};
 
 use std::{error::Error, fmt};
 
