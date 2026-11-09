@@ -1538,3 +1538,17 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - The design document includes the required inventory with FMA and BodyParts3D representation IDs, data-contract requirements, anatomical interpretation guardrails, acceptance criteria, reproducible evaluation views, and explicit non-goals.
 - **Current state:** design proposal only. The archive has not been downloaded/audited locally; no fixture, conversion, importer, or SVF production code has been created. Do not claim source geometry availability solely from catalogue entries.
 - Next step after design review: B1.1 source-data audit. Do not start fixture generation or implementation until the archive audit is complete and the final challenge contract is accepted.
+
+
+## B1 — Human heart anatomy source audit (in progress)
+
+- B1 design approved and merged through PR #45; merge commit `26a4276a63a6dfca4c90d74cfefe668c69b64ca6`.
+- Current audit branch: `biology-heart-anatomy-source-audit`; review PR will contain the preliminary source audit, corrected design table, and a reproducible local archive-audit script.
+- Official BodyParts3D 4.0 PART-OF online metadata confirms all 19 named concepts and their BP representation IDs. Correction: pulmonary trunk is BP9912 (BP9911 is right conus artery).
+- Crucial source limitation: only atomic ELEMENT concepts have OBJ meshes; COMPOUND concepts are mapped to FJ element IDs. Chamber and valve mappings overlap substantially. Tricuspid elements are shared with right atrium/right ventricle; pulmonary-valve elements with right ventricle; mitral-valve elements with left atrium/left ventricle; aortic-valve elements overlap left-ventricle elements. This archive does not provide independent mesh geometry for all four valves separate from chamber meshes.
+- Official coordinate diagram: millimetres; body centreline approximately +Z; superior increases +Z; anatomical left X>0/right X<0; posterior Y>0/anterior Y<0. Preserve one shared coordinate frame; any SVF +Y-up conversion must be a single documented transform.
+- Official release 4.0 note warns coordinates were revised and the data may still contain errors if used as a canonical model. It represents an adult male reference anatomy.
+- HuBMAP CCF exposes male and female whole-heart GLB reference objects, but public library metadata does not establish independent chamber/valve meshes for the full B1 inventory.
+- The official 62 MB BodyParts3D OBJ archive has **not** been downloaded or locally inspected in this environment. The script `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` downloads official metadata/archive, verifies FJ file membership, and reports OBJ geometry counts, invalid indices, shared mappings, bounds, and archive SHA-256. It does not extract, repair, or transform geometry.
+- Next: user runs the audit script on Windows with internet access and shares the full output/report. Then decide whether to revise B1 scope or select an additional detailed teaching-heart source. No fixture preparation or SVF production changes before that source decision is accepted.
+- SVF-only evaluation. Mava and Prismal remain excluded.
