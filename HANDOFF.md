@@ -1376,3 +1376,19 @@ problem, dataset/model, desired analysis, and required output. Build reusable
 capabilities where they serve that use case, not to pursue feature parity or
 hypothetical general-user demand. Preserve the framework's scientific
 correctness and architecture constraints.
+
+
+## E1 — Chemistry composition core (implementation complete; merged 2026-11-09)
+
+Research direction and initial API proposal: PR #32 (`docs/experimental-chemistry-composition.md`, `docs/chemistry-composition-api.md`). Implementation: [PR #33](https://github.com/Aine-dickson/sciviz/pull/33).
+
+- Merge commit: `46b134c2755b5ee5a815774ab1e035bafc602f70`.
+- Add graphics-independent `svf_core::chemistry` with immutable element definitions for Hydrogen, Carbon, and Oxygen, plus validated extension definitions.
+- Add distinct `AtomId`/`BondId`, atom instances, semantic single/double/triple bond orders, and finite `f64` molecular coordinates explicitly measured in ångströms.
+- Add validated `Molecule::new`, preserving atom/bond order and rejecting duplicate identities, unknown endpoints, self-bonds, and duplicate undirected atom pairs.
+- Provide read-only lookup and incident-bond accessors. Empty molecules and isolated atoms are structurally valid; chemical valence, charge, stereochemistry, and reaction simulation are intentionally not validated.
+- Water and methane are the first domain examples. No renderer, Explorer, simulation, or generic user-defined component system was added.
+
+User-reported Windows validation (2026-11-09): chemistry tests 16 passed; `svf-core` 236 passed; workspace 283 passed (236 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. Existing `VectorSource3::new` dead-code warning remains; `prepare_imported_scene_with_options` also emitted a dead-code warning. Neither blocked validation.
+
+The initial chemistry structural model is complete. Next work should test whether this representation can produce useful scientific views and inspection for actual chemistry learning/teaching. Keep domain-defined examples first; only extract generic assembly mechanisms when multiple real structures demonstrate the need. Biology is a later generality check, not an automatic next feature.
