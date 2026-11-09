@@ -911,3 +911,22 @@ problem, data/model, analysis or experiment, and desired output. General-purpose
 abstractions are justified when they directly support those needs; do not
 chase feature parity or hypothetical user demand. Maintain scientific
 correctness and the established architecture constraints.
+
+
+### E1 — Chemistry composition core (complete; merged 2026-11-09)
+
+Research/API proposal: PR #32. Implementation: [PR #33](https://github.com/Aine-dickson/sciviz/pull/33). Merge commit: `46b134c2755b5ee5a815774ab1e035bafc602f70`.
+
+- [x] Add graphics-independent `svf_core::chemistry` module
+- [x] Define reusable Hydrogen, Carbon, and Oxygen element identities
+- [x] Define distinct atom and bond identities and semantic bond orders
+- [x] Represent molecular coordinates as finite `f64` ångström values
+- [x] Validate molecule identity, endpoints, self-bonds, and duplicate undirected bonds
+- [x] Add water and methane composition/connectivity tests
+- [x] Verify focused chemistry tests on Windows (16 passed)
+- [x] Verify `svf-core` tests on Windows (236 passed)
+- [x] Verify workspace tests on Windows (283 passed: 236 core, 40 Explorer, 7 renderer)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Merge PR #33
+
+The core represents structural composition and semantic connectivity, not full chemical validity or behaviour. Geometry/rendering adapters and interactive educational views remain future work and must be driven by the learning objectives and actual examples.
