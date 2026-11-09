@@ -664,7 +664,10 @@ LOOKUP_TABLE default
         assert_eq!(glyphs.entries().len(), 5);
         assert_eq!(glyphs.entries().iter().filter(|entry| entry.segments().is_some()).count(), 4);
         let expected_length = 3.0_f64.sqrt() * 0.05;
-        assert_eq!(glyphs.policy(), VectorScalePolicy3::UniformLength { length: expected_length });
+        match glyphs.policy() {
+            VectorScalePolicy3::UniformLength { length } => assert!((length - expected_length).abs() < 1.0e-12),
+            other => panic!("unexpected vector scale policy: {other:?}"),
+        }
         let expected_points = [
             WorldPoint3::new(0.0, 0.0, 0.0),
             WorldPoint3::new(1.0, 0.0, 0.0),
@@ -678,8 +681,10 @@ LOOKUP_TABLE default
         assert!(glyphs.entries()[4].segments().is_none());
         assert!(scene.summary().contains("5 source vectors, 4 displayable arrows"));
         assert!(scene.summary().contains("uniform display length"));
-        assert_eq!(scene.dataset.field("velocity").unwrap().as_vector3().unwrap().values()[0],
-            VectorValue3::from_f64(1.0, 0.0, 0.0));
+        assert!(matches!(
+            scene.dataset.field("velocity"),
+            Some(DatasetField::Vector3(field)) if field.values()[0] == VectorValue3::from_f64(1.0, 0.0, 0.0)
+        ));
     }
 
     #[test]
