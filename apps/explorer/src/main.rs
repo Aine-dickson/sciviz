@@ -492,7 +492,13 @@ impl ApplicationHandler for Explorer {
                 ExplorerMode::Imported => {
                     let scene = self.imported_scene.as_ref()
                         .ok_or("imported VTK scene was not prepared before window creation")?;
-                    let mut renderer = if let Some(mapped) = scene.mapped_isosurface.as_ref() {
+                    let mut renderer = if let Some(glyphs) = scene.vector_glyphs.as_ref() {
+                        if let Some(mapped) = scene.mapped_surface.as_ref() {
+                            pollster::block_on(SceneRenderer::new_with_mapped_surface_and_vectors(window.clone(), mapped, glyphs))?
+                        } else {
+                            pollster::block_on(SceneRenderer::new_with_vector_glyphs(window.clone(), &scene.mesh, glyphs))?
+                        }
+                    } else if let Some(mapped) = scene.mapped_isosurface.as_ref() {
                         pollster::block_on(SceneRenderer::new_with_mapped_isosurface_and_edges(window.clone(), mapped))?
                     } else if let Some(mapped) = scene.mapped_surface.as_ref() {
                         pollster::block_on(SceneRenderer::new_with_mapped_surface(window.clone(), mapped))?
@@ -641,7 +647,7 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name> | --vtk-isosurface <field-name> --vtk-isovalue <value> [--vtk-isosurface-color <point-scalar-field>]]");
+            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name>] [--vtk-vectors <field-name>] | --vtk <path> --vtk-isosurface <field-name> --vtk-isovalue <value> [--vtk-isosurface-color <point-scalar-field>]");
             std::process::exit(2);
         }
     };

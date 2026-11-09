@@ -7,6 +7,8 @@ use std::{fs, path::PathBuf};
 
 use svf_core::{
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
+    vector_glyphs::{build_vector_glyphs, VectorGlyphSet3, VectorScalePolicy3},
+    vector_visualization::{analyze_vector_sources, resolve_vector_sources},
     dataset::{Dataset, DatasetField, DatasetGeometry},
     fields::FieldAssociation,
     geometry::TriangleMesh3,
@@ -31,6 +33,7 @@ pub struct VtkLoadConfig {
     pub isosurface_field: Option<String>,
     pub isovalue: Option<f64>,
     pub isosurface_color_field: Option<String>,
+    pub vector_field: Option<String>,
 }
 
 #[derive(Debug)]
@@ -47,6 +50,8 @@ pub struct ImportedScene {
     pub isosurface_field_name: Option<String>,
     pub isosurface_color_field_name: Option<String>,
     pub mapped_isosurface: Option<MappedIsosurface3>,
+    pub vector_field_name: Option<String>,
+    pub vector_glyphs: Option<VectorGlyphSet3>,
 }
 
 impl ImportedScene {
@@ -69,12 +74,22 @@ impl ImportedScene {
                 .unwrap_or_default();
             format!("rendered {} boundary triangles{}", self.surface.triangle_count(), scalar)
         };
+        let vectors = self.vector_glyphs.as_ref().map(|glyphs| {
+            let displayable = glyphs.entries().iter().filter(|entry| entry.segments().is_some()).count();
+            let length = match glyphs.policy() {
+                VectorScalePolicy3::UniformLength { length } => length,
+                VectorScalePolicy3::MagnitudeScaled { .. } => 0.0,
+            };
+            format!("; vector field '{}': {} source vectors, {} displayable arrows, uniform display length {:.6}",
+                self.vector_field_name.as_deref().unwrap_or("<unknown>"), glyphs.entries().len(), displayable, length)
+        }).unwrap_or_default();
         format!(
-            "Loaded {} points and {} cells; {}; omitted {} lower-dimensional cells.",
+            "Loaded {} points and {} cells; {}; omitted {} lower-dimensional cells{}.",
             self.dataset.point_count(),
             self.dataset.cell_count(),
             representation,
             self.omitted_lower_dimension_cells,
+            vectors,
         )
     }
 }
@@ -87,8 +102,9 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let has_isosurface = args.iter().any(|arg| arg == "--vtk-isosurface");
     let has_isovalue = args.iter().any(|arg| arg == "--vtk-isovalue");
     let has_isosurface_color = args.iter().any(|arg| arg == "--vtk-isosurface-color");
+    let has_vectors = args.iter().any(|arg| arg == "--vtk-vectors");
     if !has_vtk {
-        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color {
+        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors {
             Err("VTK field and isosurface options require --vtk <path>".to_owned())
         } else {
             Ok(None)
@@ -114,6 +130,7 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let mut isosurface_field = None;
     let mut isovalue = None;
     let mut isosurface_color_field = None;
+    let mut vector_field = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -154,6 +171,13 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 isosurface_color_field = Some(value.clone());
                 index += 2;
             }
+            "--vtk-vectors" => {
+                if vector_field.is_some() { return Err("--vtk-vectors may only be supplied once".to_owned()); }
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-vectors requires a field name".to_owned())?;
+                vector_field = Some(value.clone());
+                index += 2;
+            }
             "--vtk-isovalue" => {
                 if isovalue.is_some() {
                     return Err("--vtk-isovalue may only be supplied once".to_owned());
@@ -178,6 +202,9 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         }
     }
 
+    if vector_field.is_some() && (isosurface_field.is_some() || isovalue.is_some() || isosurface_color_field.is_some()) {
+        return Err("--vtk-vectors cannot be combined with --vtk-isosurface/--vtk-isovalue/--vtk-isosurface-color".to_owned());
+    }
     if scalar_field.is_some() && (isosurface_field.is_some() || isovalue.is_some()) {
         return Err("--vtk-scalar cannot be combined with --vtk-isosurface/--vtk-isovalue".to_owned());
     }
@@ -195,6 +222,7 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         isosurface_field,
         isovalue,
         isosurface_color_field,
+        vector_field,
     }))
 }
 
@@ -205,12 +233,13 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
     let dataset = parse_legacy_ascii_unstructured_grid(&input).map_err(|error| {
         format!("could not import VTK file '{}': {error}", config.path.display())
     })?;
-    prepare_imported_scene_with_options(
+    prepare_imported_scene_with_vectors(
         dataset,
         config.scalar_field.as_deref(),
         config.isosurface_field.as_deref(),
         config.isovalue,
         config.isosurface_color_field.as_deref(),
+        config.vector_field.as_deref(),
     ).map_err(|error| {
         format!("could not prepare VTK file '{}': {error}", config.path.display())
     })
@@ -223,6 +252,17 @@ pub fn prepare_imported_scene_with_options(
     isovalue: Option<f64>,
     isosurface_color_field_name: Option<&str>,
 ) -> Result<ImportedScene, String> {
+    prepare_imported_scene_with_vectors(dataset, scalar_field_name, isosurface_field_name, isovalue, isosurface_color_field_name, None)
+}
+
+pub fn prepare_imported_scene_with_vectors(
+    dataset: Dataset,
+    scalar_field_name: Option<&str>,
+    isosurface_field_name: Option<&str>,
+    isovalue: Option<f64>,
+    isosurface_color_field_name: Option<&str>,
+    vector_field_name: Option<&str>,
+) -> Result<ImportedScene, String> {
     if isosurface_field_name.is_some() != isovalue.is_some() {
         return Err("isosurface field and isovalue must be supplied together".to_owned());
     }
@@ -231,6 +271,9 @@ pub fn prepare_imported_scene_with_options(
     }
     if scalar_field_name.is_some() && isosurface_field_name.is_some() {
         return Err("scalar mapping and isosurface extraction are mutually exclusive".to_owned());
+    }
+    if vector_field_name.is_some() && isosurface_field_name.is_some() {
+        return Err("vector glyphs cannot be combined with isosurface extraction".to_owned());
     }
     let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else {
         return Err("VTK importer returned a non-unstructured dataset".to_owned());
@@ -324,6 +367,28 @@ pub fn prepare_imported_scene_with_options(
         (None, None)
     };
 
+    let vector_glyphs = if let Some(name) = vector_field_name {
+        let field = match dataset.field(name) {
+            None => return Err(format!("vector field '{name}' was not found")),
+            Some(DatasetField::Scalar(_)) => return Err(format!("field '{name}' is a scalar field; --vtk-vectors requires a three-component vector field")),
+            Some(DatasetField::Vector3(field)) => field,
+        };
+        if field.association() != FieldAssociation::Point {
+            return Err(format!("vector field '{name}' has {:?} association; --vtk-vectors requires Point association", field.association()));
+        }
+        if field.basis() != svf_core::fields::VectorBasis3::World {
+            return Err(format!("vector field '{name}' uses {:?} basis; --vtk-vectors requires World basis", field.basis()));
+        }
+        let sources = resolve_vector_sources(&dataset, name).map_err(|error| format!("could not resolve vector field '{name}': {error}"))?;
+        let analyses = analyze_vector_sources(&sources).map_err(|error| format!("could not analyze vector field '{name}': {error}"))?;
+        let diagonal = mesh_bounds_diagonal(&mesh)?;
+        let length = (diagonal * 0.05).max(1.0e-6);
+        let glyphs = build_vector_glyphs(&analyses, VectorScalePolicy3::UniformLength { length })
+            .map_err(|error| format!("could not build glyphs for vector field '{name}': {error}"))?;
+        validate_vector_glyphs(&glyphs)?;
+        Some(glyphs)
+    } else { None };
+
     let mapped_isosurface = if let Some(color_name) = isosurface_color_field_name {
         let extracted = isosurface.as_ref().ok_or_else(|| "--vtk-isosurface-color requires an extracted isosurface".to_owned())?;
         let field = match dataset.field(color_name) {
@@ -355,7 +420,37 @@ pub fn prepare_imported_scene_with_options(
         isosurface_field_name: isosurface_field_name.map(str::to_owned),
         isosurface_color_field_name: isosurface_color_field_name.map(str::to_owned),
         mapped_isosurface,
+        vector_field_name: vector_field_name.map(str::to_owned),
+        vector_glyphs,
     })
+}
+
+fn mesh_bounds_diagonal(mesh: &TriangleMesh3) -> Result<f64, String> {
+    let first = mesh.vertices().first().ok_or_else(|| "cannot determine vector scale from an empty mesh".to_owned())?.to_array();
+    let mut minimum = first;
+    let mut maximum = first;
+    for point in &mesh.vertices()[1..] {
+        let p = point.to_array();
+        for axis in 0..3 { minimum[axis] = minimum[axis].min(p[axis]); maximum[axis] = maximum[axis].max(p[axis]); }
+    }
+    let diagonal = (maximum[0] - minimum[0]).hypot(maximum[1] - minimum[1]).hypot(maximum[2] - minimum[2]);
+    if !diagonal.is_finite() { return Err("imported boundary bounds cannot produce a finite vector display length".to_owned()); }
+    Ok(diagonal)
+}
+
+fn validate_vector_glyphs(glyphs: &VectorGlyphSet3) -> Result<(), String> {
+    for entry in glyphs.entries() {
+        if let Some(segments) = entry.segments() {
+            for segment in segments {
+                for point in [segment.start(), segment.end()] {
+                    if point.to_array().iter().any(|value| !(*value as f32).is_finite()) {
+                        return Err("vector glyph coordinates exceed the renderer's finite f32 range".to_owned());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Reject render inputs that the existing f32 GPU buffers cannot represent,
@@ -525,8 +620,110 @@ LOOKUP_TABLE default
                 isosurface_field: None,
                 isovalue: None,
                 isosurface_color_field: None,
+                vector_field: None,
             }),
         );
+    }
+
+    #[test]
+    fn parses_point_vectors_with_or_without_scalar_coloring() {
+        let vector_only = parse_vtk_args(&config(&[
+            "svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity",
+        ])).unwrap().unwrap();
+        assert_eq!(vector_only.vector_field.as_deref(), Some("velocity"));
+        assert_eq!(vector_only.scalar_field, None);
+
+        let combined = parse_vtk_args(&config(&[
+            "svf-explorer", "--vtk", "mesh.vtk",
+            "--vtk-scalar", "pressure", "--vtk-vectors", "velocity",
+        ])).unwrap().unwrap();
+        assert_eq!(combined.scalar_field.as_deref(), Some("pressure"));
+        assert_eq!(combined.vector_field.as_deref(), Some("velocity"));
+    }
+
+    #[test]
+    fn rejects_invalid_vector_cli_combinations() {
+        for args in [
+            config(&["svf-explorer", "--vtk-vectors", "velocity"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "a", "--vtk-vectors", "b"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity", "--vtk-isosurface-color", "pressure"]),
+        ] {
+            assert!(parse_vtk_args(&args).is_err(), "accepted invalid args: {args:?}");
+        }
+    }
+
+    #[test]
+    fn prepares_point_vector_glyphs_without_changing_source_values() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_vectors(
+            dataset, None, None, None, None, Some("velocity"),
+        ).unwrap();
+        let glyphs = scene.vector_glyphs.as_ref().unwrap();
+        assert_eq!(glyphs.entries().len(), 5);
+        assert_eq!(glyphs.entries().iter().filter(|entry| entry.segments().is_some()).count(), 4);
+        let expected_length = 3.0_f64.sqrt() * 0.05;
+        match glyphs.policy() {
+            VectorScalePolicy3::UniformLength { length } => assert!((length - expected_length).abs() < 1.0e-12),
+            other => panic!("unexpected vector scale policy: {other:?}"),
+        }
+        let expected_points = [
+            WorldPoint3::new(0.0, 0.0, 0.0),
+            WorldPoint3::new(1.0, 0.0, 0.0),
+            WorldPoint3::new(0.0, 1.0, 0.0),
+            WorldPoint3::new(0.0, 0.0, 1.0),
+            WorldPoint3::new(2.0, 0.0, 0.0),
+        ];
+        for (entry, expected) in glyphs.entries().iter().zip(expected_points) {
+            assert_eq!(entry.analysis().source().anchor(), expected);
+        }
+        assert!(glyphs.entries()[4].segments().is_none());
+        assert!(scene.summary().contains("5 source vectors, 4 displayable arrows"));
+        assert!(scene.summary().contains("uniform display length"));
+        assert!(matches!(
+            scene.dataset.field("velocity"),
+            Some(DatasetField::Vector3(field)) if field.values()[0] == VectorValue3::from_f64(1.0, 0.0, 0.0)
+        ));
+    }
+
+    #[test]
+    fn combines_boundary_scalar_mapping_and_point_vector_glyphs() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_vectors(
+            dataset, Some("pressure"), None, None, None, Some("velocity"),
+        ).unwrap();
+        assert!(scene.mapped_surface.is_some());
+        assert!(scene.vector_glyphs.is_some());
+        assert_eq!(scene.scalar_field_name.as_deref(), Some("pressure"));
+        assert_eq!(scene.vector_field_name.as_deref(), Some("velocity"));
+    }
+
+    #[test]
+    fn rejects_missing_scalar_cell_and_dataset_vector_fields() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        assert!(prepare_imported_scene_with_vectors(dataset.clone(), None, None, None, None, Some("missing"))
+            .unwrap_err().contains("not found"));
+        assert!(prepare_imported_scene_with_vectors(dataset.clone(), None, None, None, None, Some("pressure"))
+            .unwrap_err().contains("scalar field"));
+
+        let mut cell_dataset = dataset.clone();
+        cell_dataset.add_vector_field3(VectorField3::new(
+            FieldMetadata::new("cell_velocity", None).unwrap(),
+            FieldAssociation::Cell, VectorBasis3::World,
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0); 2],
+        ).unwrap()).unwrap();
+        assert!(prepare_imported_scene_with_vectors(cell_dataset, None, None, None, None, Some("cell_velocity"))
+            .unwrap_err().contains("Point association"));
+
+        let mut dataset_associated = dataset;
+        dataset_associated.add_vector_field3(VectorField3::new(
+            FieldMetadata::new("global_velocity", None).unwrap(),
+            FieldAssociation::Dataset, VectorBasis3::World,
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0)],
+        ).unwrap()).unwrap();
+        assert!(prepare_imported_scene_with_vectors(dataset_associated, None, None, None, None, Some("global_velocity"))
+            .unwrap_err().contains("Dataset association"));
     }
 
     #[test]
