@@ -5,6 +5,7 @@ pub mod boundary_surface;
 pub mod camera;
 pub mod camera_navigation;
 pub mod chemistry;
+pub mod chemistry_view;
 pub mod dataset;
 pub mod fields;
 pub mod geometry;
