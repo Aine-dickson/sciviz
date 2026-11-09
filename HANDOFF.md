@@ -1392,3 +1392,16 @@ Research direction and initial API proposal: PR #32 (`docs/experimental-chemistr
 User-reported Windows validation (2026-11-09): chemistry tests 16 passed; `svf-core` 236 passed; workspace 283 passed (236 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. Existing `VectorSource3::new` dead-code warning remains; `prepare_imported_scene_with_options` also emitted a dead-code warning. Neither blocked validation.
 
 The initial chemistry structural model is complete. Next work should test whether this representation can produce useful scientific views and inspection for actual chemistry learning/teaching. Keep domain-defined examples first; only extract generic assembly mechanisms when multiple real structures demonstrate the need. Biology is a later generality check, not an automatic next feature.
+
+
+## E2 — Chemistry molecular views design (design merged 2026-11-09)
+
+- Design PR #34: https://github.com/Aine-dickson/sciviz/pull/34
+- Design document: `docs/chemistry-molecular-views.md`.
+- Merge commit: `0b5b96ee4c99a323348a10d47464f572b8796e89`.
+- Defines a first graphics-independent ball-and-stick representation adapter over the E1 molecule model.
+- Atom glyphs retain `AtomId`; bond glyphs retain `BondId`, endpoint identities, and semantic bond order. Display radii, bond radii, and multiple-bond separation are explicit visual style parameters in ångströms, not claims about literal atomic boundaries.
+- Water and methane are the initial structures. Double/triple-bond lane generation, deterministic output, empty/isolated structures, invalid styles, coincident bonded coordinates, and finite derived geometry are part of the proposed validation.
+- No renderer, Explorer, GPU, simulation, file format, or generic component authoring is included.
+
+Design is merged; implementation has not started. Review the resulting core representation and tests before considering any renderer integration. Do not expand into unrelated chemistry features automatically.
