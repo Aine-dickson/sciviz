@@ -2,223 +2,196 @@
 
 ## Status
 
-**Design accepted; B1.1 source audit in progress.** Official BodyParts3D metadata and coordinate documentation have been inspected online. The archive itself has not yet been downloaded or independently audited locally. A reproducible standard-library audit script is provided at `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py`. No fixture, conversion, importer, or SVF production code is included.
+**Design accepted; primary dataset selection revised for review.** The initial BodyParts3D audit found that its PART-OF element mappings do not provide independent valve geometry. A better-aligned, research-derived tetrahedral dataset has been identified: the Rodero et al. (2021) virtual cohort of adult healthy four-chamber heart meshes. The user should accept this revised source choice before any download, fixture generation, or SVF code change.
 
 ## Objective
 
-Evaluate standalone SVF's ability to represent and inspect a multi-structure, anatomically meaningful 3D model of the human heart.
+Evaluate standalone SVF's ability to import, represent, render, and inspect a multi-region tetrahedral model of the human heart while preserving the anatomical meaning and provenance of the source fields.
 
-The evaluation asks whether SVF can preserve and communicate:
-- the spatial arrangement of the four chambers;
-- the positions and connections of major vessels;
-- the locations and distinctions of the four principal valves;
-- anatomical orientation and left/right relationships; and
-- the identity and provenance of individual structures.
+This first bounded evaluation focuses on:
+- the spatial arrangement of the four chamber myocardium regions;
+- the aorta and pulmonary artery walls;
+- the four valve-plane regions;
+- the major vessel and appendage inlets/borders;
+- the source's point-associated universal ventricular coordinates; and
+- the source's supplied myocardial fibre-direction vectors.
 
-This is an anatomy representation and visualization challenge. It is not a cardiovascular simulation, diagnostic tool, or claim that SVF can infer anatomy from geometry.
+This is a static anatomy and scientific-data visualization challenge. It does not ask SVF to simulate cardiac electrophysiology, mechanics, or blood flow.
 
-## Evaluation boundary
+## Primary dataset candidate
 
-- Evaluate SVF independently through `svf-core`, `svf-render`, and the standalone Explorer.
-- Do not include Mava or Prismal, integration requirements, or assumptions about their data models.
-- Do not add a heart solver, physiology simulation, blood-flow computation, electrical conduction, or animation.
-- Do not implement a general scene graph or generic anatomical editor as a side effect of this challenge.
-- A missing capability is recorded as an SVF limitation. Do not convert or simplify the data merely to make the existing importer accept it if that changes the evaluation question.
-- The first task is source-data inspection and compatibility assessment. Implementation is a later, separately reviewed decision.
+**Virtual cohort of adult healthy four-chamber heart meshes from CT images**  
+Rodero et al., 2021. Zenodo DOI: https://doi.org/10.5281/zenodo.4590294
 
-## Source-data audit
+Official record:
+https://zenodo.org/records/4590294
 
-### Primary candidate: BodyParts3D 4.0, PART-OF tree
+The cohort contains 20 four-chamber heart meshes segmented from end-diastolic CT. The patients initially attended an emergency department with acute chest pain; no cardiac condition was detected during follow-up, so the authors describe them as representative of healthy/asymptomatic hearts. The meshes were used for electromechanical simulations and a statistical shape model.
+
+Dataset properties documented by the authors:
+- 20 patient-derived four-chamber heart models.
+- Tetrahedral meshes with approximately 1 mm average edge length.
+- ASCII legacy VTK UNSTRUCTURED_GRID files.
+- Coordinates in millimetres.
+- Cell-associated anatomical meshing tags.
+- Point-associated universal ventricular coordinates (UVCs): rho, phi, Z, and V.
+- Supplied ventricular fibre-direction vectors.
+- One compressed archive per case; the 20 case archives range from approximately 54.9 MB to 103.2 MB, with about 1.5 GB total.
+
+The data are shared under CC BY 4.0, as confirmed by the CEMRG dataset catalogue and PyAnsys Heart acknowledgements. Preserve attribution to the dataset authors and cite the accompanying paper:
+Strocchi et al. (2021), “Linking statistical shape models and simulated function in the healthy adult human heart,” PLOS Computational Biology, DOI: https://doi.org/10.1371/journal.pcbi.1008851.
+
+For the first audit, use one case only (proposed default: 01.tar.gz). Do not download the full cohort until the single-case workflow is established.
+
+### Source anatomical labels
+
+The dataset description lists 24 element labels:
+
+1. Left ventricle myocardium
+2. Right ventricle myocardium
+3. Left atrium myocardium
+4. Right atrium myocardium
+5. Aorta wall
+6. Pulmonary artery wall
+7. Mitral valve plane
+8. Tricuspid valve plane
+9. Aortic valve plane
+10. Pulmonary valve plane
+11. Left atrium appendage inlet
+12. Left superior pulmonary vein inlet
+13. Left inferior pulmonary vein inlet
+14. Right inferior pulmonary vein inlet
+15. Right superior pulmonary vein inlet
+16. Superior vena cava inlet
+17. Inferior vena cava inlet
+18. Left atrial appendage border
+19. Right inferior pulmonary vein border
+20. Left inferior pulmonary vein border
+21. Left superior pulmonary vein border
+22. Right superior pulmonary vein border
+23. Superior vena cava border
+24. Inferior vena cava border
+
+The labels are cell tags in the tetrahedral mesh. The four valves are represented as **valve planes**, not detailed leaflets/cusps. The pulmonary veins and venae cavae are represented by inlet/border regions, not complete vessel tubes. Do not describe these tags as complete valve or vessel geometry.
+
+### Scientific limitations of the source
+
+- The authors call the cohort healthy/asymptomatic based on follow-up; it is not a random sample of the entire healthy population.
+- It is a cohort of individual CT-derived anatomies, not a single canonical heart.
+- The model provides chamber myocardium and selected vessel walls, valve planes, and inlet/border regions. It does not provide detailed valve leaflets, chordae, papillary muscles, coronary vessels, or complete pulmonary vein/SVC/IVC geometry.
+- The fibre directions are supplied rule-based model fields, not directly measured histological fibre orientations.
+- The UVCs are mathematical coordinates defined by the authors; they are not physical measurements in millimetres.
+- No cardiac solver or simulation output is required for B1.
+
+## Secondary anatomical references
+
+### BodyParts3D 4.0
 
 Official download page:
 https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
 
-The official catalogue exposes:
-- `partof_parts_list_e.txt`: concept ID, representation ID, and English anatomical name;
-- `partof_inclusion_relation_list.txt`: PART-OF inclusion relationships;
-- `partof_element_parts.txt`: compound-organ element-file mappings; and
-- `partof_BP3D_4.0_obj_99.zip`: polygon mesh data for the PART-OF tree (listed as 62 MB).
+BodyParts3D is useful as a whole-body coordinate/anatomical reference, but it is not selected as the primary B1 mesh. Its PART-OF data maps compound concepts to shared FJ element meshes. The four valve concepts overlap chamber element mappings, so it does not provide independent valve surfaces. Its official coordinate diagram specifies millimetres, anatomical left X>0/right X<0, posterior Y>0/anterior Y<0, and superior increasing +Z. Its release note also cautions that the data may contain errors if used as a canonical model.
 
-The catalogue's 99% reduction mesh archive is the proposed initial geometry source because it is a collection of polygon meshes and is accompanied by explicit anatomical concept and inclusion tables. The exact archive contents, OBJ naming, units, coordinate axes, mesh quality, and structure coverage still require local verification.
+See the companion audit: biology-heart-anatomy-source-audit.md.
 
-### Confirmed catalogue entries
-
-The official PART-OF concept list contains the following entries. The BP identifiers below are the catalogue's representation IDs; they are not yet a claim that every corresponding mesh has passed archive-level verification.
-
-| Structure | FMA concept ID | BodyParts3D representation ID |
-|---|---|---|
-| Heart | FMA7088 | BP9305 |
-| Right atrium | FMA7096 | BP9831 |
-| Left atrium | FMA7097 | BP9454 |
-| Right ventricle | FMA7098 | BP9598 |
-| Left ventricle | FMA7101 | BP9448 |
-| Aorta | FMA3734 | BP10374 |
-| Superior vena cava | FMA4720 | BP10386 |
-| Inferior vena cava | FMA10951 | BP10397 |
-| Pulmonary trunk | FMA8612 | BP9912 |
-| Right pulmonary artery | FMA50872 | BP9427 |
-| Left pulmonary artery | FMA50873 | BP9414 |
-| Right superior pulmonary vein | FMA49914 | BP9365 |
-| Right inferior pulmonary vein | FMA49911 | BP9407 |
-| Left superior pulmonary vein | FMA49916 | BP9499 |
-| Left inferior pulmonary vein | FMA49913 | BP9712 |
-| Tricuspid valve | FMA7234 | BP9830 |
-| Pulmonary valve | FMA7246 | BP9868 |
-| Mitral valve | FMA7235 | BP9455 |
-| Aortic valve | FMA7236 | BP9447 |
-
-The four valves are present as catalogue concepts, but the official compound-element mapping shows their mapped FJ mesh elements are shared with chamber concepts. The online metadata therefore does **not** support treating the valves as independently separable meshes. This is a significant limitation for B1 and must be resolved through the final source choice or an explicitly revised scope.
-
-The concept and relationship tables must be used together. Do not assume a single OBJ corresponds one-to-one with every named compound anatomical concept. Some concepts may be composed from multiple element files. Preserve source IDs and mappings in the fixture manifest.
-
-### Preliminary source audit findings
-
-The official BodyParts3D 4.0 README states that only atomic ELEMENT concepts are supplied as polygon meshes; compound COMPOUND concepts are represented through the `partof_element_parts.txt` mapping table. The OBJ archive stores files under unique ELEMENT file IDs (`FJ...`), not under the FMA or BP representation IDs. Therefore, a named anatomical concept can map to multiple element files, and the same element file can be assigned to more than one concept. See the official [README](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/README_e.html), [concept table](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_parts_list_e.txt), and [element mapping table](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_element_parts.txt).
-
-The published element mappings for the four chambers are:
-- Right atrium (FMA7096): FJ2421, FJ2424, FJ2433, FJ2436, FJ2439.
-- Left atrium (FMA7097): FJ2420, FJ2425, FJ2426, FJ2431, FJ2432, FJ2438.
-- Right ventricle (FMA7098): FJ2417, FJ2419, FJ2421, FJ2423, FJ2427, FJ2430, FJ2433, FJ2434, FJ2436, FJ2437.
-- Left ventricle (FMA7101): FJ2418, FJ2420, FJ2422, FJ2426, FJ2429, FJ2431, FJ2432, FJ2435.
-
-The valve concepts map to:
-- Tricuspid valve (FMA7234): FJ2421, FJ2433, FJ2436.
-- Pulmonary valve (FMA7246): FJ2417, FJ2427, FJ2434.
-- Mitral valve (FMA7235): FJ2420, FJ2426, FJ2431, FJ2432.
-- Aortic valve (FMA7236): FJ2426, FJ2431, FJ2435.
-
-These mappings overlap substantially: tricuspid-valve elements are also mapped to right atrium/right ventricle; pulmonary-valve elements are mapped to right ventricle; mitral-valve elements are mapped to left atrium/left ventricle; aortic-valve elements overlap left-ventricle elements. Thus the PART-OF archive's element assignment is not a set of four separately selectable valve surfaces plus four separately selectable chamber surfaces. It is not valid to duplicate shared FJ meshes and label the duplicates as distinct valves. This may be a limitation of the source's segmentation granularity rather than a renderer limitation.
-
-The same table confirms that the aorta maps to five FJ elements (FJ1931, FJ1932, FJ3411, FJ3413, FJ3427), superior vena cava to FJ3645, inferior vena cava to FJ3441 and FJ3659, and pulmonary trunk to FJ2966. The bilateral pulmonary arteries and four pulmonary veins also map to multiple element files. These are metadata findings only; actual archive membership and mesh quality remain pending.
-
-The official BodyParts3D 4.0 coordinate diagram specifies millimetres, with the body centreline approximately along +Z and superior positions at greater Z. It specifies anatomical left as X>0 and right as X<0; posterior as Y>0 and anterior as Y<0. These source coordinates must be preserved in one shared frame. SVF's +Y-up convention will require a single documented coordinate transform if the source is ultimately used. See the [official coordinate diagram](https://dbarchive.biosciencedbc.jp/archive/bodyparts3d/images/coordinate_system.png).
-
-The official 4.0 release note says coordinates were changed to accommodate large internal organs and that many existing parts were shifted. It also cautions that the data may still contain errors if used as a canonical model of common human anatomy. BodyParts3D is explicitly an adult male reference model. These caveats make independent anatomical comparison essential; the dataset must not be presented as a universal or clinical gold standard. See the [official 4.0 release note](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/20130619/release_4.0_e.html).
-
-The current online metadata contains all 19 required concepts and the expected representation IDs. One earlier draft entry for pulmonary trunk was incorrect; the correct representation ID is **BP9912**, not BP9911.
-
-### Independent reference candidate: HuBMAP CCF / Human Reference Atlas
+### HuBMAP CCF / Human Reference Atlas
 
 Official library:
 https://hubmapconsortium.github.io/ccf/pages/ccf-3d-reference-library.html
 
-The CCF 3D Reference Object Library provides expert-developed and organ-expert-approved reference objects. The published library includes male and female heart objects in GLB format and publishes release downloads and model mappings. Its reference objects are a useful independent comparison for overall heart form and spatial presentation.
+The library provides male and female whole-heart GLB reference objects developed by specialist 3D medical illustrators and approved by organ experts. Use these as independent whole-organ visual references, not as the primary multi-region volumetric dataset.
 
-Use HuBMAP as a secondary whole-organ reference, not as a substitute for an independently named chamber/valve inventory. The published library exposes female and male whole-heart GLB objects; it does not, from the public library page, establish separately downloadable meshes for every required chamber and valve. Record the exact release, file identity, attribution, and licence if used.
+### Detailed teaching-heart reference (optional)
 
-### Licensing and attribution
+The Layered Human project publishes a 119-part procedural teaching-heart model with separate chamber wall panels, valve leaflets/cusps, chordae, papillary muscles, coronary arteries, cardiac veins, and great vessels. Its project README describes the model as built from published measurements and its own original model assets as MIT-licensed:
+https://github.com/ethanprince4/AnatomyExplorer
 
-BodyParts3D's official licence page states CC BY 4.0 and requires this attribution when redistributing the data or adapted material:
+This is an optional visual comparison only. It is not the primary B1 dataset, is a surface/GLB model rather than the tetrahedral VTK cohort, and has not undergone independent expert validation for this challenge. Do not merge its geometry into the patient-derived cohort.
 
-> BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International.
+## Evaluation boundary
 
-Official licence:
-https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+- Evaluate SVF independently through svf-core, svf-render, and the standalone Explorer.
+- Mava and Prismal are excluded entirely.
+- No heart solver, electrophysiology, contraction, blood-flow computation, time integration, or animation.
+- No generic scene graph or anatomical editor.
+- No new importer, surface-mesh system, material-interface extractor, or interaction framework is presumed by the acceptance criteria.
+- If current SVF cannot reveal an internal material interface or distinguish structures from cell tags, record that as a limitation. Do not pre-process the dataset in a way that conceals the limitation.
+- Any new SVF capability requires a separate, bounded design proposal after the evaluation documents the gap.
 
-HuBMAP CCF 3D reference objects are also listed under CC BY 4.0. Record separate attribution for each source actually used. Include the original source URLs, release/version, access date, and any transformations in the fixture documentation. Do not imply that SVF created the anatomy.
+## Data contract for the selected case
 
-## Anatomical scope
+Before fixture preparation, establish:
+1. exact case archive filename, Zenodo record/version, and checksum;
+2. archive member names and exact VTK file selected;
+3. point, tetrahedron, and cell-type counts;
+4. cell-tag names/IDs and their mapping to the 24 anatomical labels;
+5. point-associated UVC arrays and fibre-vector association/tuple counts;
+6. coordinate bounds, millimetre units, and anatomical orientation;
+7. topology integrity: finite coordinates, valid connectivity, positive tetrahedron volumes, and face-incidence statistics;
+8. source attribution, CC BY 4.0 notice, and every transformation applied.
 
-### Required structures
-
-The initial required inventory is:
-- four chambers: right atrium, left atrium, right ventricle, left ventricle;
-- major systemic vessels: superior vena cava, inferior vena cava, aorta;
-- pulmonary outflow and inflow: pulmonary trunk, right and left pulmonary arteries, and four pulmonary veins;
-- four principal valves: tricuspid, pulmonary, mitral, and aortic valves.
-
-The heart as a whole is retained as a source concept/reference where available. It must not be rendered as an opaque shell that hides the internal structures during the internal-structure inspection.
-
-### Optional structures
-
-Coronary arteries and veins, coronary sinus, septa, chordae tendineae, papillary muscles, and detailed valve leaflets may be recorded if source geometry is available and suitable. They are not required for B1 acceptance. Do not synthesize missing anatomy.
-
-### Biological interpretation guardrails
-
-- Anatomical right and left are the subject's right and left, not the viewer's.
-- A front/anterior view must be labelled as such; never silently swap anatomical left/right to match screen position.
-- The right and left pulmonary arteries are named relative to the lungs they supply.
-- Pulmonary veins return oxygenated blood to the left atrium; pulmonary arteries carry blood away from the right ventricle through the pulmonary trunk. These flow relationships are reference annotations, not inferred from mesh proximity.
-- Geometric intersection, contact, or overlap is not automatically proof of anatomical connection.
-- Do not imply the model is a patient-specific scan or a universal representation of all human variation.
-
-## Data contract for the eventual fixture
-
-The source audit must establish before fixture generation:
-1. exact archive filename and version;
-2. exact source OBJ/element file(s) used for each selected FMA concept;
-3. original units, axis directions, handedness, and coordinate origin;
-4. whether meshes are already in a common coordinate frame;
-5. vertex/face counts and bounding boxes per structure;
-6. disconnected components, degenerate faces, duplicate vertices, normals, and any non-manifold/open boundaries;
-7. whether each structure is independently represented or assembled from multiple source elements;
-8. attribution and any modifications required for a distributable fixture.
-
-Keep the source meshes immutable. If conversion is needed, preserve source-to-output mapping and document every transformation. Do not apply per-structure centering, scaling, mirroring, or rotation that destroys the original relative positions. Any coordinate conversion must be a single documented transform applied consistently to all structures.
-
-Do not require every mesh to be watertight or manifold without first establishing that property from the source and its anatomical meaning. Report quality metrics per structure; do not silently repair geometry.
+Keep the original source mesh immutable. Any format conversion or derived fixture must preserve cell tags, point fields, fibre vectors, and source-to-output identity. Do not apply per-region transforms. If coordinate conversion is needed for SVF, apply one documented transform to all points and preserve the original coordinates in the audit report.
 
 ## B1 acceptance criteria
 
 | ID | Acceptance condition | Evidence |
 |---|---|---|
-| B1-01 | Source and licence are verifiable | Source manifest, exact release and attribution |
-| B1-02 | Required anatomical inventory is accounted for | FMA/BP/source-file mapping; explicit missing-item report |
-| B1-03 | Mesh data is structurally valid for the chosen representation | Independent counts, finite coordinates, valid indices, face-quality report |
-| B1-04 | Units and coordinate orientation are established | Source documentation and measured bounds/orientation checks |
-| B1-05 | Relative positions are preserved | Shared-frame checks and comparison against source/reference views |
-| B1-06 | Complete selected assembly can be represented | Standalone Explorer render with no missing required structure |
-| B1-07 | Individual structures remain identifiable | Structure-by-structure visibility/inspection evidence |
-| B1-08 | Anatomical orientation is interpretable | Anterior, posterior, superior, and oblique views with correct left/right |
-| B1-09 | Internal chambers, vessels, and valves can be examined | Views that reveal internal structures without misleading occlusion |
-| B1-10 | Provenance and reproduction are complete | Fixture manifest, attribution, exact commands, and audit report |
+| B1-01 | Source provenance and licence verified | Zenodo record, paper citation, CC BY 4.0 attribution, archive checksum |
+| B1-02 | Dataset structure is independently audited | Counts, connectivity, cell types, bounds, topology report |
+| B1-03 | All 24 anatomical cell labels are mapped correctly | Tag-ID/name table and per-label cell counts |
+| B1-04 | Coordinate units and orientation are established | Millimetre bounds and anatomical reference checks |
+| B1-05 | Existing SVF VTK import handles the selected case | Exact import counts and field inventory |
+| B1-06 | Outer boundary is extracted and rendered correctly | Explorer output and reproducible views |
+| B1-07 | Cell-associated anatomical tags remain inspectable/mappable | Field inspection and rendered evidence |
+| B1-08 | Point-associated UVC fields remain available | Field inventory and selected-value inspection |
+| B1-09 | Supplied fibre vectors can be resolved and visualized | Vector source counts, direction checks, visual evidence |
+| B1-10 | Internal anatomical interfaces are meaningfully inspectable | Explicit pass/fail/blocked result; no concealed preprocessing |
+| B1-11 | Reproduction and attribution are complete | Fixture manifest, exact commands, and audit instructions |
 
-For B1-06 through B1-09, record both successful behavior and limitations of the current SVF architecture. No acceptance criterion presumes a particular new importer, scene abstraction, or interaction framework.
+A failure or unsupported capability is a valid evaluation result. Do not implement new capabilities merely to turn a failed criterion into a pass.
 
 ## Evaluation views
 
-At minimum, prepare reference views for:
-1. anterior (front);
-2. posterior (back);
-3. superior (top);
-4. right and left oblique views;
-5. an internal/chamber-focused view that makes the four chambers and valves inspectable.
+At minimum, record:
+1. anterior;
+2. posterior;
+3. superior;
+4. right and left oblique;
+5. any internal/material-interface view that the existing SVF pipeline can expose.
 
-These are evaluation viewpoints, not a requirement to build a medical atlas UI. Record camera/view definitions so results can be reproduced.
+The source coordinate axes must be verified before naming the camera views. Camera presets are evidence artifacts, not a requirement to build a medical atlas UI.
 
 ## Planned workflow
 
-### B1.1 — Source-data audit
+### B1.1 — Single-case source audit (next)
 
-- Run `python tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` to download the official BodyParts3D PART-OF archive and metadata, verify all required FJ element files exist, and produce a JSON report with OBJ integrity statistics.
-- Inspect the report, especially shared element assignments and mesh bounds. The script does not transform or repair meshes.
-- Inspect a HuBMAP heart reference object as an independent whole-organ comparison.
-- Decide whether the BodyParts3D source can satisfy the multi-structure learning objective despite the chamber/valve element overlap. If not, investigate a better-documented detailed teaching-heart dataset before freezing the fixture source.
-- Record formats, coordinate conventions, units, geometry statistics, source hierarchy, licences, and any gaps.
-- Do not add source assets to the repository until redistribution, fixture size, and attribution are understood.
+- Download only 01.tar.gz from the official Zenodo record.
+- Inspect archive contents and identify the ASCII VTK unstructured-grid file.
+- Verify counts, cell tags, point fields, vectors, coordinates, and topology.
+- Record the exact source archive checksum and the attribution.
+- Decide whether the existing SVF importer and boundary pipeline can evaluate the case without data-altering preprocessing.
 
-### B1.2 — Finalize the challenge contract
+### B1.2 — Finalize fixture contract (separate review)
 
-- Confirm the exact required structure set based on the archive audit.
-- Select and freeze the source release and exact files.
-- Define fixture packaging and independent geometry checks.
-- Decide whether current SVF can represent the dataset without production changes.
+Freeze the case, tag mapping, coordinate transform (if any), independent verifier, and fixture packaging. Do not include the full 20-case cohort unless the single-case evaluation demonstrates a concrete need.
 
 ### B1.3 — Fixture preparation (separate approval)
 
-Prepare a reproducible standalone fixture and verifier only after B1.2 is accepted. Keep raw upstream downloads out of Git unless their size and licence make that appropriate; document reproducible retrieval and retain only the required derived test data.
+Prepare a reproducible, source-preserving fixture and verifier. Keep large raw upstream downloads out of Git unless size and licence justify it.
 
 ### B1.4 — SVF evaluation (separate approval)
 
-Evaluate import/representation, rendering, orientation, structure visibility, and inspection. Report pass/fail/blocked outcomes with screenshots and exact command output. Any new SVF capability requires its own bounded design proposal after the limitation is demonstrated.
+Run import, boundary extraction, categorical field mapping, UVC inspection, and fibre-vector visualization. Record pass/fail/blocked results with exact terminal output and screenshots.
 
 ## Explicit non-goals
 
+- Valve leaflet/cusp geometry or detailed valve mechanics.
+- Complete pulmonary vein, vena cava, or coronary vessel trees.
 - Heartbeat or cardiac-cycle animation.
-- Electrical conduction or electrophysiology.
-- Pressure, flow, velocity, or computational fluid dynamics.
+- Electrical conduction or electrophysiology simulation.
+- Pressure, blood-flow, velocity, or computational fluid dynamics.
 - Tissue mechanics or contraction simulation.
-- Pathology, diagnosis, treatment, or patient-specific interpretation.
+- Pathology, diagnosis, treatment, or patient-specific clinical interpretation.
 - Whole-body anatomy or a general medical atlas.
 - Automatic segmentation, mesh reconstruction, or invented missing structures.
 - Mava/Prismal integration.
