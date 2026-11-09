@@ -497,7 +497,7 @@ LOOKUP_TABLE default
     #[test]
     fn rejects_invalid_independent_isosurface_color_fields() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(TETRA_VTK).unwrap();
-        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), None, Some("missing"));
+        let missing = prepare_imported_scene_with_options(dataset.clone(), None, Some("temperature"), Some(25.0), Some("missing"));
         assert!(missing.unwrap_err().contains("was not found"));
         let cell = prepare_imported_scene_with_options(dataset, None, Some("temperature"), Some(25.0), Some("density"));
         assert!(cell.unwrap_err().contains("Point association"));
@@ -675,7 +675,7 @@ LOOKUP_TABLE default
     fn extracts_imported_tetrahedral_isosurface_and_retains_provenance() {
         let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
         let scene = prepare_imported_scene_with_options(
-            dataset.clone(), None, Some("temperature"), Some(25.0),
+            dataset.clone(), None, Some("temperature"), Some(25.0), None,
         ).unwrap();
         let iso = scene.isosurface.as_ref().unwrap();
         assert_eq!(iso.isovalue(), 25.0);
