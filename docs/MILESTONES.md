@@ -1041,3 +1041,16 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - This is SVF-only. No Mava/Prismal integration, cardiac simulation, blood-flow computation, electrical conduction, or generic editor/scene graph work.
 - **Status:** design proposal pending review. No archive has been locally audited; no fixtures or production implementation have been created.
 - Next: perform B1.1 source-data audit only after the design contract is accepted. Fixture preparation and SVF implementation require separate review.
+
+
+## B1.1 — Human heart anatomy source audit (in progress)
+
+- B1 design approved and merged through PR #45; revised primary source selection is under review in PR #46.
+- BodyParts3D 4.0 PART-OF was rejected as primary because its four valve concepts share FJ mesh elements with chamber concepts; it does not provide separate valve surfaces.
+- Preferred primary candidate: Rodero et al. (2021) healthy/asymptomatic four-chamber CT cohort, Zenodo DOI 10.5281/zenodo.4590294.
+- 20 patient-derived tetrahedral meshes, approximately 1 mm average edge length, ASCII VTK UNSTRUCTURED_GRID, coordinates in mm, 24 cell anatomical tags, point UVCs, and supplied ventricular fibre vectors. One case archive is 54.9–103.2 MB; proposed case 01 is 91.1 MB.
+- CC BY 4.0 confirmed by CEMRG and PyAnsys Heart acknowledgements. Valve labels are planes, not leaflets; vessel labels are inlets/borders, not complete tubes.
+- The cohort has four chamber myocardium regions, aorta/pulmonary artery walls, valve planes, and appendage/vessel inlets and borders. It is a static anatomy dataset; no cardiac simulation is in scope.
+- **Local audit pending.** No dataset has been downloaded; no fixture or production implementation has been created.
+- Next: accept revised source choice, then audit one case before fixture preparation or SVF changes.
+

@@ -1538,3 +1538,20 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - The design document includes the required inventory with FMA and BodyParts3D representation IDs, data-contract requirements, anatomical interpretation guardrails, acceptance criteria, reproducible evaluation views, and explicit non-goals.
 - **Current state:** design proposal only. The archive has not been downloaded/audited locally; no fixture, conversion, importer, or SVF production code has been created. Do not claim source geometry availability solely from catalogue entries.
 - Next step after design review: B1.1 source-data audit. Do not start fixture generation or implementation until the archive audit is complete and the final challenge contract is accepted.
+
+
+## B1 — Human heart anatomy source audit (in progress)
+
+- B1 design approved and merged through PR #45; revised primary source selection is under review in PR #46.
+- The initial BodyParts3D 4.0 PART-OF candidate was not selected as primary: its four valve concepts map to FJ element meshes that overlap the chamber mappings, so it does not supply four separately selectable valve surfaces.
+- Preferred primary candidate: Rodero et al. (2021), Virtual cohort of adult healthy four-chamber heart meshes from CT images. Zenodo DOI: https://doi.org/10.5281/zenodo.4590294.
+- The cohort contains 20 CT-derived four-chamber meshes, approximately 1 mm average edge length, ASCII legacy VTK UNSTRUCTURED_GRID, coordinates in millimetres, cell-associated anatomical tags, point-associated UVC fields, and supplied ventricular fibre vectors. Case archives are 54.9–103.2 MB; proposed first case 01.tar.gz is 91.1 MB.
+- Licence CC BY 4.0 is confirmed by the CEMRG dataset catalogue and PyAnsys Heart acknowledgements; preserve dataset authorship and cite the associated paper.
+- The 24 cell labels include four chamber myocardium regions, aorta/pulmonary artery walls, four valve planes, and vessel/appendage inlets and borders. Valve planes are not leaflets/cusps; vessel inlets are not complete vessel tubes. Fibre directions are rule-based, and UVCs are mathematical coordinates.
+- The cohort is described as healthy/asymptomatic based on clinical follow-up, not a general-population canonical model.
+- BodyParts3D remains a secondary whole-body reference; its official coordinate system is mm, anatomical left X>0/right X<0, posterior Y>0/anterior Y<0, superior +Z. Correction: pulmonary trunk BP9912, not BP9911.
+- HuBMAP CCF male/female whole-heart GLB models are optional whole-organ visual references. Layered Human's 119-part procedural heart (MIT original model assets, according to its repo) is an optional valve morphology reference only; it is not patient-derived and is a GLB surface model.
+- The single-case Rodero archive has not yet been downloaded or locally inspected. No fixture or SVF production code has been created.
+- Next: after accepting the revised source choice, download only case 01, audit VTK topology/fields/units/orientation, and test the existing SVF importer. Do not download the full cohort or implement missing capabilities before that audit.
+- SVF-only evaluation. Mava and Prismal remain excluded.
+
