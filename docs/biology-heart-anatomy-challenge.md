@@ -2,7 +2,7 @@
 
 ## Status
 
-**Design proposal for review.** The source catalogue has been inspected online, including its anatomical concept inventory, mesh representation identifiers, and licence. The archive itself has not yet been downloaded or independently audited locally. No fixture, conversion, importer, or SVF production code is included in this design increment.
+**Design accepted; B1.1 source audit in progress.** Official BodyParts3D metadata and coordinate documentation have been inspected online. The archive itself has not yet been downloaded or independently audited locally. A reproducible standard-library audit script is provided at `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py`. No fixture, conversion, importer, or SVF production code is included.
 
 ## Objective
 
@@ -55,7 +55,7 @@ The official PART-OF concept list contains the following entries. The BP identif
 | Aorta | FMA3734 | BP10374 |
 | Superior vena cava | FMA4720 | BP10386 |
 | Inferior vena cava | FMA10951 | BP10397 |
-| Pulmonary trunk | FMA8612 | BP9911 |
+| Pulmonary trunk | FMA8612 | BP9912 |
 | Right pulmonary artery | FMA50872 | BP9427 |
 | Left pulmonary artery | FMA50873 | BP9414 |
 | Right superior pulmonary vein | FMA49914 | BP9365 |
@@ -67,9 +67,35 @@ The official PART-OF concept list contains the following entries. The BP identif
 | Mitral valve | FMA7235 | BP9455 |
 | Aortic valve | FMA7236 | BP9447 |
 
-The four valves are present as catalogue concepts. Their individual mesh availability and geometric adequacy must still be checked in the archive; catalogue presence alone is not sufficient.
+The four valves are present as catalogue concepts, but the official compound-element mapping shows their mapped FJ mesh elements are shared with chamber concepts. The online metadata therefore does **not** support treating the valves as independently separable meshes. This is a significant limitation for B1 and must be resolved through the final source choice or an explicitly revised scope.
 
 The concept and relationship tables must be used together. Do not assume a single OBJ corresponds one-to-one with every named compound anatomical concept. Some concepts may be composed from multiple element files. Preserve source IDs and mappings in the fixture manifest.
+
+### Preliminary source audit findings
+
+The official BodyParts3D 4.0 README states that only atomic ELEMENT concepts are supplied as polygon meshes; compound COMPOUND concepts are represented through the `partof_element_parts.txt` mapping table. The OBJ archive stores files under unique ELEMENT file IDs (`FJ...`), not under the FMA or BP representation IDs. Therefore, a named anatomical concept can map to multiple element files, and the same element file can be assigned to more than one concept. See the official [README](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/README_e.html), [concept table](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_parts_list_e.txt), and [element mapping table](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_element_parts.txt).
+
+The published element mappings for the four chambers are:
+- Right atrium (FMA7096): FJ2421, FJ2424, FJ2433, FJ2436, FJ2439.
+- Left atrium (FMA7097): FJ2420, FJ2425, FJ2426, FJ2431, FJ2432, FJ2438.
+- Right ventricle (FMA7098): FJ2417, FJ2419, FJ2421, FJ2423, FJ2427, FJ2430, FJ2433, FJ2434, FJ2436, FJ2437.
+- Left ventricle (FMA7101): FJ2418, FJ2420, FJ2422, FJ2426, FJ2429, FJ2431, FJ2432, FJ2435.
+
+The valve concepts map to:
+- Tricuspid valve (FMA7234): FJ2421, FJ2433, FJ2436.
+- Pulmonary valve (FMA7246): FJ2417, FJ2427, FJ2434.
+- Mitral valve (FMA7235): FJ2420, FJ2426, FJ2431, FJ2432.
+- Aortic valve (FMA7236): FJ2426, FJ2431, FJ2435.
+
+These mappings overlap substantially: tricuspid-valve elements are also mapped to right atrium/right ventricle; pulmonary-valve elements are mapped to right ventricle; mitral-valve elements are mapped to left atrium/left ventricle; aortic-valve elements overlap left-ventricle elements. Thus the PART-OF archive's element assignment is not a set of four separately selectable valve surfaces plus four separately selectable chamber surfaces. It is not valid to duplicate shared FJ meshes and label the duplicates as distinct valves. This may be a limitation of the source's segmentation granularity rather than a renderer limitation.
+
+The same table confirms that the aorta maps to five FJ elements (FJ1931, FJ1932, FJ3411, FJ3413, FJ3427), superior vena cava to FJ3645, inferior vena cava to FJ3441 and FJ3659, and pulmonary trunk to FJ2966. The bilateral pulmonary arteries and four pulmonary veins also map to multiple element files. These are metadata findings only; actual archive membership and mesh quality remain pending.
+
+The official BodyParts3D 4.0 coordinate diagram specifies millimetres, with the body centreline approximately along +Z and superior positions at greater Z. It specifies anatomical left as X>0 and right as X<0; posterior as Y>0 and anterior as Y<0. These source coordinates must be preserved in one shared frame. SVF's +Y-up convention will require a single documented coordinate transform if the source is ultimately used. See the [official coordinate diagram](https://dbarchive.biosciencedbc.jp/archive/bodyparts3d/images/coordinate_system.png).
+
+The official 4.0 release note says coordinates were changed to accommodate large internal organs and that many existing parts were shifted. It also cautions that the data may still contain errors if used as a canonical model of common human anatomy. BodyParts3D is explicitly an adult male reference model. These caveats make independent anatomical comparison essential; the dataset must not be presented as a universal or clinical gold standard. See the [official 4.0 release note](https://dbarchive.biosciencedbc.jp/data/bodyparts3d/20130619/release_4.0_e.html).
+
+The current online metadata contains all 19 required concepts and the expected representation IDs. One earlier draft entry for pulmonary trunk was incorrect; the correct representation ID is **BP9912**, not BP9911.
 
 ### Independent reference candidate: HuBMAP CCF / Human Reference Atlas
 
@@ -78,7 +104,7 @@ https://hubmapconsortium.github.io/ccf/pages/ccf-3d-reference-library.html
 
 The CCF 3D Reference Object Library provides expert-developed and organ-expert-approved reference objects. The published library includes male and female heart objects in GLB format and publishes release downloads and model mappings. Its reference objects are a useful independent comparison for overall heart form and spatial presentation.
 
-Use HuBMAP as a secondary visual/structural reference, not as a substitute for BodyParts3D's independently named structure inventory unless the source audit demonstrates that its hierarchy is more suitable. Record the exact release, file identity, attribution, and licence if used.
+Use HuBMAP as a secondary whole-organ reference, not as a substitute for an independently named chamber/valve inventory. The published library exposes female and male whole-heart GLB objects; it does not, from the public library page, establish separately downloadable meshes for every required chamber and valve. Record the exact release, file identity, attribution, and licence if used.
 
 ### Licensing and attribution
 
@@ -164,11 +190,12 @@ These are evaluation viewpoints, not a requirement to build a medical atlas UI. 
 
 ### B1.1 — Source-data audit
 
-- Download the official BodyParts3D PART-OF archive and matching metadata tables.
-- Inspect archive structure and verify the required concepts map to actual mesh element files.
-- Inspect a HuBMAP heart reference object as an independent comparison.
+- Run `python tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` to download the official BodyParts3D PART-OF archive and metadata, verify all required FJ element files exist, and produce a JSON report with OBJ integrity statistics.
+- Inspect the report, especially shared element assignments and mesh bounds. The script does not transform or repair meshes.
+- Inspect a HuBMAP heart reference object as an independent whole-organ comparison.
+- Decide whether the BodyParts3D source can satisfy the multi-structure learning objective despite the chamber/valve element overlap. If not, investigate a better-documented detailed teaching-heart dataset before freezing the fixture source.
 - Record formats, coordinate conventions, units, geometry statistics, source hierarchy, licences, and any gaps.
-- Do not add files to the repository until redistribution, fixture size, and attribution are understood.
+- Do not add source assets to the repository until redistribution, fixture size, and attribution are understood.
 
 ### B1.2 — Finalize the challenge contract
 
