@@ -1027,3 +1027,17 @@ Design contract: [analytical heat-diffusion challenge](analytical-heat-diffusion
   approximately 0.150410743745 K (coarse) to 0.0333587000791 K (fine).
 - Local generator/verifier execution and all SVF tests/runtime checks remain
   pending. This milestone is an evaluation fixture, not a heat solver.
+
+
+## B1 — Human heart anatomy and spatial relationships (design proposal)
+
+Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-challenge.md), branch `biology-heart-anatomy-design`.
+
+- Evaluate standalone SVF against a multi-structure 3D human heart anatomy dataset.
+- Primary source candidate: BodyParts3D 4.0 PART-OF tree, including its concept/representation list, inclusion relationships, compound-organ element mappings, and 99%-reduced OBJ mesh archive. Required heart concepts are present in the published catalogue; exact mesh membership and quality remain subject to local archive audit.
+- Secondary independent reference: HuBMAP CCF / Human Reference Atlas heart reference objects in GLB format.
+- Initial inventory: four chambers; aorta, superior/inferior vena cava, pulmonary trunk, bilateral pulmonary arteries and four pulmonary veins; four principal valves. Optional detailed anatomy is explicitly out of scope for acceptance.
+- The design defines provenance/licence handling, anatomical orientation safeguards, geometry and coordinate audit requirements, reproducible reference views, acceptance criteria, and non-goals.
+- This is SVF-only. No Mava/Prismal integration, cardiac simulation, blood-flow computation, electrical conduction, or generic editor/scene graph work.
+- **Status:** design proposal pending review. No archive has been locally audited; no fixtures or production implementation have been created.
+- Next: perform B1.1 source-data audit only after the design contract is accepted. Fixture preparation and SVF implementation require separate review.
