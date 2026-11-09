@@ -3,7 +3,7 @@
 //! All positions, radii, and offsets are expressed in ångströms (Å). These
 //! dimensions are presentation parameters, not measured atomic boundaries.
 
-use super::{AtomId, BondId, BondOrder, ChemistryError, Element, MolecularPoint3, Molecule};
+use super::{AtomId, BondId, BondOrder, Element, MolecularPoint3, Molecule};
 
 use std::{error::Error, fmt};
 
@@ -508,9 +508,11 @@ mod tests {
         assert_eq!(double_axes[1].start().x(), 1.0);
         assert!((double_axes[0].start().y() + double_axes[1].start().y()).abs() < 1e-12);
         assert!((double_axes[0].start().z() + double_axes[1].start().z()).abs() < 1e-12);
-        assert!(view.bonds().iter().flat_map(|b| b.axes()).all(|axis| {
-            axis.start().to_array().iter().chain(axis.end().to_array().iter()).all(|v| v.is_finite())
-        }));
+        for axis in view.bonds().iter().flat_map(|bond| bond.axes()) {
+            let start = axis.start().to_array();
+            let end = axis.end().to_array();
+            assert!(start.iter().chain(end.iter()).all(|value| value.is_finite()));
+        }
     }
 
     #[test]
