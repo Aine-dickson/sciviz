@@ -109,3 +109,5 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **M9.2 — Explorer VTK dataset loading:** implemented, Windows-validated, and merged through PR #25. Adds `--vtk <path>` and optional `--vtk-scalar <field-name>` for VTK legacy ASCII unstructured-grid files. Renders tetrahedral/hexahedral volume boundaries, supports point/cell scalar coloring, and fits the initial camera to imported geometry. User validation: 249 workspace tests passed, doc-tests passed, and `cargo check --workspace` passed.
+
+- **M9.3 — VTK isosurface extraction:** implemented, Windows-validated, and merged through PR #27. Adds `--vtk-isosurface`, finite isovalue selection, optional independent point-scalar coloring via `--vtk-isosurface-color`, and a depth-tested triangle-edge overlay. User validation: 258 workspace tests passed (216 core, 35 Explorer, 7 renderer), doc-tests and `cargo check --workspace` passed; both triangles and independent pressure coloring were visually confirmed.
