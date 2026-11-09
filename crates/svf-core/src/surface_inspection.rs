@@ -6,7 +6,6 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    boundary_surface::BoundarySurface3,
     dataset::{Dataset, DatasetField, DatasetGeometry},
     fields::FieldAssociation,
     geometry::TriangleMesh3,
@@ -126,6 +125,11 @@ pub fn inspect_boundary_surface(
             expected: surface.point_count(), actual: surface.source_point_ids().len(),
         });
     }
+    if surface.triangles().len() != surface.triangle_count() {
+        return Err(SurfaceInspectionError3::TriangleCountMismatch {
+            expected: surface.triangle_count(), actual: surface.triangles().len(),
+        });
+    }
     for (triangle, record) in surface.triangles().iter().enumerate() {
         if record.source_cell_index() >= grid.cell_count() {
             return Err(SurfaceInspectionError3::SourceCellOutOfBounds {
@@ -226,11 +230,10 @@ fn evaluate_boundary_fields(
                 name: field.metadata().name().to_owned(), message: error.to_string(),
             })?;
         let value = match field.association() {
-            FieldAssociation::Point => barycentric_value(
-                source_ids.map(|id| field.values()[id as usize]), weights,
-            ).map_err(|_| SurfaceInspectionError3::InvalidPointInterpolation {
-                field: field.metadata().name().to_owned(), triangle,
-            })?,
+            FieldAssociation::Point => barycentric_value(source_ids.map(|id| field.values()[id as usize]), weights)
+                .map_err(|_| SurfaceInspectionError3::InvalidPointInterpolation {
+                    field: field.metadata().name().to_owned(), triangle,
+                })?,
             FieldAssociation::Cell => field.values()[cell_id],
             FieldAssociation::Dataset => field.values()[0],
         };
@@ -284,10 +287,7 @@ fn evaluate_isosurface_fields(
     Ok(result)
 }
 
-fn barycentric_value(
-    values: [SampleValue; 3],
-    weights: [f64; 3],
-) -> Result<SampleValue, ()> {
+fn barycentric_value(values: [SampleValue; 3], weights: [f64; 3]) -> Result<SampleValue, ()> {
     let mut total = 0.0;
     for (value, weight) in values.into_iter().zip(weights) {
         if !weight.is_finite() || weight < -1.0e-12 || weight > 1.0 + 1.0e-12 {
@@ -307,8 +307,8 @@ fn barycentric_value(
 mod tests {
     use super::*;
     use crate::{
-        boundary_surface::BoundarySurface3,
         fields::{FieldMetadata, ScalarField},
+        isosurface::extract_tetrahedral_isosurface,
         ray::Ray3,
         sampling::{NonFiniteValue, SampleValue},
         spatial::{WorldPoint3, WorldVector3},
@@ -350,69 +350,106 @@ mod tests {
         Ray3::new(origin, direction).unwrap()
     }
 
+    fn triangle_ray(mesh: &TriangleMesh3) -> Ray3 {
+        let [a, b, c] = mesh.triangles().next().unwrap()
+            .map(|id| mesh.vertices()[id as usize].to_array());
+        let center = WorldPoint3::new(
+            (a[0] + b[0] + c[0]) / 3.0,
+            (a[1] + b[1] + c[1]) / 3.0,
+            (a[2] + b[2] + c[2]) / 3.0,
+        );
+        let edge1 = WorldVector3::new(b[0]-a[0], b[1]-a[1], b[2]-a[2]);
+        let edge2 = WorldVector3::new(c[0]-a[0], c[1]-a[1], c[2]-a[2]);
+        let normal = edge1.cross(edge2);
+        ray(center + normal, normal * -1.0)
+    }
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1.0e-10, "expected {expected}, got {actual}");
+    }
+
     #[test]
-    fn boundary_hit_resolves_source_face_and_barycentric_point_scalar() {
+    fn boundary_hit_resolves_source_face_and_associated_scalar_values() {
         let dataset = fixture();
         let grid = match dataset.geometry() {
             DatasetGeometry::UnstructuredGrid3(grid) => grid,
             _ => unreachable!(),
         };
         let surface = grid.boundary_surface().unwrap().triangulate();
-        let face = surface.triangles()[0];
-        let [a, b, c] = face.vertices().map(|id| surface.points()[id as usize].to_array());
-        let target = WorldPoint3::new(
-            (a[0] + b[0] + c[0]) / 3.0,
-            (a[1] + b[1] + c[1]) / 3.0,
-            (a[2] + b[2] + c[2]) / 3.0,
-        );
-        let hit = inspect_boundary_surface(
-            &dataset, &surface,
-            &ray(target + WorldVector3::new(0.0, 0.0, 2.0), WorldVector3::new(0.0, 0.0, -1.0)),
-        ).unwrap();
-        // The chosen face may be edge-on to this fixed ray; exercise the first
-        // triangle using its normal instead.
-        let _ = hit;
-        let edge1 = WorldVector3::new(b[0]-a[0], b[1]-a[1], b[2]-a[2]);
-        let edge2 = WorldVector3::new(c[0]-a[0], c[1]-a[1], c[2]-a[2]);
-        let normal = edge1.cross(edge2);
-        let hit = inspect_boundary_surface(
-            &dataset, &surface,
-            &ray(target + normal, normal * -1.0),
-        ).unwrap().unwrap();
+        let hit = inspect_boundary_surface(&dataset, &surface, &triangle_ray(&mesh_from_parts(
+            surface.points(), surface.triangles().iter().flat_map(|t| t.vertices()).collect(),
+        ).unwrap())).unwrap().unwrap();
         assert_eq!(hit.triangle_index(), 0);
-        assert_eq!(hit.barycentric(), [1.0/3.0; 3]);
-        assert!(matches!(hit.entity(), InspectedEntity3::BoundaryFace { source_cell_id: 0, .. }));
-        assert_eq!(hit.scalar_values()[0].value(), SampleValue::Finite(20.0));
+        for weight in hit.barycentric() { assert_close(weight, 1.0 / 3.0); }
+        assert!(matches!(hit.entity(), InspectedEntity3::BoundaryFace {
+            source_cell_id: 0, source_face_id: _, source_local_face_id: _, source_triangle_index: 0,
+        }));
+        assert_close(hit.scalar_values()[0].value().as_finite().unwrap(), 20.0);
+        assert_eq!(hit.scalar_values()[0].units(), Some("K"));
+        assert_eq!(hit.scalar_values()[0].association(), FieldAssociation::Point);
         assert_eq!(hit.scalar_values()[1].value(), SampleValue::Finite(7.0));
         assert_eq!(hit.scalar_values()[2].value(), SampleValue::Finite(293.15));
     }
 
     #[test]
-    fn boundary_point_field_preserves_non_finite_classification() {
+    fn boundary_inspection_returns_miss_without_fabricating_a_hit() {
+        let dataset = fixture();
+        let grid = match dataset.geometry() { DatasetGeometry::UnstructuredGrid3(grid) => grid, _ => unreachable!() };
+        let surface = grid.boundary_surface().unwrap().triangulate();
+        let miss = inspect_boundary_surface(
+            &dataset, &surface,
+            &ray(WorldPoint3::new(20.0, 20.0, 20.0), WorldVector3::new(1.0, 0.0, 0.0)),
+        ).unwrap();
+        assert!(miss.is_none());
+    }
+
+    #[test]
+    fn isosurface_inspection_uses_provenance_for_all_point_fields() {
         let mut dataset = fixture();
-        let grid = match dataset.geometry() {
-            DatasetGeometry::UnstructuredGrid3(grid) => grid.clone(),
-            _ => unreachable!(),
-        };
-        let mut with_invalid = Dataset::new(grid);
-        with_invalid.add_scalar_field(ScalarField::new(
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("extract", None).unwrap(),
+            FieldAssociation::Point,
+            vec![0.0, 1.0, 0.0, 1.0].into_iter().map(SampleValue::Finite).collect(),
+        ).unwrap()).unwrap();
+        dataset.add_scalar_field(ScalarField::new(
+            FieldMetadata::new("pressure", Some("kPa".to_owned())).unwrap(),
+            FieldAssociation::Point,
+            vec![0.0, 100.0, 50.0, 150.0].into_iter().map(SampleValue::Finite).collect(),
+        ).unwrap()).unwrap();
+        let iso = extract_tetrahedral_isosurface(&dataset, "extract", 0.5).unwrap();
+        let hit = inspect_isosurface(&dataset, &iso, &triangle_ray(iso.mesh())).unwrap().unwrap();
+        assert!(matches!(hit.entity(), InspectedEntity3::IsosurfaceTriangle { source_cell_id: 0 }));
+        assert_eq!(hit.scalar_values().len(), 5);
+        assert_close(hit.scalar_values()[0].value().as_finite().unwrap(), 25.0);
+        assert_eq!(hit.scalar_values()[1].value(), SampleValue::Finite(7.0));
+        assert_eq!(hit.scalar_values()[2].value(), SampleValue::Finite(293.15));
+        assert_eq!(hit.scalar_values()[3].value(), SampleValue::Finite(0.5));
+        assert!(hit.scalar_values()[4].value().as_finite().is_some());
+        assert_eq!(hit.scalar_values()[4].units(), Some("kPa"));
+    }
+
+    #[test]
+    fn non_finite_source_values_remain_classified() {
+        let grid = UnstructuredGrid3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+                WorldPoint3::new(0.0, 0.0, 1.0),
+            ],
+            vec![CellType3::Tetrahedron4], vec![0, 4], vec![0, 1, 2, 3],
+        ).unwrap();
+        let mut dataset = Dataset::new(grid);
+        dataset.add_scalar_field(ScalarField::new(
             FieldMetadata::new("invalid", None).unwrap(),
             FieldAssociation::Point,
             vec![SampleValue::Finite(1.0), SampleValue::NonFinite(NonFiniteValue::NaN),
                  SampleValue::Finite(2.0), SampleValue::Finite(3.0)],
         ).unwrap()).unwrap();
-        let surface = match with_invalid.geometry() {
-            DatasetGeometry::UnstructuredGrid3(grid) => grid.boundary_surface().unwrap().triangulate(),
-            _ => unreachable!(),
-        };
-        let face = surface.triangles()[0];
-        let [a,b,c] = face.vertices().map(|id| surface.points()[id as usize].to_array());
-        let center = WorldPoint3::new((a[0]+b[0]+c[0])/3.0,(a[1]+b[1]+c[1])/3.0,(a[2]+b[2]+c[2])/3.0);
-        let normal = WorldVector3::new(b[0]-a[0],b[1]-a[1],b[2]-a[2])
-            .cross(WorldVector3::new(c[0]-a[0],c[1]-a[1],c[2]-a[2]));
-        let hit = inspect_boundary_surface(&with_invalid, &surface,
-            &ray(center + normal, normal * -1.0)).unwrap().unwrap();
+        let surface = match dataset.geometry() { DatasetGeometry::UnstructuredGrid3(grid) => grid.boundary_surface().unwrap().triangulate(), _ => unreachable!() };
+        let hit = inspect_boundary_surface(&dataset, &surface, &triangle_ray(
+            &mesh_from_parts(surface.points(), surface.triangles().iter().flat_map(|t| t.vertices()).collect()).unwrap(),
+        )).unwrap().unwrap();
         assert!(matches!(hit.scalar_values()[0].value(), SampleValue::NonFinite(NonFiniteValue::NaN)));
-        let _ = &mut dataset;
     }
 }
