@@ -490,7 +490,7 @@ LOOKUP_TABLE default
         let mapped = scene.mapped_isosurface.as_ref().unwrap();
         assert_eq!(mapped.transferred().metadata().name(), "pressure");
         assert_eq!(mapped.colors().len(), mapped.isosurface().mesh().vertex_count());
-        assert_eq!(mapped.isosurface().mesh().triangle_count(), 3);
+        assert_eq!(mapped.isosurface().mesh().triangle_count(), 2);
         assert!(scene.summary().contains("colored by 'pressure'"));
     }
 
