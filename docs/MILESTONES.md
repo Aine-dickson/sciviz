@@ -803,3 +803,39 @@ exit before a window opened. The only compiler warning was the pre-existing
 M9.2 is complete. Binary VTK, native file dialogs, standalone rendering of
 lower-dimensional-only datasets, vector-field controls, legends, and
 additional cell types remain outside this increment.
+
+### M9.3 — Isosurface extraction from imported VTK fields (complete; merged 2026-11-09)
+
+Design contract: M9.3 Explorer isosurface design PR #26 (merged).
+
+- PR #27: https://github.com/Aine-dickson/sciviz/pull/27
+- Merge commit: `b05f59371a7023460ac60b22f6787839ef23a4e4`.
+- [x] Add `--vtk-isosurface <field-name>` and finite `--vtk-isovalue <value>`
+- [x] Reuse M8.1 tetrahedral extraction and preserve isosurface provenance
+- [x] Add optional `--vtk-isosurface-color <point-scalar-field>` using M8.2
+  provenance-based scalar transfer and Viridis mapping
+- [x] Add a depth-tested overlay of unique undirected triangle edges
+- [x] Retain the source Dataset, extracted Isosurface3, and optional mapped
+  result on the CPU
+- [x] Fit the initial camera to the extracted surface and reject empty results
+  before window creation
+- [x] Preserve existing VTK loading and demo modes
+- [x] Verify `cargo test -p svf-explorer` on Windows (35 passed)
+- [x] Verify `cargo test --workspace` on Windows (258 passed: 216 core,
+  35 Explorer, 7 renderer; doc-tests passed)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Visually verify both triangles, independent `pressure` coloring, and
+  the contrasting shared-edge overlay
+- [x] Merge PR #27
+
+User-reported Windows validation (2026-11-09): all 258 workspace tests
+passed, doc-tests passed, and `cargo check --workspace` passed. The
+`--vtk-isosurface temperature --vtk-isovalue 25 --vtk-isosurface-color
+pressure` runtime displayed both triangular facets with a visible shared
+edge and a gradient from the independent `pressure` field. The only
+reported compiler warning remains the pre-existing
+`VectorSource3::new` dead-code warning.
+
+M9.3 implementation, automated validation, visual acceptance, and merge are
+complete. Future work must begin with an explicitly selected scope and design
+contract; do not infer the next milestone.
