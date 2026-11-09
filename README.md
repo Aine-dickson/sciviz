@@ -140,3 +140,11 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **Analytical heat-diffusion challenge (design proposal):** defines a manufactured exact temperature and Fourier heat-flux dataset on coarse/fine tetrahedral meshes, with a linear probe field. Intended to stress existing VTK import, boundary/scalar visualization, isosurfaces, provenance transfer, vector glyphs, and inspection without adding a heat solver. No fixture or implementation is included pending design review. See [challenge specification](docs/analytical-heat-diffusion-challenge.md).
+
+
+- **Analytical heat-diffusion challenge:** accepted dataset specification
+  (PR #43). Fixture implementation is under review: deterministic coarse and
+  fine tetrahedral VTK datasets, generator, independent verifier, and
+  reproduction instructions. Local verification and SVF evaluation are
+  pending. See [challenge specification](docs/analytical-heat-diffusion-challenge.md)
+  and [fixture README](fixtures/analytical-heat-diffusion/README.md).
