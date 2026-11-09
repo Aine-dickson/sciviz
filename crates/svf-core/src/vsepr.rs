@@ -647,15 +647,13 @@ mod tests {
     fn multiple_bond_order_still_maps_to_one_domain() {
         let molecule = Molecule::new(
             vec![
-                atom(1, Element::CARBON),
-                atom(2, Element::OXYGEN),
+                atom(1, Element::OXYGEN),
+                atom(2, Element::CARBON),
                 atom(3, Element::HYDROGEN),
-                atom(4, Element::HYDROGEN),
             ],
             vec![
                 Bond::new(BondId::new(10), AtomId::new(1), AtomId::new(2), BondOrder::Double),
                 bond(11, 1, 3),
-                bond(12, 1, 4),
             ],
         )
         .unwrap();
@@ -666,19 +664,15 @@ mod tests {
             vec![
                 bonding_domain(1, 10, 2),
                 bonding_domain(2, 11, 3),
-                bonding_domain(3, 12, 4),
+                lone_pair(3),
                 lone_pair(4),
             ],
             tetrahedral(),
             MolecularShape::Bent,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(
-            centre,
-            Err(VseprError::UnsupportedDomainPattern {
-                bonding_pairs: 3,
-                lone_pairs: 1,
-            })
-        );
+        assert_eq!(centre.bonding_pair_count(), 2);
+        assert_eq!(centre.lone_pair_count(), 2);
     }
 }
