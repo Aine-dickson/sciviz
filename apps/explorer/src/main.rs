@@ -107,6 +107,7 @@ struct Explorer {
     _isosurface: Option<Isosurface3>,
     _mapped_isosurface: Option<MappedIsosurface3>,
     imported_scene: Option<ImportedScene>,
+    navigation_config: Option<CameraNavigationConfig>,
     cursor_position: Option<[f64; 2]>,
     active_drag: Option<MouseButton>,
     drag_origin: Option<[f64; 2]>,
@@ -138,6 +139,7 @@ impl Explorer {
             _isosurface: None,
             _mapped_isosurface: None,
             imported_scene: None,
+            navigation_config: None,
             cursor_position: None,
             active_drag: None,
             drag_origin: None,
@@ -340,7 +342,7 @@ impl Explorer {
             return Ok(());
         };
         let camera = *renderer.camera();
-        let config = CameraNavigationConfig::default();
+        let config = self.navigation_config.unwrap_or_default();
         let updated = match button {
             Some(MouseButton::Left) => {
                 camera_navigation::orbit(&camera, delta_x, delta_y, config)?
@@ -528,6 +530,7 @@ impl ApplicationHandler for Explorer {
 
         match renderer_result {
             Ok(renderer) => {
+                self.navigation_config = CameraNavigationConfig::for_camera(renderer.camera()).ok();
                 self.renderer = Some(renderer);
                 self.window = Some(window.clone());
                 window.request_redraw();
@@ -613,9 +616,11 @@ impl ApplicationHandler for Explorer {
             },
 
             WindowEvent::MouseWheel { delta, .. } => {
+                // Normalize both winit wheel units to notches. A typical
+                // line event is one notch; pixel events use 100 px per notch.
                 let scroll = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => f64::from(y) * 40.0,
-                    MouseScrollDelta::PixelDelta(position) => position.y,
+                    MouseScrollDelta::LineDelta(_, y) => f64::from(y),
+                    MouseScrollDelta::PixelDelta(position) => position.y / 100.0,
                 };
                 if let Err(error) = self.navigate_camera(None, 0.0, scroll) {
                     eprintln!("Camera zoom failed: {error}");
