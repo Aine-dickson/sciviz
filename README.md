@@ -124,4 +124,4 @@ the asynchronous renderer initialization during this small native bootstrap).
 - **E1 — Chemistry composition core:** implemented, Windows-validated, and merged through PR #33. Adds graphics-independent element, atom, bond, and molecule types with structural validation. User validation: 16 chemistry tests, 236 core tests, 283 workspace tests, and `cargo check --workspace` passed.
 
 
-- **E2 — Chemistry molecular views (design):** design contract merged through PR #34. Defines graphics-independent ball-and-stick representations for water and methane, preserving atom/bond identity and explicit ångström units. Core implementation and validation are pending. See [design contract](docs/chemistry-molecular-views.md).
+- **E2 — Chemistry molecular views:** implemented, Windows-validated, and merged through PR #35. Adds graphics-independent ball-and-stick representations preserving atom/bond identity and semantic bond order, with deterministic multiple-bond axes. User validation: 10 focused tests, 246 core tests, 293 workspace tests (246 core, 40 Explorer, 7 renderer), and `cargo check --workspace` passed. See [design contract](docs/chemistry-molecular-views.md).
