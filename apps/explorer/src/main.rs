@@ -22,6 +22,7 @@ use svf_core::{
         map_scalar_field,
     },
     spatial::WorldPoint3,
+    surface_inspection::{inspect_boundary_surface, inspect_isosurface, InspectedEntity3},
     surface_triangulation::TriangulatedSurface3,
     vector_glyphs::{build_vector_glyphs, VectorGlyphSet3, VectorScalePolicy3},
     vector_visualization::{analyze_vector_sources, resolve_vector_sources},
@@ -143,6 +144,11 @@ impl Explorer {
     }
 
     fn inspect_cursor_position(&mut self, log_details: bool) {
+        if self.mode == ExplorerMode::Imported {
+            self.inspect_imported_cursor_position(log_details);
+            return;
+        }
+
         if matches!(
             self.mode,
             ExplorerMode::Unstructured | ExplorerMode::UnstructuredScalar
@@ -168,6 +174,12 @@ impl Explorer {
         };
 
         let size = window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            if log_details {
+                eprintln!("Surface inspection unavailable: viewport has zero area");
+            }
+            return;
+        }
         if log_details {
             eprintln!(
                 "Surface inspection click: pixel=({x:.1}, {y:.1}), viewport={}x{}",
@@ -223,6 +235,93 @@ impl Explorer {
                 ));
                 if log_details {
                     eprintln!("Surface inspection MISS: ray did not intersect the sampled surface");
+                }
+            }
+        }
+    }
+
+    fn inspect_imported_cursor_position(&self, log_details: bool) {
+        let (Some(window), Some(renderer), Some(scene), Some([x, y])) = (
+            self.window.as_ref(),
+            self.renderer.as_ref(),
+            self.imported_scene.as_ref(),
+            self.cursor_position,
+        ) else {
+            if log_details {
+                eprintln!("Imported-surface inspection unavailable: cursor, window, renderer, or dataset is missing");
+            }
+            return;
+        };
+
+        let size = window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            if log_details {
+                eprintln!("Imported-surface inspection unavailable: viewport has zero area");
+            }
+            return;
+        }
+        let ray = match renderer.camera().ray_from_viewport(x, y, size.width, size.height) {
+            Ok(ray) => ray,
+            Err(error) => {
+                window.set_title(&format!("{} | inspection ray error", self.mode.window_title(self.amplitude)));
+                if log_details {
+                    eprintln!("Imported-surface inspection ray error: {error}");
+                }
+                return;
+            }
+        };
+
+        let result = if let Some(isosurface) = scene.isosurface.as_ref() {
+            inspect_isosurface(&scene.dataset, isosurface, &ray)
+        } else {
+            inspect_boundary_surface(&scene.dataset, &scene.surface, &ray)
+        };
+
+        match result {
+            Err(error) => {
+                window.set_title(&format!("{} | inspection error", self.mode.window_title(self.amplitude)));
+                if log_details {
+                    eprintln!("Imported-surface inspection error: {error}");
+                }
+            }
+            Ok(None) => {
+                window.set_title(&format!("{} | hover: no surface", self.mode.window_title(self.amplitude)));
+                if log_details {
+                    eprintln!("Imported-surface inspection MISS: ray did not intersect the visible scientific surface");
+                }
+            }
+            Ok(Some(hit)) => {
+                let (kind, cell_id) = match hit.entity() {
+                    InspectedEntity3::BoundaryFace { source_cell_id, .. } => ("boundary", source_cell_id),
+                    InspectedEntity3::IsosurfaceTriangle { source_cell_id } => ("isosurface", source_cell_id),
+                };
+                let first_value = hit.scalar_values().first()
+                    .map(|value| format!(" | {}={:?}", value.name(), value.value()))
+                    .unwrap_or_default();
+                window.set_title(&format!(
+                    "{} | {kind} cell {cell_id} at ({:.3}, {:.3}, {:.3}){}",
+                    self.mode.window_title(self.amplitude),
+                    hit.world_position().to_array()[0],
+                    hit.world_position().to_array()[1],
+                    hit.world_position().to_array()[2],
+                    first_value,
+                ));
+                if log_details {
+                    eprintln!(
+                        "Imported scientific surface HIT: representation={kind}, entity={:?}, \
+                         triangle={}, distance={:.9}, world={:?}, barycentric={:?}",
+                        hit.entity(),
+                        hit.triangle_index(),
+                        hit.distance(),
+                        hit.world_position().to_array(),
+                        hit.barycentric(),
+                    );
+                    for value in hit.scalar_values() {
+                        eprintln!(
+                            "  scalar '{}' association={:?} units={:?} value={:?}",
+                            value.name(), value.association(), value.units(), value.value()
+                        );
+                    }
                 }
             }
         }
@@ -493,35 +592,29 @@ impl ApplicationHandler for Explorer {
             },
 
             WindowEvent::MouseWheel { delta, .. } => {
-                let wheel_delta = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => f64::from(y),
-                    MouseScrollDelta::PixelDelta(position) => position.y / 100.0,
+                let scroll = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => f64::from(y) * 40.0,
+                    MouseScrollDelta::PixelDelta(position) => position.y,
                 };
-                if let Err(error) = self.navigate_camera(None, 0.0, wheel_delta) {
+                if let Err(error) = self.navigate_camera(None, 0.0, scroll) {
                     eprintln!("Camera zoom failed: {error}");
                 }
             }
 
-            WindowEvent::Focused(false) | WindowEvent::CursorLeft { .. } => {
-                self.active_drag = None;
-                self.drag_origin = None;
-                self.last_drag_position = None;
-                self.drag_moved = false;
-            }
-
-            WindowEvent::KeyboardInput { event, .. }
-                if event.state == ElementState::Pressed && !event.repeat =>
-            {
-                let delta = match event.physical_key {
-                    PhysicalKey::Code(KeyCode::ArrowUp) => Some(AMPLITUDE_STEP),
-                    PhysicalKey::Code(KeyCode::ArrowDown) => Some(-AMPLITUDE_STEP),
-                    _ => None,
-                };
-
-                if let Some(delta) = delta {
-                    if let Err(error) = self.adjust_amplitude(delta) {
-                        eprintln!("Could not update surface amplitude: {error}");
-                        event_loop.exit();
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == ElementState::Pressed {
+                    match event.physical_key {
+                        PhysicalKey::Code(KeyCode::ArrowUp) | PhysicalKey::Code(KeyCode::NumpadAdd) => {
+                            if let Err(error) = self.adjust_amplitude(AMPLITUDE_STEP) {
+                                eprintln!("Amplitude update failed: {error}");
+                            }
+                        }
+                        PhysicalKey::Code(KeyCode::ArrowDown) | PhysicalKey::Code(KeyCode::NumpadSubtract) => {
+                            if let Err(error) = self.adjust_amplitude(-AMPLITUDE_STEP) {
+                                eprintln!("Amplitude update failed: {error}");
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -529,7 +622,7 @@ impl ApplicationHandler for Explorer {
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = self.renderer.as_mut() {
                     if let Err(error) = renderer.render() {
-                        eprintln!("Rendering failed: {error}");
+                        eprintln!("Render failed: {error}");
                         event_loop.exit();
                     }
                 }
@@ -539,6 +632,8 @@ impl ApplicationHandler for Explorer {
         }
     }
 }
+
+
 
 fn main() {
     let arguments = std::env::args().collect::<Vec<_>>();
