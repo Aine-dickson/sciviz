@@ -1169,7 +1169,7 @@ acceptance, and merge are complete.
 
 ## Current project state and next planning step
 
-M0–M9.2 are implemented and merged to `main`. The next milestone has not
+M0–M9.3 are implemented and merged to `main`. The next milestone has not
 yet been selected. Before implementation, review the current architecture,
 remaining design constraints, and desired scientific workflows; then define
 one focused increment with an explicit design contract and testable acceptance
@@ -1247,3 +1247,47 @@ User-reported Windows validation (2026-11-09):
 M9.2 implementation, Windows automated validation, visual acceptance, and
 merge are complete. The next milestone has not been selected; do not infer
 or silently begin an M9.3 scope.
+
+## M9.3 — Isosurface extraction from imported VTK fields (complete; merged 2026-11-09)
+
+Design contract: `docs/explorer-vtk-isosurface.md` is not asserted; the
+approved design contract is `docs/explorer-vtk-loading.md` plus the M9.3
+design PR #26.
+
+- PR #27: https://github.com/Aine-dickson/sciviz/pull/27
+- Merge commit: `b05f59371a7023460ac60b22f6787839ef23a4e4`.
+- Feature head: `93e348d1ea300b41e8666ff74fd2eb0273aa28b4`.
+
+Implemented:
+- Add `--vtk-isosurface <field-name>` and `--vtk-isovalue <finite-f64>`
+  for tetrahedral isosurface extraction from an imported VTK dataset.
+- Add optional `--vtk-isosurface-color <point-scalar-field>` to color the
+  extracted surface using an independent point-associated scalar field.
+- Reuse M8.1 extraction/provenance and M8.2 scalar-transfer/mapping APIs.
+- Retain source Dataset, Isosurface3 provenance, and optional
+  MappedIsosurface3 CPU-side.
+- Render a depth-tested overlay of unique undirected triangle edges.
+- Fit the initial camera to the extracted surface; reject empty extraction
+  before window creation and report unsupported/skipped cells.
+- Preserve M9.2 VTK loading and existing demo workflows.
+- Extend the committed VTK fixture with an independent point scalar
+  `pressure` field.
+
+User-reported Windows validation (2026-11-09):
+- `cargo test -p svf-explorer`: 35 passed.
+- `cargo test --workspace`: 258 passed (216 core, 35 Explorer,
+  7 renderer); doc-tests passed.
+- `cargo check --workspace`: passed.
+- Runtime command:
+  ```powershell
+  cargo run -p svf-explorer -- --vtk apps/explorer/examples/tetra-with-fields.vtk --vtk-isosurface temperature --vtk-isovalue 25 --vtk-isosurface-color pressure
+  ```
+- User visually confirmed both extracted triangles, the contrasting shared
+  edge/mesh overlay, and color variation from the independent `pressure`
+  field.
+- The only reported compiler warning remains the pre-existing
+  `VectorSource3::new` dead-code warning.
+
+M9.3 implementation, Windows automated validation, visual acceptance, and
+merge are complete. No next milestone is selected; define its scope and
+design contract before implementation.
