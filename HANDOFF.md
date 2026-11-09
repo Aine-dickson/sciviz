@@ -1542,13 +1542,16 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 
 ## B1 — Human heart anatomy source audit (in progress)
 
-- B1 design approved and merged through PR #45; merge commit `26a4276a63a6dfca4c90d74cfefe668c69b64ca6`.
-- Current audit branch: `biology-heart-anatomy-source-audit`; review PR will contain the preliminary source audit, corrected design table, and a reproducible local archive-audit script.
-- Official BodyParts3D 4.0 PART-OF online metadata confirms all 19 named concepts and their BP representation IDs. Correction: pulmonary trunk is BP9912 (BP9911 is right conus artery).
-- Crucial source limitation: only atomic ELEMENT concepts have OBJ meshes; COMPOUND concepts are mapped to FJ element IDs. Chamber and valve mappings overlap substantially. Tricuspid elements are shared with right atrium/right ventricle; pulmonary-valve elements with right ventricle; mitral-valve elements with left atrium/left ventricle; aortic-valve elements overlap left-ventricle elements. This archive does not provide independent mesh geometry for all four valves separate from chamber meshes.
-- Official coordinate diagram: millimetres; body centreline approximately +Z; superior increases +Z; anatomical left X>0/right X<0; posterior Y>0/anterior Y<0. Preserve one shared coordinate frame; any SVF +Y-up conversion must be a single documented transform.
-- Official release 4.0 note warns coordinates were revised and the data may still contain errors if used as a canonical model. It represents an adult male reference anatomy.
-- HuBMAP CCF exposes male and female whole-heart GLB reference objects, but public library metadata does not establish independent chamber/valve meshes for the full B1 inventory.
-- The official 62 MB BodyParts3D OBJ archive has **not** been downloaded or locally inspected in this environment. The script `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` downloads official metadata/archive, verifies FJ file membership, and reports OBJ geometry counts, invalid indices, shared mappings, bounds, and archive SHA-256. It does not extract, repair, or transform geometry.
-- Next: user runs the audit script on Windows with internet access and shares the full output/report. Then decide whether to revise B1 scope or select an additional detailed teaching-heart source. No fixture preparation or SVF production changes before that source decision is accepted.
+- B1 design approved and merged through PR #45; revised primary source selection is under review in PR #46.
+- The initial BodyParts3D 4.0 PART-OF candidate was not selected as primary: its four valve concepts map to FJ element meshes that overlap the chamber mappings, so it does not supply four separately selectable valve surfaces.
+- Preferred primary candidate: Rodero et al. (2021), Virtual cohort of adult healthy four-chamber heart meshes from CT images. Zenodo DOI: https://doi.org/10.5281/zenodo.4590294.
+- The cohort contains 20 CT-derived four-chamber meshes, approximately 1 mm average edge length, ASCII legacy VTK UNSTRUCTURED_GRID, coordinates in millimetres, cell-associated anatomical tags, point-associated UVC fields, and supplied ventricular fibre vectors. Case archives are 54.9–103.2 MB; proposed first case 01.tar.gz is 91.1 MB.
+- Licence CC BY 4.0 is confirmed by the CEMRG dataset catalogue and PyAnsys Heart acknowledgements; preserve dataset authorship and cite the associated paper.
+- The 24 cell labels include four chamber myocardium regions, aorta/pulmonary artery walls, four valve planes, and vessel/appendage inlets and borders. Valve planes are not leaflets/cusps; vessel inlets are not complete vessel tubes. Fibre directions are rule-based, and UVCs are mathematical coordinates.
+- The cohort is described as healthy/asymptomatic based on clinical follow-up, not a general-population canonical model.
+- BodyParts3D remains a secondary whole-body reference; its official coordinate system is mm, anatomical left X>0/right X<0, posterior Y>0/anterior Y<0, superior +Z. Correction: pulmonary trunk BP9912, not BP9911.
+- HuBMAP CCF male/female whole-heart GLB models are optional whole-organ visual references. Layered Human's 119-part procedural heart (MIT original model assets, according to its repo) is an optional valve morphology reference only; it is not patient-derived and is a GLB surface model.
+- The single-case Rodero archive has not yet been downloaded or locally inspected. No fixture or SVF production code has been created.
+- Next: after accepting the revised source choice, download only case 01, audit VTK topology/fields/units/orientation, and test the existing SVF importer. Do not download the full cohort or implement missing capabilities before that audit.
 - SVF-only evaluation. Mava and Prismal remain excluded.
+
