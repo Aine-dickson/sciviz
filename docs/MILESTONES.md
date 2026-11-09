@@ -875,3 +875,39 @@ correct. The only reported compiler warning was the pre-existing
 
 M10.1 implementation, automated validation, runtime acceptance, and merge are
 complete. The next milestone is intentionally unselected.
+
+
+## M10.2 — Imported VTK point-vector visualization (complete; merged 2026-11-09)
+
+Design contract: `docs/vtk-point-vector-visualization.md` (PR #30).  
+Implementation: [PR #31](https://github.com/Aine-dickson/sciviz/pull/31).  
+Merge commit: `1fe8fa051dbeb1f61d374a56b9be8c1570938d66`.
+
+- [x] Add `--vtk-vectors <field-name>` for point-associated world-basis vectors
+- [x] Reuse existing source resolution, vector analysis, glyph construction,
+  and renderer paths
+- [x] Preserve source point anchors, vector order, values, and CPU-side Dataset
+- [x] Apply deterministic uniform display length from 5% of boundary bounds
+  diagonal with a positive floor; do not encode magnitude
+- [x] Support combination with `--vtk-scalar`
+- [x] Reject missing/wrong field types, unsupported associations, and
+  incompatible isosurface combinations
+- [x] Extend the committed VTK fixture and Explorer tests
+- [x] User-reported Windows `cargo test -p svf-explorer` passed
+- [x] User-reported Windows `cargo test --workspace` passed
+- [x] User-reported Windows `cargo check --workspace` passed
+- [x] User visually confirmed vector glyph rendering
+- [x] Merge PR #31
+
+The user confirmed all requested test commands passed and the vector figure
+rendered. Exact test counts were not included in the report. M10.2 is complete.
+
+### Roadmap direction after M10.2
+
+Do not automatically choose another general-purpose framework milestone.
+The next work must be selected from the user's own scientific, engineering,
+educational, or research use cases. Start by understanding the concrete
+problem, data/model, analysis or experiment, and desired output. General-purpose
+abstractions are justified when they directly support those needs; do not
+chase feature parity or hypothetical user demand. Maintain scientific
+correctness and the established architecture constraints.
