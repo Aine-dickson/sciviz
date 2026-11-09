@@ -1501,3 +1501,27 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - No fixture or implementation has been created yet. Do not claim local
   validation. Await user review of the challenge contract before generating
   fixtures.
+
+
+## Analytical heat-diffusion challenge — fixture implementation in progress
+
+- Design PR #43 accepted and merged; design merge commit
+  `0999f67058fe332a067667933cb30419e39910b8`.
+- Fixture implementation branch: `analytical-heat-diffusion-fixtures`.
+- Added deterministic generator: `tools/analytical-heat-diffusion/generate.py`.
+- Added independent VTK parser/verifier:
+  `tools/analytical-heat-diffusion/verify.py`. It checks mesh topology,
+  point ordering, all five analytical fields, snapshot scaling, boundary
+  conditions, heat-flux direction, and coarse/fine isosurface residual.
+- Added coarse and fine VTK fixtures under
+  `fixtures/analytical-heat-diffusion/`, plus a README with units, formulas,
+  reproduction instructions, and SVF commands.
+- Coarse: 125 points, 384 tetrahedra, 192 exterior triangles.
+- Fine: 729 points, 3,072 tetrahedra, 768 exterior triangles.
+- Preliminary maximum continuous isosurface residuals at 0.2 K:
+  coarse 0.150410743745 K; fine 0.0333587000791 K.
+- The probe scalar is dimensionless using coordinates normalized by one metre.
+  The boundary temperature is constant [0,0]; test the existing constant-field
+  mapping behavior rather than expecting a boundary gradient.
+- **Not yet locally executed or validated.** The next step is to pull this
+  branch and run the generator/verifier before any SVF runtime evaluation.
