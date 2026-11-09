@@ -965,3 +965,20 @@ The representation is a graphics-independent adapter, not a renderer or interact
 - Separates molecular coordinates from an idealized electron-domain arrangement schematic. It does not claim schematic lone-pair positions are measured electron-density maxima.
 - Does not hardcode measured bond angles into the semantic model. Angle values require explicit coordinate/reference provenance.
 - No implementation, renderer/Explorer integration, Prismal/Mava integration, or general VSEPR engine has been started. Next increment should implement and test the bounded semantic model in `svf-core`; representation adapter is a separate decision after semantic review.
+
+### E3.2 — VSEPR electron-domain core implementation (complete; merged 2026-11-09)
+
+Implementation: [PR #39](https://github.com/Aine-dickson/sciviz/pull/39). Squash merge commit: `849e11236cd85f0454f4f85dcf0d7a599ffa8830`.
+
+- [x] Add stable `ElectronDomainId` identities and explicit bonding-pair/lone-pair classifications
+- [x] Add a validated `VseprCentre` tied to the source `Molecule`
+- [x] Preserve exact source bond and neighbouring-atom provenance for bonding domains
+- [x] Validate central atom, domain identities, bond incidence, neighbour identity, complete incident-bond coverage, and supported domain patterns
+- [x] Support methane (4 bonding / 0 lone pairs → tetrahedral) and water (2 bonding / 2 lone pairs → bent)
+- [x] Verify focused VSEPR tests on Windows
+- [x] Verify `cargo test -p svf-core` on Windows (259 passed)
+- [x] Verify `cargo test --workspace` on Windows (306 passed: 259 core, 40 Explorer, 7 renderer)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Merge PR #39
+
+The user reported no failures. The semantic core is complete. A schematic electron-domain adapter, renderer/Explorer integration, and lesson integration remain separate decisions; do not assume these are the next tasks without validating the concrete educational interaction.
