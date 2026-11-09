@@ -982,3 +982,14 @@ Implementation: [PR #39](https://github.com/Aine-dickson/sciviz/pull/39). Squash
 - [x] Merge PR #39
 
 The user reported no failures. The semantic core is complete. A schematic electron-domain adapter, renderer/Explorer integration, and lesson integration remain separate decisions; do not assume these are the next tasks without validating the concrete educational interaction.
+
+
+## E3.3 — SVF-only VSEPR schematic view (design accepted; implementation pending)
+
+- Design contract: `docs/vsepr-schematic-view.md`, PR #40. Merged commit: `5dc9c28e087bec165f6ed9bd8d9369c22731e2e4`.
+- User explicitly chose to evaluate SVF independently. Mava and Prismal are excluded from this evaluation and must not influence implementation scope.
+- Implement a graphics-independent schematic adapter for the existing four-domain tetrahedral VSEPR model, then a minimal standalone Explorer sample for methane and water.
+- Both molecules have tetrahedral electron-domain arrangements; methane's molecular shape is tetrahedral, while water's is bent. The schematic must not imply tetrahedral H–O–H molecular geometry.
+- Use dimensionless local schematic coordinates, preserve domain IDs and source provenance, and label the molecular-shape classification separately from the arrangement.
+- No generic VSEPR engine, molecule editor, general interaction framework, Mava/Prismal integration, or full lesson player.
+- Acceptance requires local tests and visual confirmation that the scientific distinction is clear. Implementation and local validation remain pending.
