@@ -125,3 +125,6 @@ the asynchronous renderer initialization during this small native bootstrap).
 
 
 - **E2 — Chemistry molecular views:** implemented, Windows-validated, and merged through PR #35. Adds graphics-independent ball-and-stick representations preserving atom/bond identity and semantic bond order, with deterministic multiple-bond axes. User validation: 10 focused tests, 246 core tests, 293 workspace tests (246 core, 40 Explorer, 7 renderer), and `cargo check --workspace` passed. See [design contract](docs/chemistry-molecular-views.md).
+
+
+- **E3 — Upper-secondary chemistry VSEPR learning case:** design merged through PR #37. Grounded in Uganda's NCDC Senior Five Sub-topic 3.2; uses methane and water to teach the difference between electron-domain arrangement and molecular shape. Identifies missing lone-pair/electron-domain semantics in the current E1/E2 model. No implementation or renderer work has been started. See [learning case](docs/upper-secondary-chemistry-vsepr-learning-case.md).
