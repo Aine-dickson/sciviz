@@ -294,7 +294,13 @@ def main() -> int:
         print("Missing OBJ IDs:", ", ".join(missing_meshes))
     print(f"Report: {args.output}")
     print("NOTE: units and anatomical axis directions remain unverified by this script.")
-    return 1 if missing_meshes or any(
+    invalid_meshes = [
+        element_id for element_id, stats in mesh_report.items()
+        if stats["vertices"] == 0 or stats["faces"] == 0 or stats["invalid_faces"] > 0
+    ]
+    if invalid_meshes:
+        print("OBJ geometry with empty data or invalid face indices:", ", ".join(invalid_meshes))
+    return 1 if missing_meshes or invalid_meshes or any(
         item["status"] != "MAPPED" or not item.get("representation_id_matches", False)
         for item in concept_report.values()
     ) else 0
