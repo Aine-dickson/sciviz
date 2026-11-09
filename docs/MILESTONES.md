@@ -1012,3 +1012,18 @@ Design contract: [analytical heat-diffusion challenge](analytical-heat-diffusion
 - Acceptance includes exact analytical invariants, topology/provenance checks, and coarse-to-fine isosurface approximation improvement.
 - This is a dataset and validation challenge only. It does not authorize a heat solver, gradient/flux computation, streamlines, volume rendering, new import formats, or Mava/Prismal integration.
 - No fixtures or implementation are included in this design proposal. Review and accept the specification before proceeding.
+
+
+## Analytical heat-diffusion challenge — fixtures
+
+- Design accepted and merged through PR #43.
+- Fixture/generator implementation is under review on branch
+  `analytical-heat-diffusion-fixtures`.
+- Added deterministic coarse/fine VTK datasets (125/384 and 729/3,072
+  points/tetrahedra), with three point scalars and two point vectors.
+- Added independent generator and verifier scripts plus reproduction and
+  command documentation.
+- Expected maximum continuous isosurface residual at 0.2 K improves from
+  approximately 0.150410743745 K (coarse) to 0.0333587000791 K (fine).
+- Local generator/verifier execution and all SVF tests/runtime checks remain
+  pending. This milestone is an evaluation fixture, not a heat solver.
