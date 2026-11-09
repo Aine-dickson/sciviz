@@ -1292,7 +1292,7 @@ design contract before implementation.
 
 ## M10.1 — Scientific inspection of imported surfaces (complete; merged 2026-11-09)
 
-Design contract: `docs/surface-inspection.md` (PR #28).
+Design contract: `docs/imported-surface-inspection.md` (PR #28).
 
 - Implementation PR #29: https://github.com/Aine-dickson/sciviz/pull/29
 - Merge commit: `5baadb4d80da0ec1ad1810f8e1ca77015c610f5f`.
