@@ -1451,3 +1451,17 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - User-reported Windows validation: focused `vsepr_view` tests 5 passed; `cargo test -p svf-core` 264 passed; `cargo test --workspace` 311 passed (264 core, 40 Explorer, 7 renderer); `cargo check --workspace` passed. Existing dead-code warnings remain for `VectorSource3::new` and `prepare_imported_scene_with_options`; no failures.
 - **Next bounded task:** add a minimal standalone Explorer sample for methane and water, constructed directly from SVF's chemistry/VSEPR APIs. Show bonding-pair and lone-pair markers with a legend, and state molecular shape separately (methane tetrahedral; water bent). Do not place hydrogen atoms at schematic domain anchors or imply a tetrahedral H–O–H angle. Reuse the existing Explorer rendering path; avoid disproportionate UI/picking infrastructure.
 - After the sample is locally validated, evaluate what SVF itself demonstrates and what remains missing. Do not scope Mava/Prismal integration or automatically expand VSEPR beyond the four-domain cases.
+
+
+## E3.4 — Standalone VSEPR Explorer sample (implementation awaiting local validation)
+
+- Branch: `e3-vsepr-standalone-explorer-sample`.
+- Adds `apps/explorer/src/vsepr_demo.rs`, constructing methane and water independently from SVF chemistry and VSEPR APIs, then adapting their `VseprSchematicView3` values into one static display mesh.
+- Explorer flag: `--vsepr`.
+- Left cluster is methane (CH₄): four bonding-pair domain markers; molecular shape labelled tetrahedral.
+- Right cluster is water (H₂O): two bonding-pair and two lone-pair markers; molecular shape labelled bent.
+- Marker convention: octahedral markers indicate bonding-pair domains; tetrahedral markers indicate lone-pair domains. A larger octahedral marker indicates each central atom. The renderer currently uses a single mesh color, so marker geometry rather than color distinguishes the domain classes; the legend is printed to the terminal and the window title identifies left/right molecules.
+- No lines connect domain markers. They are not atom positions, molecular bonds, or molecular geometry. The schematic anchors are converted only into display positions for the sample; no Å interpretation is made. No H–O–H angle is depicted.
+- This is a static, standalone SVF sample; no Mava/Prismal integration, picking, or lesson-player behavior.
+- Two Explorer unit tests cover the constructed semantic models and marker mesh counts/topology. Local Windows tests and visual inspection are still pending.
+- **Next:** pull the branch, run focused and workspace tests, then launch `cargo run -p svf-explorer -- --vsepr` and report whether the two clusters and marker distinction are visually clear.
