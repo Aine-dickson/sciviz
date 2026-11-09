@@ -1041,3 +1041,16 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - This is SVF-only. No Mava/Prismal integration, cardiac simulation, blood-flow computation, electrical conduction, or generic editor/scene graph work.
 - **Status:** design proposal pending review. No archive has been locally audited; no fixtures or production implementation have been created.
 - Next: perform B1.1 source-data audit only after the design contract is accepted. Fixture preparation and SVF implementation require separate review.
+
+
+## B1.1 — Human heart anatomy source audit (in progress)
+
+- B1 design approved and merged through PR #45.
+- Official BodyParts3D 4.0 PART-OF metadata confirms the required concept IDs and BP representation IDs; pulmonary trunk correction is BP9912, not BP9911.
+- BodyParts3D provides OBJ meshes for atomic ELEMENT concepts; compound concepts map to FJ element IDs. The published mappings show substantial overlap between the four chamber concepts and valve concepts, so the four valves are not independently represented as separate meshes from the chambers in this source.
+- Official coordinate diagram: millimetres; body centreline approximately +Z; anatomical left X>0/right X<0; posterior Y>0/anterior Y<0; superior increases Z.
+- Official release note cautions that the 4.0 model may contain errors if treated as canonical anatomy and describes an adult male reference model.
+- HuBMAP CCF provides male/female whole-heart GLB references but does not establish the full independent chamber/valve inventory.
+- Added `tools/biology-heart-anatomy-audit/audit_bodyparts3d.py` to download the official 62 MB archive and metadata, verify required FJ OBJ membership, and report basic geometry integrity and bounds.
+- **Local archive audit pending.** No archive has been downloaded in this environment; no fixture or SVF production code has been created.
+- Next: user runs the audit script on Windows and shares its report. Then finalize source selection and B1 structure scope before fixture preparation.
