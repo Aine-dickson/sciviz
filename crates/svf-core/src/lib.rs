@@ -21,6 +21,7 @@ pub mod unstructured;
 pub mod unstructured_topology;
 pub mod vector_glyphs;
 pub mod vector_visualization;
+pub mod vsepr;
 pub mod vtk_legacy;
 
 /// Human-readable project name.
