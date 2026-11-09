@@ -1453,9 +1453,9 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - After the sample is locally validated, evaluate what SVF itself demonstrates and what remains missing. Do not scope Mava/Prismal integration or automatically expand VSEPR beyond the four-domain cases.
 
 
-## E3.4 — Standalone VSEPR Explorer sample (implementation awaiting local validation)
+## E3.4 — Standalone VSEPR Explorer sample (complete; merged 2026-11-09)
 
-- Branch: `e3-vsepr-standalone-explorer-sample`.
+- PR #42: https://github.com/Aine-dickson/sciviz/pull/42. Squash merge commit: `9deda0dd6aa6f54c2aa50d029b23302c4411efa2`.
 - Adds `apps/explorer/src/vsepr_demo.rs`, constructing methane and water independently from SVF chemistry and VSEPR APIs, then adapting their `VseprSchematicView3` values into one static display mesh.
 - Explorer flag: `--vsepr`.
 - Left cluster is methane (CH₄): four bonding-pair domain markers; molecular shape labelled tetrahedral.
@@ -1463,5 +1463,9 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Marker convention: octahedral markers indicate bonding-pair domains; tetrahedral markers indicate lone-pair domains. A larger octahedral marker indicates each central atom. The renderer currently uses a single mesh color, so marker geometry rather than color distinguishes the domain classes; the legend is printed to the terminal and the window title identifies left/right molecules.
 - No lines connect domain markers. They are not atom positions, molecular bonds, or molecular geometry. The schematic anchors are converted only into display positions for the sample; no Å interpretation is made. No H–O–H angle is depicted.
 - This is a static, standalone SVF sample; no Mava/Prismal integration, picking, or lesson-player behavior.
-- Two Explorer unit tests cover the constructed semantic models and marker mesh counts/topology. Local Windows tests and visual inspection are still pending.
-- **Next:** pull the branch, run focused and workspace tests, then launch `cargo run -p svf-explorer -- --vsepr` and report whether the two clusters and marker distinction are visually clear.
+- Focused Explorer VSEPR tests: 3 passed.
+- User-reported Windows validation: `svf-core` 265 passed; Explorer 43 passed; renderer 7 passed; workspace total 315 passed; `cargo check --workspace` passed. No test failures.
+- Runtime visual validation: user inspected five camera angles. Both groups remained visible and separate without obvious clipping or overlap. The larger central markers and surrounding domain markers were visible; water's lone-pair markers had distinct angular geometry, most apparent in angled views.
+- Visual limitation recorded by the user: the sample does not show hydrogen atoms or molecular bonds, so molecular shapes are conveyed by the title/labels rather than independently apparent from the marker geometry. There are no connecting spokes or bond-angle annotations.
+- Non-blocking compiler warnings: existing `VectorSource3::new` and `prepare_imported_scene_with_options` dead-code warnings, plus unused `methane` and `water` fields in `VseprDemo`.
+- **Evaluation outcome:** the sample demonstrates the four-domain electron arrangement and distinguishes bonding-pair from lone-pair classifications, but it is not by itself a complete visual explanation of molecular shape. Do not add more geometry or expand VSEPR automatically; select the next SVF task only from a concrete scientific learning/use case.
