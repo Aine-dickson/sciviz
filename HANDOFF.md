@@ -1250,9 +1250,7 @@ or silently begin an M9.3 scope.
 
 ## M9.3 — Isosurface extraction from imported VTK fields (complete; merged 2026-11-09)
 
-Design contract: `docs/explorer-vtk-isosurface.md` is not asserted; the
-approved design contract is `docs/explorer-vtk-loading.md` plus the M9.3
-design PR #26.
+Design contract: M9.3 Explorer isosurface design PR #26 (merged).
 
 - PR #27: https://github.com/Aine-dickson/sciviz/pull/27
 - Merge commit: `b05f59371a7023460ac60b22f6787839ef23a4e4`.
