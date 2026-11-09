@@ -247,8 +247,7 @@ Windows (2026-11-08).
 
 User-reported Windows validation is complete. The user ran `cargo fmt --all`,
 then confirmed formatting check, workspace compilation, and all 84 workspace
-tests passed. The formatting-only cleanup was committed locally as
-`d545466` (`style: format workspace`). Copilot's read-only diff inspection
+tests passed. The formatting-only cleanup was committed locally as`d545466` (`style: format workspace`). Copilot's read-only diff inspection
 found no semantic changes. The pre-sync stash remains untouched and must not
 be blindly restored; it is an older pre-picking snapshot.
 
@@ -498,7 +497,6 @@ Status: complete and merged to `main` through PR #7 on 2026-11-08
 (merge commit `09c99da`). Implementation, Windows automated validation,
 numerical edge-case validation, and all four Explorer-mode visual checks
 are complete.
-
 - [x] Define a common surface representation with source point IDs per render
   vertex and source logical cell IDs per render triangle
 - [x] Adapt structured `SampledSurface3`, unstructured
@@ -747,7 +745,6 @@ interpolation, and general material/legend systems.
 ### M9.1 — VTK legacy ASCII unstructured-grid import (complete; merged 2026-11-09)
 
 Design contract: `docs/vtk-legacy-ascii-import.md`.
-
 PR #23: https://github.com/Aine-dickson/sciviz/pull/23  
 Merge commit: `efa1cdbd59c09ca97a67a7e674f5c5483cc948c8`  
 Feature head: `fd48c4b10900f19558eca59d681c7fde6cb3068f`.
@@ -949,3 +946,15 @@ Design contract: [PR #34](https://github.com/Aine-dickson/sciviz/pull/34), docum
 - [x] Merge PR #35
 
 The representation is a graphics-independent adapter, not a renderer or interactive lesson. Renderer integration and further chemistry capabilities remain unselected until a concrete teaching or learning workflow establishes their value. The existing `VectorSource3::new` and `prepare_imported_scene_with_options` dead-code warnings were non-blocking.
+
+## E3 — Chemistry learning workflow: upper-secondary VSEPR (design complete; merged 2026-11-09)
+
+- PR #36 established the chemistry molecular learning workflow: teacher-led demonstration, guided exploration, and independent investigation using water and methane. Merge commit: `34fc271dc6b784c877896afba88207bdbf18242b`.
+- The user selected upper secondary as the first target, with later downward adaptation/testing as needed.
+- PR #37 defines the focused learning case `docs/upper-secondary-chemistry-vsepr-learning-case.md`. Merge commit: `9c2fdb8702ec700aa9cbb557a0a03fadddde3f65`.
+- Curriculum anchor: Uganda NCDC 2025 Advanced Secondary Chemistry, Senior Five Term One, Topic 3: Bonding and Structure, Sub-topic 3.2: Covalent Bonds and Molecular Structures (18 periods; official syllabus pp. 9, 18–19).
+- Learning question: why is methane tetrahedral while water is bent? Both have four electron domains around the central atom; methane has four bonding pairs, while water has two bonding pairs and two lone pairs. The lesson distinguishes electron-domain arrangement from molecular shape and compares approximate bond angles (CH₄ 109.5°, H₂O 104.5°).
+- The design includes prerequisites, inquiry sequence, model-guided exploration, formative assessment through observation/conversation/learner product, and explicit representation limits.
+- Critical E1/E2 gap: the current chemistry model has no lone-pair/electron-domain entities, VSEPR arrangement/shape semantics, or validated bond-angle provenance. Ball-and-stick atoms and bonds alone cannot explain the central learning outcome.
+- SVF is the likely owner of scientific electron-domain semantics and inspection; Mava owns lesson sequencing, prompts, reveal and assessment; Prismal is not required for this static structural lesson.
+- No implementation is authorized by the design alone. Next work must design the smallest scientifically correct electron-domain representation and validate it against the CH₄/H₂O learning case before renderer/Explorer or lesson integration is scoped. Do not build a general VSEPR engine or molecule editor by default.
