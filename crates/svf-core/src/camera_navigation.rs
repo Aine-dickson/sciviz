@@ -56,6 +56,21 @@ impl CameraNavigationConfig {
         })
     }
 
+    /// Creates navigation limits relative to the camera's initial distance.
+    ///
+    /// The limits remain fixed for the lifetime of a navigation session, so
+    /// repeated wheel events cannot move the limits along with the camera.
+    pub fn for_camera(camera: &Camera3) -> Result<Self, CameraNavigationError> {
+        let pose = camera.look_at();
+        let distance = pose.position().to_vector().distance(pose.target().to_vector());
+        if !distance.is_finite() || distance <= 0.0 {
+            return Err(CameraNavigationError::InvalidCamera(
+                CameraError::CameraTargetCoincidentWithPosition,
+            ));
+        }
+        Self::new(distance * 0.01, distance * 100.0, 0.02, 0.006, 0.12)
+    }
+
     /// Minimum camera-target distance.
     #[must_use]
     pub const fn min_distance(self) -> f64 { self.min_distance }
@@ -68,8 +83,8 @@ impl CameraNavigationConfig {
 impl Default for CameraNavigationConfig {
     fn default() -> Self {
         Self {
-            min_distance: 1.0,
-            max_distance: 80.0,
+            min_distance: 1.0e-6,
+            max_distance: 1.0e12,
             pole_margin_radians: 0.02,
             orbit_radians_per_pixel: 0.006,
             zoom_exponent_per_wheel_unit: 0.12,
@@ -213,10 +228,28 @@ pub fn zoom(
         config.min_distance
     };
     let new_position = target + offset * (new_distance / distance);
+    let projection = match camera.projection() {
+        Projection3::Perspective(projection) => {
+            // Keep the scene inside the depth interval as the camera moves.
+            // The near plane follows close zooms; the far plane expands for
+            // distant views. Both remain positive and ordered.
+            let near = projection.near().min(new_distance * 0.01).max(f64::MIN_POSITIVE);
+            let far = projection.far().max(new_distance * 1.5).max(near * 2.0);
+            Projection3::Perspective(
+                crate::camera::PerspectiveProjection::new(
+                    projection.vertical_fov_radians(),
+                    projection.aspect_ratio(),
+                    near,
+                    far,
+                ).map_err(CameraNavigationError::InvalidCamera)?,
+            )
+        }
+        Projection3::Orthographic(_) => return Err(CameraNavigationError::UnsupportedProjection),
+    };
     build_camera(
         WorldPoint3::from_vector(new_position),
         pose.target(),
-        *camera.projection(),
+        projection,
     )
 }
 
@@ -279,6 +312,40 @@ mod tests {
         assert!((distance(&far) - config.max_distance()).abs() < 1.0e-10);
         assert_eq!(near.look_at().target(), original.look_at().target());
         assert_eq!(far.look_at().target(), original.look_at().target());
+    }
+
+    #[test]
+    fn wheel_zoom_is_gradual_and_scale_aware_for_millimetre_geometry() {
+        let pose = LookAtCamera::new(
+            WorldPoint3::new(140.0, 120.0, 180.0),
+            WorldPoint3::ORIGIN,
+            WorldVector3::new(0.0, 1.0, 0.0),
+        ).unwrap();
+        let projection = PerspectiveProjection::new(
+            45.0_f64.to_radians(), 1.6, 1.0, 500.0,
+        ).unwrap();
+        let original = Camera3::new(pose, Projection3::Perspective(projection));
+        let config = CameraNavigationConfig::for_camera(&original).unwrap();
+        let original_distance = distance(&original);
+
+        let zoomed_in = zoom(&original, 1.0, config).unwrap();
+        let zoomed_out = zoom(&original, -1.0, config).unwrap();
+
+        assert!((distance(&zoomed_in) / original_distance - (-0.12_f64).exp()).abs() < 1.0e-12);
+        assert!((distance(&zoomed_out) / original_distance - 0.12_f64.exp()).abs() < 1.0e-12);
+        assert_eq!(zoomed_in.look_at().target(), original.look_at().target());
+        assert_eq!(zoomed_out.look_at().target(), original.look_at().target());
+
+        let Projection3::Perspective(zoomed_in_projection) = zoomed_in.projection() else {
+            panic!("zoom must preserve perspective projection");
+        };
+        let Projection3::Perspective(zoomed_out_projection) = zoomed_out.projection() else {
+            panic!("zoom must preserve perspective projection");
+        };
+        assert!(zoomed_in_projection.near() < projection.near());
+        assert_eq!(zoomed_in_projection.far(), projection.far());
+        assert_eq!(zoomed_out_projection.near(), projection.near());
+        assert!(zoomed_out_projection.far() > projection.far());
     }
 
     #[test]
