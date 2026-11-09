@@ -620,8 +620,105 @@ LOOKUP_TABLE default
                 isosurface_field: None,
                 isovalue: None,
                 isosurface_color_field: None,
+                vector_field: None,
             }),
         );
+    }
+
+    #[test]
+    fn parses_point_vectors_with_or_without_scalar_coloring() {
+        let vector_only = parse_vtk_args(&config(&[
+            "svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity",
+        ])).unwrap().unwrap();
+        assert_eq!(vector_only.vector_field.as_deref(), Some("velocity"));
+        assert_eq!(vector_only.scalar_field, None);
+
+        let combined = parse_vtk_args(&config(&[
+            "svf-explorer", "--vtk", "mesh.vtk",
+            "--vtk-scalar", "pressure", "--vtk-vectors", "velocity",
+        ])).unwrap().unwrap();
+        assert_eq!(combined.scalar_field.as_deref(), Some("pressure"));
+        assert_eq!(combined.vector_field.as_deref(), Some("velocity"));
+    }
+
+    #[test]
+    fn rejects_invalid_vector_cli_combinations() {
+        for args in [
+            config(&["svf-explorer", "--vtk-vectors", "velocity"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "a", "--vtk-vectors", "b"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity", "--vtk-isosurface", "temperature", "--vtk-isovalue", "25"]),
+            config(&["svf-explorer", "--vtk", "mesh.vtk", "--vtk-vectors", "velocity", "--vtk-isosurface-color", "pressure"]),
+        ] {
+            assert!(parse_vtk_args(&args).is_err(), "accepted invalid args: {args:?}");
+        }
+    }
+
+    #[test]
+    fn prepares_point_vector_glyphs_without_changing_source_values() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_vectors(
+            dataset, None, None, None, None, Some("velocity"),
+        ).unwrap();
+        let glyphs = scene.vector_glyphs.as_ref().unwrap();
+        assert_eq!(glyphs.entries().len(), 5);
+        assert_eq!(glyphs.entries().iter().filter(|entry| entry.segments().is_some()).count(), 4);
+        let expected_length = 3.0_f64.sqrt() * 0.05;
+        assert_eq!(glyphs.policy(), VectorScalePolicy3::UniformLength { length: expected_length });
+        let expected_points = [
+            WorldPoint3::new(0.0, 0.0, 0.0),
+            WorldPoint3::new(1.0, 0.0, 0.0),
+            WorldPoint3::new(0.0, 1.0, 0.0),
+            WorldPoint3::new(0.0, 0.0, 1.0),
+            WorldPoint3::new(2.0, 0.0, 0.0),
+        ];
+        for (entry, expected) in glyphs.entries().iter().zip(expected_points) {
+            assert_eq!(entry.analysis().source().anchor(), expected);
+        }
+        assert!(glyphs.entries()[4].segments().is_none());
+        assert!(scene.summary().contains("5 source vectors, 4 displayable arrows"));
+        assert!(scene.summary().contains("uniform display length"));
+        assert_eq!(scene.dataset.field("velocity").unwrap().as_vector3().unwrap().values()[0],
+            VectorValue3::from_f64(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn combines_boundary_scalar_mapping_and_point_vector_glyphs() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        let scene = prepare_imported_scene_with_vectors(
+            dataset, Some("pressure"), None, None, None, Some("velocity"),
+        ).unwrap();
+        assert!(scene.mapped_surface.is_some());
+        assert!(scene.vector_glyphs.is_some());
+        assert_eq!(scene.scalar_field_name.as_deref(), Some("pressure"));
+        assert_eq!(scene.vector_field_name.as_deref(), Some("velocity"));
+    }
+
+    #[test]
+    fn rejects_missing_scalar_cell_and_dataset_vector_fields() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(EXAMPLE_VTK).unwrap();
+        assert!(prepare_imported_scene_with_vectors(dataset.clone(), None, None, None, None, Some("missing"))
+            .unwrap_err().contains("not found"));
+        assert!(prepare_imported_scene_with_vectors(dataset.clone(), None, None, None, None, Some("pressure"))
+            .unwrap_err().contains("scalar field"));
+
+        let mut cell_dataset = dataset.clone();
+        cell_dataset.add_vector_field3(VectorField3::new(
+            FieldMetadata::new("cell_velocity", None).unwrap(),
+            FieldAssociation::Cell, VectorBasis3::World,
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0); 2],
+        ).unwrap()).unwrap();
+        assert!(prepare_imported_scene_with_vectors(cell_dataset, None, None, None, None, Some("cell_velocity"))
+            .unwrap_err().contains("Point association"));
+
+        let mut dataset_associated = dataset;
+        dataset_associated.add_vector_field3(VectorField3::new(
+            FieldMetadata::new("global_velocity", None).unwrap(),
+            FieldAssociation::Dataset, VectorBasis3::World,
+            vec![VectorValue3::from_f64(1.0, 0.0, 0.0)],
+        ).unwrap()).unwrap();
+        assert!(prepare_imported_scene_with_vectors(dataset_associated, None, None, None, None, Some("global_velocity"))
+            .unwrap_err().contains("Dataset association"));
     }
 
     #[test]
