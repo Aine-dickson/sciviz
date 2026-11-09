@@ -839,3 +839,39 @@ reported compiler warning remains the pre-existing
 M9.3 implementation, automated validation, visual acceptance, and merge are
 complete. Future work must begin with an explicitly selected scope and design
 contract; do not infer the next milestone.
+
+
+## M10.1 — Scientific inspection of imported surfaces (complete; merged 2026-11-09)
+
+Design contract: PR #28. Implementation: [PR #29](https://github.com/Aine-dickson/sciviz/pull/29).
+
+- Merge commit: `5baadb4d80da0ec1ad1810f8e1ca77015c610f5f`.
+- [x] Add graphics-independent ray-based inspection APIs in `svf-core`
+- [x] Resolve boundary hits to source cell, face, local-face, and triangle identity
+- [x] Resolve isosurface hits through source-cell provenance
+- [x] Evaluate point-associated fields barycentrically and cell-associated
+  fields from the exact source cell; preserve dataset-associated values
+- [x] Transfer isosurface samples through source-point/source-edge provenance
+- [x] Preserve field names, associations, units, and non-finite classifications
+- [x] Add Explorer hover feedback and detailed click diagnostics
+- [x] Preserve parametric inspection and camera/click-versus-drag interactions
+- [x] Verify focused core inspection tests on Windows (4 passed)
+- [x] Verify Explorer tests on Windows (35 passed)
+- [x] Verify workspace tests on Windows (262 passed: 220 core, 35 Explorer,
+  7 renderer; doc-tests passed)
+- [x] Verify `cargo check --workspace` on Windows
+- [x] Visually/runtime verify boundary and colored-isosurface inspection
+- [x] Verify orbit, pan, zoom, and click-versus-drag behavior
+- [x] Merge PR #29
+
+User-reported Windows runtime validation (2026-11-09): boundary hits resolved
+the correct source cell and boundary faces, with barycentric point-field
+values and the exact cell-associated density value. Isosurface hits resolved
+to source cell 0; the extraction field evaluated to approximately the requested
+isovalue (25), while the independent pressure field was interpolated through
+the source provenance. Camera and click-versus-drag interactions remained
+correct. The only reported compiler warning was the pre-existing
+`VectorSource3::new` dead-code warning.
+
+M10.1 implementation, automated validation, runtime acceptance, and merge are
+complete. The next milestone is intentionally unselected.
