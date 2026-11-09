@@ -208,6 +208,16 @@ impl SceneRenderer {
         Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
     }
 
+    /// Initialize a mapped isosurface with a depth-tested overlay of unique mesh edges.
+    pub async fn new_with_mapped_isosurface_and_edges(
+        window: Arc<Window>,
+        surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
+        let edge_vertices = convert_isosurface_edges(surface)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, edge_vertices).await
+    }
+
     async fn new_with_mesh_data(
         window: Arc<Window>,
         mesh_vertices: Vec<MeshVertex>,
@@ -683,6 +693,34 @@ fn convert_mapped_isosurface(
         Ok(MeshVertex { position, color })
     }).collect::<Result<Vec<_>, _>>()?;
     Ok((vertices, mesh.indices().to_vec()))
+}
+
+fn convert_isosurface_edges(
+    surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
+) -> Result<Vec<LineVertex>, RenderError> {
+    use std::collections::BTreeSet;
+    let mesh = surface.isosurface().mesh();
+    let mut edges = BTreeSet::new();
+    for triangle in mesh.indices().chunks_exact(3) {
+        for (a, b) in [(triangle[0], triangle[1]), (triangle[1], triangle[2]), (triangle[2], triangle[0])] {
+            edges.insert((a.min(b), a.max(b)));
+        }
+    }
+    let capacity = edges.len().checked_mul(2).ok_or(RenderError::IsosurfaceConversion)?;
+    let mut vertices = Vec::new();
+    vertices.try_reserve_exact(capacity).map_err(|_| RenderError::IsosurfaceConversion)?;
+    const EDGE_COLOR: [f32; 3] = [0.035, 0.045, 0.065];
+    for (a, b) in edges {
+        for index in [a, b] {
+            let point = mesh.vertices().get(index as usize).ok_or(RenderError::IsosurfaceConversion)?;
+            let position = point.to_array().map(|value| value as f32);
+            if !position.iter().all(|value| value.is_finite()) {
+                return Err(RenderError::IsosurfaceConversion);
+            }
+            vertices.push(LineVertex { position, color: EDGE_COLOR });
+        }
+    }
+    Ok(vertices)
 }
 
 fn convert_vector_glyphs(
