@@ -247,8 +247,7 @@ User-reported validation: formatting check and workspace check passed;
 
 Implementation committed and user-validated on Windows (2026-11-08). User reports `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test -p svf-core`, and `cargo test --workspace` all passed: 58 core tests and 60 workspace tests (58 core, 2 renderer).
 
-Public API is exposed from `svf_core::sampling`:
-- `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided
+Public API is exposed from `svf_core::sampling`:- `sample_scalar_1d(domain, spec, function)` evaluates a caller-provided
   `FnMut(f64) -> f64`.
 - `sample_scalar_2d(domain, spec, function)` evaluates a caller-provided
   `FnMut(f64, f64) -> f64`.
@@ -498,7 +497,6 @@ included and remain unconfirmed.
 
 Implementation is committed and the user has now validated the interaction
 on Windows (2026-11-08).
-
 The camera exposes
 `Camera3::ray_from_viewport(pixel_x, pixel_y, width, height)`. It accepts
 physical-pixel coordinates from a top-left-origin viewport, unprojects NDC
@@ -748,7 +746,6 @@ User-reported Windows validation (2026-11-08):
   (125 core, 1 Explorer, 4 renderer).
 - The user merged PR #3 on GitHub. Local `main` synchronization after the
   merge is the next step.
-
 No formatter was run. Continue preserving the user's formatting-only stash;
 do not run formatting routines as cleanup.
 
@@ -998,7 +995,6 @@ PR #11 merged to `main`; merge commit:
 `082fc5e18db8a7e40e1655dff70950af2fcc1e03`.
 
 Design contract: `docs/cell-vector-visualization.md`.
-
 Implemented:
 - `--cell-vectors` uses a 9 × 9 structured graph grid (64 logical cells).
 - Dataset geometry and displayed surface come from the same
@@ -1247,7 +1243,6 @@ User-reported Windows validation (2026-11-09):
 M9.2 implementation, Windows automated validation, visual acceptance, and
 merge are complete. The next milestone has not been selected; do not infer
 or silently begin an M9.3 scope.
-
 ## M9.3 — Isosurface extraction from imported VTK fields (complete; merged 2026-11-09)
 
 Design contract: M9.3 Explorer isosurface design PR #26 (merged).
@@ -1413,3 +1408,15 @@ User-reported Windows validation (2026-11-09):
 - Existing dead-code warnings remain for `VectorSource3::new` and `prepare_imported_scene_with_options`; neither blocked validation.
 
 E2 implementation, automated validation, and merge are complete. Renderer integration is not implied. The next step must be selected from an actual chemistry teaching/learning need and should establish what learners or teachers need to see, manipulate, inspect, and understand before adding presentation-layer functionality.
+
+## E3 — Chemistry learning workflow: upper-secondary VSEPR (design complete; merged 2026-11-09)
+
+- PR #36 established the chemistry molecular learning workflow: teacher-led demonstration, guided exploration, and independent investigation using water and methane. Merge commit: `34fc271dc6b784c877896afba88207bdbf18242b`.
+- The user selected upper secondary as the first target, with later downward adaptation/testing as needed.
+- PR #37 defines the focused learning case `docs/upper-secondary-chemistry-vsepr-learning-case.md`. Merge commit: `9c2fdb8702ec700aa9cbb557a0a03fadddde3f65`.
+- Curriculum anchor: Uganda NCDC 2025 Advanced Secondary Chemistry, Senior Five Term One, Topic 3: Bonding and Structure, Sub-topic 3.2: Covalent Bonds and Molecular Structures (18 periods; official syllabus pp. 9, 18–19).
+- Learning question: why is methane tetrahedral while water is bent? Both have four electron domains around the central atom; methane has four bonding pairs, while water has two bonding pairs and two lone pairs. The lesson distinguishes electron-domain arrangement from molecular shape and compares approximate bond angles (CH₄ 109.5°, H₂O 104.5°).
+- The design includes prerequisites, inquiry sequence, model-guided exploration, formative assessment through observation/conversation/learner product, and explicit representation limits.
+- Critical E1/E2 gap: the current chemistry model has no lone-pair/electron-domain entities, VSEPR arrangement/shape semantics, or validated bond-angle provenance. Ball-and-stick atoms and bonds alone cannot explain the central learning outcome.
+- SVF is the likely owner of scientific electron-domain semantics and inspection; Mava owns lesson sequencing, prompts, reveal and assessment; Prismal is not required for this static structural lesson.
+- No implementation is authorized by the design alone. Next work must design the smallest scientifically correct electron-domain representation and validate it against the CH₄/H₂O learning case before renderer/Explorer or lesson integration is scoped. Do not build a general VSEPR engine or molecule editor by default.
