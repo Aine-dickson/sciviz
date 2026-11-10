@@ -233,8 +233,16 @@ pub fn zoom(
             // Keep the scene inside the depth interval as the camera moves.
             // The near plane follows close zooms; the far plane expands for
             // distant views. Both remain positive and ordered.
-            let near = projection.near().min(new_distance * 0.01).max(f64::MIN_POSITIVE);
-            let far = projection.far().max(new_distance * 1.5).max(near * 2.0);
+            let near = if new_distance < distance {
+                projection.near().min(new_distance * 0.01).max(f64::MIN_POSITIVE)
+            } else {
+                projection.near()
+            };
+            let far = if new_distance > distance {
+                projection.far().max(new_distance * 1.5).max(near * 2.0)
+            } else {
+                projection.far()
+            };
             Projection3::Perspective(
                 crate::camera::PerspectiveProjection::new(
                     projection.vertical_fov_radians(),
