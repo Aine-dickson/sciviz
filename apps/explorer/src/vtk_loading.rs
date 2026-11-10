@@ -15,7 +15,7 @@ use svf_core::{
     isosurface::{extract_tetrahedral_isosurface, Isosurface3},
     isosurface_field_transfer::{map_transferred_scalar_field, transfer_point_scalar_field, MappedIsosurface3},
     scalar_visualization::{
-        map_scalar_field, ColorMap, ColorRgba, MappedSurface3, ScalarRangeMode,
+        ColorMap, ColorRgba, MappedSurface3, ScalarRangeMode,
         SurfaceProvenance3,
     },
     spatial::{WorldPoint3, WorldVector3},
