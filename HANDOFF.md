@@ -1555,3 +1555,33 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Next: after accepting the revised source choice, download only case 01, audit VTK topology/fields/units/orientation, and test the existing SVF importer. Do not download the full cohort or implement missing capabilities before that audit.
 - SVF-only evaluation. Mava and Prismal remain excluded.
 
+
+
+## Camera zoom fix (PR #47) and scalar sentinel exclusions (PR #48)
+
+- PR #47 (scale-aware camera zoom and clipping) merged at `fb17f4b`; the user
+  confirmed navigation on the real Rodero heart.
+- PR #48 adds `svf_core::scalar_visualization::map_scalar_field_with_exclusions`
+  and repeatable Explorer `--vtk-scalar-exclude <finite f64>` (requires
+  `--vtk-scalar`). Excluded values match by exact f64 equality, are omitted
+  from the automatic range, and are drawn in the invalid-data color. Source
+  fields are unchanged; `map_scalar_field` behaves as before.
+- Use case: Rodero et al. (2021) case 01, working copy
+  `~/Downloads/rodero2021/01-svf-order.vtk` (only CELLS/CELL_TYPES reordered;
+  original `01.vtk` untouched). 493,151 points, 2,477,866 tetrahedra.
+  `Z.dat` (ventricular apico-basal UVC) uses -10 for the 138,056 points outside
+  the ventricular domain; valid range is [0, 1].
+- User-reported tests on the branch: `svf-core` 269 passed, `svf-explorer`
+  44 passed.
+- Runtime validation (2026-11-10, release build, AMD Radeon/Vulkan, captured
+  with PrintWindow and inspected directly): 329,952 boundary triangles in both
+  runs. Without exclusion the ventricles were near-uniform yellow and the
+  sentinel region dark blue (it read like a real low value). With `-10`
+  excluded the ventricles span the full Viridis range (dark at the apex,
+  yellow at the base), and the atria and great vessels show the invalid color.
+  Geometry and framing are identical. Orbit across four angles and a
+  zoom in, out and back sequence (reversible, with no disappearance or
+  clipping) all behaved correctly.
+- Known, non-blocking: the valid/excluded border is a one-triangle-wide blend
+  band, because point colors are interpolated per vertex on the GPU (same
+  behavior as for NaN). The blended colors there carry no data value.
