@@ -34,6 +34,7 @@ pub struct VtkLoadConfig {
     pub isovalue: Option<f64>,
     pub isosurface_color_field: Option<String>,
     pub vector_field: Option<String>,
+    pub scalar_excluded_values: Vec<f64>,
 }
 
 #[derive(Debug)]
@@ -103,8 +104,9 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let has_isovalue = args.iter().any(|arg| arg == "--vtk-isovalue");
     let has_isosurface_color = args.iter().any(|arg| arg == "--vtk-isosurface-color");
     let has_vectors = args.iter().any(|arg| arg == "--vtk-vectors");
+    let has_scalar_exclusions = args.iter().any(|arg| arg == "--vtk-scalar-exclude");
     if !has_vtk {
-        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors {
+        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors || has_scalar_exclusions {
             Err("VTK field and isosurface options require --vtk <path>".to_owned())
         } else {
             Ok(None)
@@ -131,6 +133,7 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let mut isovalue = None;
     let mut isosurface_color_field = None;
     let mut vector_field = None;
+    let mut scalar_excluded_values = Vec::new();
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -178,6 +181,15 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 vector_field = Some(value.clone());
                 index += 2;
             }
+            "--vtk-scalar-exclude" => {
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-scalar-exclude requires a finite f64 value".to_owned())?;
+                let parsed = value.parse::<f64>()
+                    .map_err(|_| format!("invalid --vtk-scalar-exclude value {value}: expected a finite f64"))?;
+                if !parsed.is_finite() { return Err("--vtk-scalar-exclude values must be finite".to_owned()); }
+                scalar_excluded_values.push(parsed);
+                index += 2;
+            }
             "--vtk-isovalue" => {
                 if isovalue.is_some() {
                     return Err("--vtk-isovalue may only be supplied once".to_owned());
@@ -202,6 +214,9 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         }
     }
 
+    if !scalar_excluded_values.is_empty() && scalar_field.is_none() {
+        return Err("--vtk-scalar-exclude requires --vtk-scalar".to_owned());
+    }
     if vector_field.is_some() && (isosurface_field.is_some() || isovalue.is_some() || isosurface_color_field.is_some()) {
         return Err("--vtk-vectors cannot be combined with --vtk-isosurface/--vtk-isovalue/--vtk-isosurface-color".to_owned());
     }
@@ -223,6 +238,7 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         isovalue,
         isosurface_color_field,
         vector_field,
+        scalar_excluded_values,
     }))
 }
 
@@ -240,6 +256,7 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
         config.isovalue,
         config.isosurface_color_field.as_deref(),
         config.vector_field.as_deref(),
+        &config.scalar_excluded_values,
     ).map_err(|error| {
         format!("could not prepare VTK file '{}': {error}", config.path.display())
     })
@@ -262,6 +279,18 @@ pub fn prepare_imported_scene_with_vectors(
     isovalue: Option<f64>,
     isosurface_color_field_name: Option<&str>,
     vector_field_name: Option<&str>,
+) -> Result<ImportedScene, String> {
+    prepare_imported_scene_with_vectors_and_scalar_exclusions(dataset,scalar_field_name,isosurface_field_name,isovalue,isosurface_color_field_name,vector_field_name,&[])
+}
+
+pub fn prepare_imported_scene_with_vectors_and_scalar_exclusions(
+    dataset: Dataset,
+    scalar_field_name: Option<&str>,
+    isosurface_field_name: Option<&str>,
+    isovalue: Option<f64>,
+    isosurface_color_field_name: Option<&str>,
+    vector_field_name: Option<&str>,
+    scalar_excluded_values: &[f64],
 ) -> Result<ImportedScene, String> {
     if isosurface_field_name.is_some() != isovalue.is_some() {
         return Err("isosurface field and isovalue must be supplied together".to_owned());
@@ -353,7 +382,7 @@ pub fn prepare_imported_scene_with_vectors(
         let invalid_color = ColorRgba::new(
             INVALID_COLOR[0], INVALID_COLOR[1], INVALID_COLOR[2], INVALID_COLOR[3],
         ).map_err(|error| format!("invalid fallback color: {error}"))?;
-        let mapped = map_scalar_field(
+        let mapped = svf_core::scalar_visualization::map_scalar_field_with_exclusions(
             &provenance,
             field,
             dataset.point_count(),
@@ -361,6 +390,7 @@ pub fn prepare_imported_scene_with_vectors(
             ScalarRangeMode::Automatic,
             &ColorMap::viridis(),
             invalid_color,
+            scalar_excluded_values,
         ).map_err(|error| format!("could not map scalar field '{name}': {error}"))?;
         (Some(provenance), Some(mapped))
     } else {
@@ -621,8 +651,22 @@ LOOKUP_TABLE default
                 isovalue: None,
                 isosurface_color_field: None,
                 vector_field: None,
+                scalar_excluded_values: Vec::new(),
             }),
         );
+    }
+
+
+    #[test]
+    fn parses_repeated_scalar_exclusions_and_rejects_invalid_usage() {
+        let parsed = parse_vtk_args(&config(&["svf-explorer","--vtk","heart.vtk","--vtk-scalar","Z.dat","--vtk-scalar-exclude","-10","--vtk-scalar-exclude","-9.5"])).unwrap().unwrap();
+        assert_eq!(parsed.scalar_excluded_values,vec![-10.0,-9.5]);
+        for args in [
+            config(&["svf-explorer","--vtk","heart.vtk","--vtk-scalar-exclude","-10"]),
+            config(&["svf-explorer","--vtk","heart.vtk","--vtk-scalar","Z.dat","--vtk-scalar-exclude"]),
+            config(&["svf-explorer","--vtk","heart.vtk","--vtk-scalar","Z.dat","--vtk-scalar-exclude","NaN"]),
+            config(&["svf-explorer","--vtk","heart.vtk","--vtk-scalar","Z.dat","--vtk-scalar-exclude","inf"]),
+        ] { assert!(parse_vtk_args(&args).is_err(),"accepted invalid args: {args:?}"); }
     }
 
     #[test]
