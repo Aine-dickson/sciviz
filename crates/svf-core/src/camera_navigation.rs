@@ -322,7 +322,7 @@ mod tests {
             WorldVector3::new(0.0, 1.0, 0.0),
         ).unwrap();
         let projection = PerspectiveProjection::new(
-            45.0_f64.to_radians(), 1.6, 10.0, 300.0,
+            45.0_f64.to_radians(), 1.6, 10.0, 400.0,
         ).unwrap();
         let original = Camera3::new(pose, Projection3::Perspective(projection));
         let config = CameraNavigationConfig::for_camera(&original).unwrap();
