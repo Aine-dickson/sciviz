@@ -1589,9 +1589,9 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 
 ## B1.2 — Ventricular fibre orientation (design proposal, pending review)
 
-- Design contract: `docs/heart-fibre-orientation.md`, on branch
-  `b1-2-ventricular-fibre-design`. No implementation is authorized until the
-  user reviews it.
+- Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
+  `b1-2-ventricular-fibre-design`). Revised after review round 1: direction
+  approved; final design review pending. No implementation until then.
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
   fibre=(1,0,0) and sheet=(0,1,0), which are unit length and orthogonal like
@@ -1605,6 +1605,9 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   boundary triangles. 93.44% have θ > 84.26°; median θ is 88–89°. The LV
   helix magnitude (global long axis, sign-free) has median 75.8° at the
   endocardium and 62.5° at the epicardium.
+- Round-1 decisions are recorded in §10 of the design. Key points: keep the
+  exact fibre direction (no projection); try the existing line depth path
+  first; RV helix check deferred; an independent audit in
+  `tools/rodero-fibre-audit/` with its own boundary extraction.
 - Untracked `crates/svf-core/examples/{parse_probe,boundary_probe}.rs`:
-  re-verified on case 01. The recommendation is to consolidate them into one
-  maintained `vtk_inspect` example. Not yet done; still the user's call.
+  approved for consolidation into `examples/vtk_inspect.rs`. Not yet done.
