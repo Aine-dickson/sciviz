@@ -1585,3 +1585,26 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Known, non-blocking: the valid/excluded border is a one-triangle-wide blend
   band, because point colors are interpolated per vertex on the GPU (same
   behavior as for NaN). The blended colors there carry no data value.
+
+
+## B1.2 — Ventricular fibre orientation (design proposal, pending review)
+
+- Design contract: `docs/heart-fibre-orientation.md`, on branch
+  `b1-2-ventricular-fibre-design`. No implementation is authorized until the
+  user reviews it.
+- Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
+  rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
+  fibre=(1,0,0) and sheet=(0,1,0), which are unit length and orthogonal like
+  the real data. Select by `ID` tag, never by value.
+- Source rule (Zenodo 4590294): ventricular fibres rotate from 80° at the
+  endocardium to -60° at the epicardium. Sheets are undocumented.
+- Fibres are axial: use |f·n|, centred segments, no arrowheads.
+- The geometric triangle normal is used. A smoothed normal is a separate
+  concept and needs consistent orientation, which SVF does not have.
+- Baseline (scratch measurement, not an SVF feature): 171,473 ventricular
+  boundary triangles. 93.44% have θ > 84.26°; median θ is 88–89°. The LV
+  helix magnitude (global long axis, sign-free) has median 75.8° at the
+  endocardium and 62.5° at the epicardium.
+- Untracked `crates/svf-core/examples/{parse_probe,boundary_probe}.rs`:
+  re-verified on case 01. The recommendation is to consolidate them into one
+  maintained `vtk_inspect` example. Not yet done; still the user's call.
