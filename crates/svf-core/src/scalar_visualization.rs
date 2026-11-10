@@ -386,6 +386,23 @@ pub fn map_scalar_field(
     color_map: &ColorMap,
     invalid_color: ColorRgba,
 ) -> Result<MappedSurface3, ScalarMappingError> {
+    map_scalar_field_with_exclusions(surface, field, source_point_count, source_cell_count, range_mode, color_map, invalid_color, &[])
+}
+
+/// Maps a scalar field while treating explicitly listed finite values as invalid.
+/// Excluded values are omitted from automatic range calculation and receive
+/// the invalid color on the mapped surface. Matching uses exact f64 equality.
+/// The source field and provenance are never modified.
+pub fn map_scalar_field_with_exclusions(
+    surface: &SurfaceProvenance3,
+    field: &ScalarField,
+    source_point_count: usize,
+    source_cell_count: usize,
+    range_mode: ScalarRangeMode,
+    color_map: &ColorMap,
+    invalid_color: ColorRgba,
+    excluded_values: &[f64],
+) -> Result<MappedSurface3, ScalarMappingError> {
     field
         .validate_cardinality(source_point_count, source_cell_count)
         .map_err(ScalarMappingError::InvalidField)?;
@@ -413,8 +430,13 @@ pub fn map_scalar_field(
     }
 
     let range = match range_mode {
-        ScalarRangeMode::Automatic => ScalarRange::from_field(field)
-            .map_err(ScalarMappingError::InvalidRange)?,
+        ScalarRangeMode::Automatic => {
+            let mut finite = field.values().iter().filter_map(|sample| sample.as_finite())
+                .filter(|value| value.is_finite() && !excluded_values.contains(value));
+            let first = finite.next().ok_or(ScalarMappingError::InvalidRange(ScalarRangeError::NoFiniteValues))?;
+            let (minimum, maximum) = finite.fold((first, first), |(min, max), value| (min.min(value), max.max(value)));
+            ScalarRange { minimum, maximum }
+        },
         ScalarRangeMode::Explicit(range) => range,
     };
 
@@ -436,7 +458,7 @@ pub fn map_scalar_field(
             };
             let value = field.values()[value_index];
             let color = match value.as_finite().filter(|value| value.is_finite()) {
-                Some(value) => color_map.sample(range.normalize(value)),
+                Some(value) if !excluded_values.contains(&value) => color_map.sample(range.normalize(value)),
                 None => invalid_color,
             };
 
@@ -911,6 +933,40 @@ mod tests {
         assert_eq!(mapped.colors()[1], rgba(1.0, 1.0, 1.0));
         assert_eq!(mapped.colors()[2], rgba(0.5, 0.5, 0.5));
         assert_eq!(field, original);
+    }
+
+
+    #[test]
+    fn explicit_exclusions_are_omitted_from_range_and_colored_invalid() {
+        let mesh = TriangleMesh3::new(vec![point(0.0,0.0,0.0),point(1.0,0.0,0.0),point(0.0,1.0,0.0)],vec![0,1,2]).unwrap();
+        let surface = SurfaceProvenance3::from_triangle_mesh(&mesh).unwrap();
+        let field = scalar_field(FieldAssociation::Point,vec![SampleValue::Finite(-10.0),SampleValue::Finite(0.0),SampleValue::Finite(1.0)]);
+        let original = field.clone();
+        let invalid = rgba(1.0,0.0,1.0);
+        let mapped = map_scalar_field_with_exclusions(&surface,&field,3,1,ScalarRangeMode::Automatic,&test_color_map(),invalid,&[-10.0]).unwrap();
+        assert_eq!(mapped.scalar_range().minimum(),0.0);
+        assert_eq!(mapped.scalar_range().maximum(),1.0);
+        assert_eq!(mapped.colors(),&[invalid,rgba(0.0,0.0,0.0),rgba(1.0,1.0,1.0)]);
+        assert_eq!(field,original);
+    }
+
+    #[test]
+    fn default_mapping_keeps_all_finite_values_in_automatic_range() {
+        let mesh = TriangleMesh3::new(vec![point(0.0,0.0,0.0),point(1.0,0.0,0.0),point(0.0,1.0,0.0)],vec![0,1,2]).unwrap();
+        let surface = SurfaceProvenance3::from_triangle_mesh(&mesh).unwrap();
+        let field = scalar_field(FieldAssociation::Point,vec![SampleValue::Finite(-10.0),SampleValue::Finite(0.0),SampleValue::Finite(1.0)]);
+        let mapped = map_scalar_field(&surface,&field,3,1,ScalarRangeMode::Automatic,&test_color_map(),rgba(1.0,0.0,1.0)).unwrap();
+        assert_eq!(mapped.scalar_range().minimum(),-10.0);
+        assert_eq!(mapped.scalar_range().maximum(),1.0);
+    }
+
+    #[test]
+    fn exclusions_fail_when_no_finite_values_remain_for_automatic_range() {
+        let mesh = TriangleMesh3::new(vec![point(0.0,0.0,0.0),point(1.0,0.0,0.0),point(0.0,1.0,0.0)],vec![0,1,2]).unwrap();
+        let surface = SurfaceProvenance3::from_triangle_mesh(&mesh).unwrap();
+        let field = scalar_field(FieldAssociation::Point,vec![SampleValue::Finite(-10.0);3]);
+        let result = map_scalar_field_with_exclusions(&surface,&field,3,1,ScalarRangeMode::Automatic,&test_color_map(),rgba(1.0,0.0,1.0),&[-10.0]);
+        assert_eq!(result,Err(ScalarMappingError::InvalidRange(ScalarRangeError::NoFiniteValues)));
     }
 
     #[test]
