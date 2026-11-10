@@ -459,7 +459,7 @@ pub fn map_scalar_field_with_exclusions(
             let value = field.values()[value_index];
             let color = match value.as_finite().filter(|value| value.is_finite()) {
                 Some(value) if !excluded_values.contains(&value) => color_map.sample(range.normalize(value)),
-                None => invalid_color,
+                Some(_) | None => invalid_color,
             };
 
             positions.push(surface.mesh.vertices()[surface_vertex]);
