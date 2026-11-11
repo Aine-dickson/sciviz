@@ -1877,9 +1877,82 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
      tails sit near the base (median 0.98 LV, 0.85 RV).
   The Explorer usage line does not list the axial flags (cosmetic, not
   changed).
-- Next action: step 5, screenshots per the curated plan (at most 8 PNGs in
-  `docs/evidence/b1-2-stage5/`), then a separate A4 assessment from the
-  screenshots alone. The counts above are not evidence for A4.
+  The reviewer accepted steps 1–4 as passed. A4 stays open until the
+  screenshots are inspected; windows loading is not evidence for A4.
+- Stage 5b (approved by the reviewer, 2026-11-11): deterministic camera setup
+  and one-shot PNG capture, because the planned views cannot be reproduced by
+  hand. Branch `b1-2-capture` from `b1-2-render`; PR base `b1-2-render`
+  (stacked on #54). Implementation review comes before any capture.
+  Strictly out of scope: glyph generation, anchors, the line pipeline, depth
+  state, colours, camera interaction, selection and diagnostic calculations.
+  No svf-core change.
+  Spec (Sonnet implements):
+  1. CLI (`vtk_loading.rs`), valid only with `--vtk`, each at most once:
+     `--camera-yaw <deg>`, `--camera-pitch <deg>` (finite),
+     `--camera-zoom <factor>` (finite, > 0), `--screenshot <png>`. All are
+     allowed with every VTK mode. Omitted camera flags leave the fitted
+     camera bit-identical to today's (test this).
+  2. Camera setup, a pure function in Explorer applied to `scene.camera`
+     before the window (so errors are startup errors, exit 1):
+     - Order: yaw and pitch together in ONE call of the existing
+       `camera_navigation::orbit`, then the zoom through the existing
+       `camera_navigation::zoom` (it already maintains near/far).
+     - Orbit config: `CameraNavigationConfig::new(min, max, 0.02,
+       PI/180, 0.12)` with min/max from `for_camera(fitted)`, so one "pixel"
+       is one degree: `orbit(fitted, yaw_deg, pitch_deg, cfg)`.
+     - Meaning, to document in `--help`/usage and the evidence README:
+       the camera orbits the fitted target. Azimuth = atan2(x, z) of the
+       camera offset, about world +Y; positive yaw DEcreases azimuth (same
+       as dragging right by that many degrees). Elevation is measured from
+       the world XZ plane toward +Y; positive pitch raises the camera.
+     - No silent clamping: compute fitted elevation + pitch and reject if it
+       falls outside ±(90° − 0.02 rad), naming the allowed range.
+     - Zoom: camera-target distance becomes fitted distance / factor
+       (factor > 1 is closer), via `zoom(cam, ln(factor) / 0.12, cfg)`.
+       Reject a factor whose distance falls outside the `for_camera`
+       [min, max] (factor outside [0.01, 100]) instead of clamping.
+     - Tests: omitted flags → identical camera; yaw 90 from a camera on +Z
+       ends on −X (azimuth 0 − 90°, x = sin(−90°));
+       pitch raises y; zoom 2 halves the distance; target unchanged; the
+       rejections.
+  3. svf-render: one public method
+     `capture_rgba8(&mut self, width, height) -> Result<CapturedImage,
+     RenderError>` (`CapturedImage { width, height, rgba: Vec<u8> }`).
+     - Move the render pass body of `render()` into a private
+       `encode_scene(&self, encoder, color_view, depth_view)` used by both,
+       so the capture draws exactly what the window draws. `render()`
+       output must not change.
+     - Offscreen colour texture in `self.config.format` with
+       RENDER_ATTACHMENT | COPY_SRC, its own depth target from
+       `create_depth_target`, sample count 1 like the window.
+     - Camera uniform for the capture uses the same look-at with the
+       aspect ratio width/height (as `resize()` builds it); restore the
+       window uniform afterwards.
+     - Copy to a buffer with rows padded to
+       `COPY_BYTES_PER_ROW_ALIGNMENT`, map, poll until done, strip padding.
+       Accept `Rgba8Unorm[Srgb]` and `Bgra8Unorm[Srgb]` (swizzle BGRA);
+       any other format is a new `RenderError` variant. Bytes are stored as
+       is (sRGB-encoded, as displayed); alpha forced to 255.
+  4. Explorer: with `--screenshot`, after the renderer is created and the
+     camera set, call `capture_rgba8(1600, 1200)` (a named constant), encode
+     with the `png` crate (the one new dependency, Explorer only, pinned
+     version at least two weeks old), write the file, print
+     `wrote <path> (1600x1200)`, and exit 0. Any capture or write error:
+     a clear message naming the path, exit 1. The window may flash; no
+     interaction is involved.
+  5. Cosmetic, from the reviewer: add the axial and camera/screenshot flags
+     to the usage line; move the "SVF's VTK parser contract" doc comment in
+     `fibre_diagnostic.rs` back above the constant it describes.
+  6. Acceptance before review: `cargo test --workspace`; A5 re-run (the 8
+     modes, no new flags) unchanged; one smoke capture of
+     `tetra-with-fields.vtk` opened with the Read tool to confirm it is the
+     scene, not black or garbage. Do NOT capture the Rodero views yet.
+  After review: find the angles for the curated views (≤ 8 PNGs: anterior
+  and posterior epicardium, basal view, one zoomed depth view, each with and
+  without `--vtk-scalar RHO.dat`), commit PNGs plus a README with exact
+  commands and dimensions in `docs/evidence/b1-2-stage5/`, then the A4
+  assessment from the images, and the user checks rotation and zoom by hand.
+- Next action: implement stage 5b per the spec above (Sonnet).
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
