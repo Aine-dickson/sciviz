@@ -1587,7 +1587,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; implementation not started)
+## B1.2 — Ventricular fibre orientation (design approved; stage 1 in review)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
@@ -1633,10 +1633,18 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
   boundary triangles; 93.44% have θ > 84.26°; LV |α| median 75.8° (endo) and
   62.5° (epi). The audit becomes the reference once it exists.
-- Untracked `crates/svf-core/examples/{parse_probe,boundary_probe}.rs`:
-  approved for consolidation into `examples/vtk_inspect.rs` (spec in §6). Not
-  yet done.
-- Next action: after PR #49 merges, implement one stage per reviewable PR,
+- Stage 1 (branch `b1-2-vtk-inspect`): `crates/svf-core/examples/vtk_inspect.rs`
+  replaces the deleted probes. Verified locally on 2026-11-11:
+  - `01-svf-order.vtk`: 7 fields reported, with association, type and count.
+    329,952 boundary faces, all triangles, 329,952 triangulated triangles,
+    matching the scratch baseline. Parse took 7.4 s and boundary 8.8 s
+    (release).
+  - Original `01.vtk`: exits 1 with "expected CELLS record" (the known parser
+    limitation).
+  - Missing file: exits 1. No argument: exits 2.
+  - `cargo test -p svf-core`: 269 passed.
+- Next action: the user reviews the stage-1 PR. Then implement stage 2. The
+  stages, one per reviewable PR (PR #49 merged as 198e568):
   in this order:
   1. vtk_inspect;
   2. audit plus committed baseline;
