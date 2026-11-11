@@ -2095,3 +2095,23 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   axial glyph overlays with shading on.
 - Next action: merge this PR (needs the user's OK), then B2 step 2 (structure
   model + dicot stem recipe) starting with a design note.
+
+
+## B2 step 2a — structure core (implemented on `b2-2a-structure-core`; PR #59 is the design note)
+
+- #58 (headlight) merged to main `c060311`. Window/`L`-key path NOT verified
+  live (user saw only the offscreen screenshots).
+- `svf-core::structure`: validated RON structure (parts tree, Extrusion with
+  Disc/Annulus/Sector profiles), `build_geometry[_for]` giving a merged
+  `TriangleMesh3`, per-vertex colours and per-part triangle ranges.
+  New deps serde =1.0.229, ron =0.12.3 (DEPENDENCIES.md).
+- Fixture `fixtures/structures/dicot-stem.ron`; its `reference` is a
+  placeholder: the user must confirm the citation. Proportions schematic.
+- Verified: workspace tests pass (svf-core 292, explorer 60, render 11),
+  including closed-mesh, outward winding, polygon-volume and whole-stem
+  tiling checks.
+- Gotcha: never leave a bare `python -` in a shell command on this machine; it
+  hangs on the Windows stub.
+- Next action: 2b on a new branch: renderer `new_with_coloured_mesh` /
+  `replace_coloured_mesh`, Explorer `--structure`, pick, `I` isolate, `A` all,
+  then capture the stem looking down the axis.
