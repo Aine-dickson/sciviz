@@ -26,12 +26,12 @@ Structure(
     parts: [
         Part(id: "epidermis", name: "Epidermis", parent: None,
              description: "...", colour: (0.35, 0.65, 0.30),
-             geometry: Extrusion(axis_length: 20.0,
-                 profile: Annulus(inner: 4.6, outer: 5.0))),
+             geometry: Some(Extrusion(axis_length: 12.0,
+                 profile: Annulus(inner: 4.7, outer: 5.0)))),
         Part(id: "phloem", name: "Phloem", parent: Some("vascular-bundles"),
-             ..., geometry: Extrusion(axis_length: 20.0,
-                 profile: Repeat(count: 8, first_angle_deg: 0.0, of: Sector(
-                     inner: 3.0, outer: 3.4, width_deg: 28.0)))),
+             ..., geometry: Some(Extrusion(axis_length: 12.0,
+                 profile: Sector(inner: 2.95, outer: 3.6, width_deg: 30.0,
+                                 first_angle_deg: 0.0, count: 8)))),
         ...
     ],
 )
@@ -50,8 +50,7 @@ centred on the Y axis. Profiles:
 |---|---|
 | `Disc(radius)` | pith |
 | `Annulus(inner, outer)` | epidermis, cortex, ring zones |
-| `Sector(inner, outer, width_deg)` | one bundle tissue or ray, centred on `first_angle_deg` |
-| `Repeat(count, first_angle_deg, of: Sector)` | N sectors evenly spaced round the axis |
+| `Sector(inner, outer, width_deg, first_angle_deg = 0, count = 1)` | `count` sectors evenly spaced round the axis, the first centred on `first_angle_deg` (replaces a separate Repeat) |
 
 Each extrusion is a **closed** triangle mesh: outer wall, inner wall (if any),
 two end caps, consistent outward winding. A repeated profile is several closed
@@ -92,7 +91,7 @@ added to `docs/DEPENDENCIES.md`. This is the RON decision already accepted.
 
 ## Example and provenance
 
-`apps/explorer/examples/dicot-stem.ron`, hand-authored, a few KB. Its
+`fixtures/structures/dicot-stem.ron` (tested in core; 2b makes it the Explorer example), hand-authored, a few KB. Its
 `reference` field must name the source the layout follows. The layout is the
 standard transverse arrangement (epidermis, cortex, a ring of vascular
 bundles with phloem outside xylem, pith); **the precise citation is to be

@@ -19,3 +19,10 @@ References:
 - https://docs.rs/wgpu/30.0.1/wgpu/
 - https://docs.rs/winit/0.30.13/winit/
 - https://docs.rs/pollster/0.4.0/pollster/
+
+## Added for B2 step 2
+
+| Dependency | Version | Purpose | Scope |
+|---|---:|---|---|
+| serde | =1.0.229 (derive) | Deserialize structure files | svf-core |
+| ron | =0.12.3 | Rusty Object Notation parser for structure files (accepted B2 decision) | svf-core |

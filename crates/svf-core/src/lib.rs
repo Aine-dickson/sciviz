@@ -16,6 +16,7 @@ pub mod ray;
 pub mod sampling;
 pub mod scalar_visualization;
 pub mod spatial;
+pub mod structure;
 pub mod surface_inspection;
 pub mod surface_triangulation;
 pub mod unstructured;
