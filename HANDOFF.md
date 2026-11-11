@@ -2056,3 +2056,26 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   The user agreed to this order.
 - Next action: reviewer reads PR #56 (A4 close) and PR #57 (B2 proposal).
   After #57 is approved, write the step 1 (headlight) design note.
+
+
+## Current state (2026-11-11, end of session) — read this first
+
+- B1.2 is CLOSED. Merged to main: #54 `411affa`, #55 `df56769`, #56 `b240b51`.
+  Workspace tests on the merged stack: svf-core 284, svf-explorer 60,
+  svf-render 10, all passed. A4 accepted by the lead (Claude, with the user's
+  delegation) with documented limitations: weak plain-surface contrast,
+  fragmented glyphs in oblique close-ups, endocardium and mid-teal not
+  assessed, temporal flicker not covered.
+- B2 accepted: `docs/explorable-structures.md` (#57 `26917cd`). Decisions are
+  in its section 10 (RON structure files; recipe/adapted/imported geometry;
+  headlight only as in section 6; order headlight -> stem -> sections and
+  peeling -> cockroach -> heart; no curriculum anchoring).
+- Working mode: the user asked Claude to lead. No teammate reviews. One PR
+  per step; Claude verifies (tests + running app via PrintWindow capture)
+  and merges with the user's session approval.
+- Next action: B2 step 1 on branch `b2-1-headlight`. Write a short design
+  note (`docs/surface-headlight.md`), then implement: mesh.wgsl face normal
+  from dpdx/dpdy of world position, one camera-fixed light, a per-surface
+  switch, off by default for colour-mapped scalar surfaces; lines unlit.
+  Verify on the Rodero heart without RHO (shape readable) and with RHO
+  (shading off, colours unchanged).
