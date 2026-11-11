@@ -1831,8 +1831,25 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   (the existing VTK modes on the smoke fixture) → Rodero counts (86,241 +
   85,232 eligible and 2,836 + 2,347 = 5,183 glyphs, exactly) → the samples
   export → screenshots and the A4 assessment.
-- Next action: implement the stage 5 spec above on `b1-2-render` (Sonnet),
-  open the PR, and bring it back for review before any local validation.
+- Stage 5 implementation status: written and unit-tested; local validation
+  has NOT started (the reviewer asked for PR review first).
+  - Verified so far: `cargo test --workspace` passes (svf-core 284,
+    explorer 47, svf-render 10). The example `fibre_diagnostic` builds and its
+    own tests pass. No Rodero run, no A5 smoke run, no screenshots yet.
+  - svf-core library source is untouched. `fibre_diagnostic.rs` changed: the
+    LV-axis sums moved into a shared helper (same arithmetic order) and
+    `--samples` was added, so `compare.py` and `verify_glyphs.py` must be
+    re-run to confirm the existing outputs are still byte-identical.
+  - Not covered by a unit test: `sample_export` (it needs RHO.dat, Z.dat and
+    V.dat). It is checked only on case 01.
+  - For review: the single public constructor
+    `SceneRenderer::new_with_axial_glyphs`; the literal per-sample tail rule
+    (|cos| >= its (tag, group) p99); glyph colour [0, 0.95, 1.0]; a
+    non-finite f32 cast reuses `RenderError::VectorGlyphConversion` rather
+    than adding a variant.
+- Next action: bring the PR back for review. After approval, validate in the
+  order set above: workspace tests and A5, the Rodero counts, `compare.py`
+  and `verify_glyphs.py` still pass, the samples export, then screenshots.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed

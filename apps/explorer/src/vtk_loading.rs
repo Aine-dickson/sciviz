@@ -6,6 +6,7 @@
 use std::{fs, path::PathBuf};
 
 use svf_core::{
+    boundary_axial_glyphs::{build_boundary_axial_glyphs, BoundaryAxialGlyphOptions3, BoundaryAxialGlyphSet3},
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     vector_glyphs::{build_vector_glyphs, VectorGlyphSet3, VectorScalePolicy3},
     vector_visualization::{analyze_vector_sources, resolve_vector_sources},
@@ -35,6 +36,18 @@ pub struct VtkLoadConfig {
     pub isosurface_color_field: Option<String>,
     pub vector_field: Option<String>,
     pub scalar_excluded_values: Vec<f64>,
+    pub axial: Option<AxialGlyphConfig>,
+}
+
+/// Boundary axial glyph request (design B1.2 section 6): a cell direction
+/// field, a cell tag field with the selected tag values, and the thinning
+/// parameters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxialGlyphConfig {
+    pub direction_field: String,
+    pub tag_field: String,
+    pub tags: Vec<i64>,
+    pub options: BoundaryAxialGlyphOptions3,
 }
 
 #[derive(Debug)]
@@ -53,6 +66,7 @@ pub struct ImportedScene {
     pub mapped_isosurface: Option<MappedIsosurface3>,
     pub vector_field_name: Option<String>,
     pub vector_glyphs: Option<VectorGlyphSet3>,
+    pub axial_glyphs: Option<BoundaryAxialGlyphSet3>,
 }
 
 impl ImportedScene {
@@ -84,15 +98,64 @@ impl ImportedScene {
             format!("; vector field '{}': {} source vectors, {} displayable arrows, uniform display length {:.6}",
                 self.vector_field_name.as_deref().unwrap_or("<unknown>"), glyphs.entries().len(), displayable, length)
         }).unwrap_or_default();
+        let axial = self.axial_glyphs.as_ref().map(axial_summary).unwrap_or_default();
         format!(
-            "Loaded {} points and {} cells; {}; omitted {} lower-dimensional cells{}.",
+            "Loaded {} points and {} cells; {}; omitted {} lower-dimensional cells{}{}.",
             self.dataset.point_count(),
             self.dataset.cell_count(),
             representation,
             self.omitted_lower_dimension_cells,
             vectors,
+            axial,
         )
     }
+}
+
+/// Per-tag counts, all taken from the core result.
+fn axial_summary(set: &BoundaryAxialGlyphSet3) -> String {
+    let options = set.options();
+    let eligible = set.eligible_by_tag();
+    let glyphs = set.glyphs_by_tag();
+    let selected = set.selected_by_tag();
+    let per_tag = set.tags().iter().map(|tag| {
+        format!(
+            "tag {tag}: {} selected, {} eligible, {} glyphs",
+            selected.get(tag).copied().unwrap_or(0),
+            eligible.get(tag).copied().unwrap_or(0),
+            glyphs.get(tag).copied().unwrap_or(0),
+        )
+    }).collect::<Vec<_>>().join("; ");
+    format!(
+        "; axial glyphs (bin {}, length {}): {}; {} glyphs total; excluded {} zero-area, {} invalid-direction",
+        options.bin_edge, options.length, per_tag, set.glyphs().len(),
+        set.zero_area_count(), set.invalid_direction_count(),
+    )
+}
+
+/// Parse `<field>=<v1,v2,...>` where every value is an integer tag.
+fn parse_cell_tags(value: &str) -> Result<(String, Vec<i64>), String> {
+    let (field, list) = value.split_once('=')
+        .ok_or_else(|| format!("invalid --vtk-cell-tags '{value}': expected <field>=<v1,v2,...>"))?;
+    if field.is_empty() {
+        return Err("--vtk-cell-tags requires a field name before '='".to_owned());
+    }
+    let mut tags = Vec::new();
+    for item in list.split(',') {
+        let tag = item.trim().parse::<i64>()
+            .map_err(|_| format!("invalid --vtk-cell-tags value '{item}': expected an integer tag"))?;
+        tags.push(tag);
+    }
+    Ok((field.to_owned(), tags))
+}
+
+fn parse_positive_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
+    let value = value.ok_or_else(|| format!("{flag} requires a finite positive f64 value"))?;
+    let parsed = value.parse::<f64>()
+        .map_err(|_| format!("invalid {flag} '{value}': expected a finite positive f64"))?;
+    if !(parsed.is_finite() && parsed > 0.0) {
+        return Err(format!("{flag} must be finite and greater than zero"));
+    }
+    Ok(parsed)
 }
 
 /// Parse the optional VTK CLI workflow. Existing demo-only invocations are
@@ -105,8 +168,10 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let has_isosurface_color = args.iter().any(|arg| arg == "--vtk-isosurface-color");
     let has_vectors = args.iter().any(|arg| arg == "--vtk-vectors");
     let has_scalar_exclusions = args.iter().any(|arg| arg == "--vtk-scalar-exclude");
+    let has_axial_option = ["--vtk-cell-axial", "--vtk-cell-tags", "--vtk-axial-bin", "--vtk-axial-length"]
+        .iter().any(|flag| args.iter().any(|arg| arg == flag));
     if !has_vtk {
-        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors || has_scalar_exclusions {
+        return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors || has_scalar_exclusions || has_axial_option {
             Err("VTK field and isosurface options require --vtk <path>".to_owned())
         } else {
             Ok(None)
@@ -134,6 +199,10 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let mut isosurface_color_field = None;
     let mut vector_field = None;
     let mut scalar_excluded_values = Vec::new();
+    let mut axial_field: Option<String> = None;
+    let mut axial_tags: Option<(String, Vec<i64>)> = None;
+    let mut axial_bin = None;
+    let mut axial_length = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -205,6 +274,30 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 isovalue = Some(parsed);
                 index += 2;
             }
+            "--vtk-cell-axial" => {
+                if axial_field.is_some() { return Err("--vtk-cell-axial may only be supplied once".to_owned()); }
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-cell-axial requires a cell vector field name".to_owned())?;
+                axial_field = Some(value.clone());
+                index += 2;
+            }
+            "--vtk-cell-tags" => {
+                if axial_tags.is_some() { return Err("--vtk-cell-tags may only be supplied once".to_owned()); }
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--vtk-cell-tags requires <field>=<v1,v2,...>".to_owned())?;
+                axial_tags = Some(parse_cell_tags(value)?);
+                index += 2;
+            }
+            "--vtk-axial-bin" => {
+                if axial_bin.is_some() { return Err("--vtk-axial-bin may only be supplied once".to_owned()); }
+                axial_bin = Some(parse_positive_f64("--vtk-axial-bin", args.get(index + 1))?);
+                index += 2;
+            }
+            "--vtk-axial-length" => {
+                if axial_length.is_some() { return Err("--vtk-axial-length may only be supplied once".to_owned()); }
+                axial_length = Some(parse_positive_f64("--vtk-axial-length", args.get(index + 1))?);
+                index += 2;
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in VTK mode"));
             }
@@ -231,6 +324,32 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         return Err("--vtk-isosurface-color requires --vtk-isosurface and --vtk-isovalue".to_owned());
     }
 
+    let axial = match (axial_field, axial_tags) {
+        (Some(direction_field), Some((tag_field, tags))) => {
+            if vector_field.is_some() {
+                return Err("--vtk-cell-axial cannot be combined with --vtk-vectors".to_owned());
+            }
+            if isosurface_field.is_some() || isovalue.is_some() || isosurface_color_field.is_some() {
+                return Err("--vtk-cell-axial cannot be combined with --vtk-isosurface/--vtk-isovalue/--vtk-isosurface-color".to_owned());
+            }
+            let defaults = BoundaryAxialGlyphOptions3::default();
+            Some(AxialGlyphConfig {
+                direction_field,
+                tag_field,
+                tags,
+                options: BoundaryAxialGlyphOptions3 {
+                    bin_edge: axial_bin.unwrap_or(defaults.bin_edge),
+                    length: axial_length.unwrap_or(defaults.length),
+                },
+            })
+        }
+        (None, None) if axial_bin.is_none() && axial_length.is_none() => None,
+        (None, None) => {
+            return Err("--vtk-axial-bin and --vtk-axial-length require --vtk-cell-axial and --vtk-cell-tags".to_owned());
+        }
+        _ => return Err("--vtk-cell-axial and --vtk-cell-tags must be supplied together".to_owned()),
+    };
+
     Ok(Some(VtkLoadConfig {
         path: path.ok_or_else(|| "--vtk requires a file path".to_owned())?,
         scalar_field,
@@ -239,6 +358,7 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         isosurface_color_field,
         vector_field,
         scalar_excluded_values,
+        axial,
     }))
 }
 
@@ -249,7 +369,7 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
     let dataset = parse_legacy_ascii_unstructured_grid(&input).map_err(|error| {
         format!("could not import VTK file '{}': {error}", config.path.display())
     })?;
-    prepare_imported_scene_with_vectors_and_scalar_exclusions(
+    let mut scene = prepare_imported_scene_with_vectors_and_scalar_exclusions(
         dataset,
         config.scalar_field.as_deref(),
         config.isosurface_field.as_deref(),
@@ -259,7 +379,31 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
         &config.scalar_excluded_values,
     ).map_err(|error| {
         format!("could not prepare VTK file '{}': {error}", config.path.display())
-    })
+    })?;
+    if let Some(axial) = config.axial.as_ref() {
+        attach_axial_glyphs(&mut scene, axial).map_err(|error| {
+            format!("could not build axial glyphs for VTK file '{}': {error}", config.path.display())
+        })?;
+    }
+    Ok(scene)
+}
+
+/// Build the thinned boundary axial glyphs on the scene's boundary surface.
+/// Tag selection applies to glyphs only; the rendered surface is unchanged.
+pub fn attach_axial_glyphs(scene: &mut ImportedScene, axial: &AxialGlyphConfig) -> Result<(), String> {
+    if scene.isosurface.is_some() || scene.vector_glyphs.is_some() {
+        return Err("axial glyphs cannot be combined with isosurfaces or point vector glyphs".to_owned());
+    }
+    let glyphs = build_boundary_axial_glyphs(
+        &scene.dataset,
+        &scene.surface,
+        &axial.direction_field,
+        &axial.tag_field,
+        &axial.tags,
+        axial.options,
+    ).map_err(|error| error.to_string())?;
+    scene.axial_glyphs = Some(glyphs);
+    Ok(())
 }
 
 pub fn prepare_imported_scene_with_options(
@@ -452,6 +596,7 @@ pub fn prepare_imported_scene_with_vectors_and_scalar_exclusions(
         mapped_isosurface,
         vector_field_name: vector_field_name.map(str::to_owned),
         vector_glyphs,
+        axial_glyphs: None,
     })
 }
 
@@ -652,6 +797,7 @@ LOOKUP_TABLE default
                 isosurface_color_field: None,
                 vector_field: None,
                 scalar_excluded_values: Vec::new(),
+                axial: None,
             }),
         );
     }
@@ -985,6 +1131,108 @@ LOOKUP_TABLE default
             dataset, None, Some("ambient"), Some(25.0), None,
         ).unwrap_err();
         assert!(error.contains("Dataset association"));
+    }
+
+    const AXIAL_VTK: &str = "# vtk DataFile Version 3.0
+two tets
+ASCII
+DATASET UNSTRUCTURED_GRID
+POINTS 5 double
+0 0 0
+1 0 0
+0 1 0
+0 0 1
+1 1 1
+CELLS 2 10
+4 0 1 2 3
+4 1 2 3 4
+CELL_TYPES 2
+10
+10
+CELL_DATA 2
+SCALARS ID double 1
+LOOKUP_TABLE default
+1 5
+VECTORS fibres double
+1 0 0
+0 1 0
+";
+
+    fn axial_config(extra: &[&str]) -> Result<Option<VtkLoadConfig>, String> {
+        let mut args = vec!["svf-explorer", "--vtk", "heart.vtk", "--vtk-cell-axial", "fibres", "--vtk-cell-tags", "ID=1,2"];
+        args.extend_from_slice(extra);
+        parse_vtk_args(&config(&args))
+    }
+
+    #[test]
+    fn parses_axial_options_with_core_defaults_and_overrides() {
+        let defaults = BoundaryAxialGlyphOptions3::default();
+        let parsed = axial_config(&[]).unwrap().unwrap().axial.unwrap();
+        assert_eq!(parsed.direction_field, "fibres");
+        assert_eq!(parsed.tag_field, "ID");
+        assert_eq!(parsed.tags, vec![1, 2]);
+        assert_eq!(parsed.options, defaults);
+        let parsed = axial_config(&["--vtk-axial-bin", "2.5", "--vtk-axial-length", "1"]).unwrap().unwrap().axial.unwrap();
+        assert_eq!(parsed.options, BoundaryAxialGlyphOptions3 { bin_edge: 2.5, length: 1.0 });
+        let with_scalar = axial_config(&["--vtk-scalar", "RHO.dat", "--vtk-scalar-exclude", "-10"]).unwrap().unwrap();
+        assert!(with_scalar.axial.is_some() && with_scalar.scalar_field.is_some());
+    }
+
+    #[test]
+    fn rejects_invalid_axial_cli_usage() {
+        for bad in [
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "fibres"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-tags", "ID=1"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-axial-bin", "4"]),
+            config(&["svf-explorer", "--vtk-cell-axial", "fibres", "--vtk-cell-tags", "ID=1"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "=1"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID=1,x"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID=1.5"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID=1", "--vtk-vectors", "v"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID=1", "--vtk-isosurface", "t", "--vtk-isovalue", "1"]),
+            config(&["svf-explorer", "--vtk", "m.vtk", "--vtk-cell-axial", "f", "--vtk-cell-tags", "ID=1", "--vtk-cell-axial", "g"]),
+        ] {
+            assert!(parse_vtk_args(&bad).is_err(), "expected error for {bad:?}");
+        }
+        for value in ["0", "-1", "NaN", "inf", "abc"] {
+            assert!(axial_config(&["--vtk-axial-bin", value]).is_err(), "bin {value}");
+            assert!(axial_config(&["--vtk-axial-length", value]).is_err(), "length {value}");
+        }
+        assert!(axial_config(&["--vtk-axial-bin"]).is_err());
+    }
+
+    #[test]
+    fn axial_glyphs_follow_requested_tags_and_leave_the_surface_unchanged() {
+        let dataset = svf_core::vtk_legacy::parse_legacy_ascii_unstructured_grid(AXIAL_VTK).unwrap();
+        let mut scene = prepare_imported_scene_with_options(dataset, None, None, None, None).unwrap();
+        let triangles = scene.surface.triangle_count();
+        assert_eq!(triangles, 6);
+        let options = BoundaryAxialGlyphOptions3 { bin_edge: 0.25, length: 0.5 };
+        let request = |tags: Vec<i64>| AxialGlyphConfig {
+            direction_field: "fibres".to_owned(), tag_field: "ID".to_owned(), tags, options,
+        };
+        attach_axial_glyphs(&mut scene, &request(vec![1])).unwrap();
+        let one = scene.axial_glyphs.as_ref().unwrap();
+        assert_eq!(one.eligible_by_tag().keys().copied().collect::<Vec<_>>(), vec![1]);
+        assert_eq!(one.glyphs_by_tag().keys().copied().collect::<Vec<_>>(), vec![1]);
+        assert!(one.glyphs().iter().all(|glyph| glyph.sample().tag() == 1));
+        let one_count = one.glyphs().len();
+        assert!(one_count > 0);
+        assert_eq!(scene.surface.triangle_count(), triangles);
+        assert_eq!(scene.mesh.triangle_count(), triangles);
+        let summary = scene.summary();
+        assert!(summary.contains("tag 1: 3 selected, 3 eligible,"), "{summary}");
+        assert!(summary.contains("excluded 0 zero-area, 0 invalid-direction"), "{summary}");
+
+        attach_axial_glyphs(&mut scene, &request(vec![1, 5])).unwrap();
+        assert!(scene.axial_glyphs.as_ref().unwrap().glyphs().len() > one_count);
+        assert_eq!(scene.surface.triangle_count(), triangles);
+
+        let error = attach_axial_glyphs(&mut scene, &AxialGlyphConfig {
+            tag_field: "missing".to_owned(), ..request(vec![1])
+        }).unwrap_err();
+        assert!(error.contains("missing"), "{error}");
     }
 
     #[test]

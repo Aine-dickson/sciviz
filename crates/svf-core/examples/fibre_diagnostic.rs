@@ -38,11 +38,12 @@ const SENTINEL: f64 = -10.0;
 const GROUPS: [&str; 3] = ["endo", "epi", "other"];
 /// SVF's VTK parser contract (`vtk_legacy.rs`), stated in the audit's words
 /// (design §7.2). `compare.py` checks that both sides declare the same one.
+const SAMPLE_SCHEMA: &str = "svf-fibre-samples/1";
 const NUMERIC_CONVERSION: &str =
     "vtk-declared-type/1: float=binary32 promoted to f64; double=binary64; integer types exact";
 
 const USAGE: &str = "Usage: fibre_diagnostic <input.vtk> --source <original.vtk> --tags 1,2 --lv-tag 1 \
---bin <mm> --length <mm> --out <stats.json> --glyphs <glyphs.csv>";
+--bin <mm> --length <mm> --out <stats.json> --glyphs <glyphs.csv> [--samples <samples.csv>]";
 
 fn fail(message: impl std::fmt::Display) -> ! {
     eprintln!("fibre_diagnostic failed: {message}");
@@ -63,6 +64,7 @@ struct Args {
     length_mm: f64,
     out: String,
     glyphs: String,
+    samples: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -93,6 +95,7 @@ fn parse_args() -> Args {
     let length_mm = number("length", take("length"));
     let out = take("out");
     let glyphs = take("glyphs");
+    let samples = options.remove("samples");
     if let Some(name) = options.keys().next() {
         usage(&format!("unknown option --{name}"));
     }
@@ -107,7 +110,7 @@ fn parse_args() -> Args {
         usage("--lv-tag must be one of --tags");
     }
     let input = input.unwrap_or_else(|| usage("an input file is required"));
-    Args { input, source, tags, lv_tag, bin_mm, length_mm, out, glyphs }
+    Args { input, source, tags, lv_tag, bin_mm, length_mm, out, glyphs, samples }
 }
 
 fn main() {
@@ -151,6 +154,13 @@ fn main() {
     fs::write(&args.glyphs, glyph_csv(&args, &surface, &result, &source_sha256, &input_sha256))
         .unwrap_or_else(|e| fail(format!("cannot write --glyphs: {e}")));
 
+    if let Some(path) = args.samples.as_deref() {
+        let (csv, summary) = sample_export(&args, &dataset, &surface, &result, &source_sha256, &input_sha256);
+        fs::write(path, csv).unwrap_or_else(|e| fail(format!("cannot write --samples: {e}")));
+        fs::write(format!("{path}.summary.txt"), &summary).unwrap_or_else(|e| fail(format!("cannot write the samples summary: {e}")));
+        print!("{summary}");
+    }
+
     println!("boundary triangles: {}", surface.triangle_count());
     println!("eligible by tag: {:?}", result.eligible_by_tag());
     println!("glyphs: {} {:?}", result.glyphs().len(), result.glyphs_by_tag());
@@ -170,19 +180,9 @@ fn point_scalar(dataset: &Dataset, name: &str) -> Vec<f64> {
     }).collect()
 }
 
-fn statistics(
-    args: &Args,
-    dataset: &Dataset,
-    surface: &TriangulatedSurface3,
-    result: &BoundaryAxialGlyphSet3,
-    incidence_histogram: &BTreeMap<usize, usize>,
-) -> Vec<(&'static str, J)> {
-    let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else { unreachable!() };
-    let rho = point_scalar(dataset, "RHO.dat");
-    let z = point_scalar(dataset, "Z.dat");
-    let v = point_scalar(dataset, "V.dat");
-
-    // LV long axis (design §4.5), summed in point order as the audit does.
+/// LV long axis (design 4.5): apex and base coordinate sums, summed in point
+/// order as the audit does, with their point counts.
+fn lv_axis_sums(grid: &svf_core::unstructured::UnstructuredGrid3, z: &[f64], v: &[f64]) -> ([f64; 3], [f64; 3], usize, usize) {
     let (mut apex, mut base) = ([0.0_f64; 3], [0.0_f64; 3]);
     let (mut n_apex, mut n_base) = (0_usize, 0_usize);
     for (i, point) in grid.points().iter().enumerate() {
@@ -206,6 +206,22 @@ fn statistics(
     if n_apex == 0 || n_base == 0 {
         fail("cannot define the LV axis: no apex or base points");
     }
+    (apex, base, n_apex, n_base)
+}
+
+fn statistics(
+    args: &Args,
+    dataset: &Dataset,
+    surface: &TriangulatedSurface3,
+    result: &BoundaryAxialGlyphSet3,
+    incidence_histogram: &BTreeMap<usize, usize>,
+) -> Vec<(&'static str, J)> {
+    let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else { unreachable!() };
+    let rho = point_scalar(dataset, "RHO.dat");
+    let z = point_scalar(dataset, "Z.dat");
+    let v = point_scalar(dataset, "V.dat");
+
+    let (apex, base, n_apex, n_base) = lv_axis_sums(grid, &z, &v);
     let axis = [0, 1, 2].map(|k| base[k] / n_base as f64 - apex[k] / n_apex as f64);
     let axis_length = norm(axis);
     let axis_unit = scale(axis, 1.0 / axis_length);
@@ -340,10 +356,148 @@ fn statistics(
 
 /// Nearest rank, index ⌊(n − 1)·p + 0.5⌋ (halves round up), as in the audit.
 fn percentile(sorted: &[f64], p: f64) -> J {
+    percentile_value(sorted, p).map_or(J::Null, J::Float)
+}
+
+fn percentile_value(sorted: &[f64], p: f64) -> Option<f64> {
     if sorted.is_empty() {
-        return J::Null;
+        return None;
     }
-    J::Float(sorted[((sorted.len() - 1) as f64 * p + 0.5).floor() as usize])
+    Some(sorted[((sorted.len() - 1) as f64 * p + 0.5).floor() as usize])
+}
+
+/// One eligible sample with the diagnostic-only quantities of the export.
+struct ExportRow {
+    surface_index: usize,
+    cell: usize,
+    tag: i64,
+    group: usize,
+    centroid: [f64; 3],
+    abs_cos: f64,
+    theta_deg: f64,
+    mean_rho: f64,
+    mean_z: f64,
+    sentinel_rho: bool,
+    sentinel_z: bool,
+    axial_s: f64,
+}
+
+/// Exports the tail and RV "other" samples (design A4) and a short summary.
+///
+/// Both classes use the diagnostic's existing criteria and are not
+/// redefined here:
+/// * wall group: the mean of the three vertex rho values, endo if < 0.2, epi
+///   if > 0.8, otherwise other (as `statistics` does);
+/// * `rv_other`: a tag other than `--lv-tag`, in group other;
+/// * `tail`: |cos| at or above that sample's (tag, group) p99, with the same
+///   `percentile` rule as the statistics. The design reported the p99 but
+///   defined no per-sample tail rule; this is the most literal reading.
+/// `axial_s` is (p_c - apex centroid) . axis_unit / axis_length: 0 at the
+/// apex centroid and 1 at the base centroid. Region proxies only, not anatomy.
+fn sample_export(
+    args: &Args,
+    dataset: &Dataset,
+    surface: &TriangulatedSurface3,
+    result: &BoundaryAxialGlyphSet3,
+    source: &str,
+    input: &str,
+) -> (String, String) {
+    let DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else { unreachable!() };
+    let rho = point_scalar(dataset, "RHO.dat");
+    let z = point_scalar(dataset, "Z.dat");
+    let v = point_scalar(dataset, "V.dat");
+    let (apex, base, n_apex, n_base) = lv_axis_sums(grid, &z, &v);
+    let apex_centroid = [0, 1, 2].map(|k| apex[k] / n_apex as f64);
+    let axis = [0, 1, 2].map(|k| base[k] / n_base as f64 - apex[k] / n_apex as f64);
+    let axis_length = norm(axis);
+    let axis_unit = scale(axis, 1.0 / axis_length);
+
+    let mut rows = Vec::with_capacity(result.samples().len());
+    let mut cos_by_group: BTreeMap<(i64, usize), Vec<f64>> = BTreeMap::new();
+    for sample in result.samples() {
+        let triangle = surface.triangles()[sample.triangle_index()];
+        let ids = triangle.vertices().map(|vertex| surface.source_point_ids()[vertex as usize] as usize);
+        let rhos = ids.map(|i| rho[i]);
+        let zs = ids.map(|i| z[i]);
+        let mean_rho = (rhos[0] + rhos[1] + rhos[2]) / 3.0;
+        let group = if mean_rho < ENDO_MAX { 0 } else if mean_rho > EPI_MIN { 1 } else { 2 };
+        cos_by_group.entry((sample.tag(), group)).or_default().push(sample.abs_cos());
+        let centroid = sample.centroid().to_array();
+        rows.push(ExportRow {
+            surface_index: sample.triangle_index(),
+            cell: sample.source_cell_index(),
+            tag: sample.tag(),
+            group,
+            centroid,
+            abs_cos: sample.abs_cos(),
+            theta_deg: sample.tangency_angle_degrees(),
+            mean_rho,
+            mean_z: (zs[0] + zs[1] + zs[2]) / 3.0,
+            sentinel_rho: rhos.iter().any(|&r| r == SENTINEL),
+            sentinel_z: zs.iter().any(|&x| x == SENTINEL),
+            axial_s: dot(sub(centroid, apex_centroid), axis_unit) / axis_length,
+        });
+    }
+    let p99: BTreeMap<(i64, usize), f64> = cos_by_group.into_iter().map(|(key, mut values)| {
+        values.sort_by(f64::total_cmp);
+        (key, percentile_value(&values, 0.99).expect("a populated group has a p99"))
+    }).collect();
+
+    let tail_of = |row: &ExportRow| row.abs_cos >= p99[&(row.tag, row.group)];
+    let rv_other_of = |row: &ExportRow| row.tag != args.lv_tag && row.group == 2;
+
+    let tags: Vec<String> = args.tags.iter().map(i64::to_string).collect();
+    let mut csv = format!(
+        "# {SAMPLE_SCHEMA} source_sha256={source} input_sha256={input} tags={} lv_tag={} bin_mm={:?} length_mm={:?} tail=abs_cos>=p99(tag,group) rv_other=tag!=lv_tag&group=other\n",
+        tags.join(","), args.lv_tag, args.bin_mm, args.length_mm,
+    );
+    csv.push_str("surface_index,cell,tag,group,tail,rv_other,centroid_x,centroid_y,centroid_z,abs_cos,theta_deg,mean_rho,mean_z,sentinel_rho,sentinel_z,axial_s\n");
+    let mut classes: BTreeMap<(i64, &str), Vec<&ExportRow>> = BTreeMap::new();
+    for row in &rows {
+        let (tail, rv_other) = (tail_of(row), rv_other_of(row));
+        if !tail && !rv_other {
+            continue;
+        }
+        if tail {
+            classes.entry((row.tag, "tail")).or_default().push(row);
+        }
+        if rv_other {
+            classes.entry((row.tag, "rv_other")).or_default().push(row);
+        }
+        let [cx, cy, cz] = row.centroid;
+        let _ = writeln!(
+            csv,
+            "{},{},{},{},{},{},{cx:?},{cy:?},{cz:?},{:?},{:?},{:?},{:?},{},{},{:?}",
+            row.surface_index, row.cell, row.tag, GROUPS[row.group], tail as u8, rv_other as u8,
+            row.abs_cos, row.theta_deg, row.mean_rho, row.mean_z,
+            row.sentinel_rho as u8, row.sentinel_z as u8, row.axial_s,
+        );
+    }
+
+    let mut summary = format!(
+        "samples: {} eligible; per (tag, class) over exported rows; region proxies only (axial_s: 0 apex centroid, 1 base centroid)\n",
+        rows.len(),
+    );
+    for ((tag, class), members) in &classes {
+        let stat = |mut values: Vec<f64>| -> String {
+            values.sort_by(f64::total_cmp);
+            match (values.first(), percentile_value(&values, 0.5), values.last()) {
+                (Some(min), Some(median), Some(max)) => format!("min {min:.4} median {median:.4} max {max:.4}"),
+                _ => "n/a".to_owned(),
+            }
+        };
+        let rho_rows: Vec<f64> = members.iter().filter(|r| !r.sentinel_rho).map(|r| r.mean_rho).collect();
+        let z_rows: Vec<f64> = members.iter().filter(|r| !r.sentinel_z).map(|r| r.mean_z).collect();
+        let _ = writeln!(
+            summary,
+            "tag {tag} {class}: {} rows\n  axial_s: {}\n  mean_z ({} rows without a sentinel vertex): {}\n  mean_rho ({} rows without a sentinel vertex): {}",
+            members.len(),
+            stat(members.iter().map(|r| r.axial_s).collect()),
+            z_rows.len(), stat(z_rows),
+            rho_rows.len(), stat(rho_rows),
+        );
+    }
+    (csv, summary)
 }
 
 fn glyph_csv(args: &Args, surface: &TriangulatedSurface3, result: &BoundaryAxialGlyphSet3, source: &str, input: &str) -> String {
