@@ -1847,7 +1847,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     (|cos| >= its (tag, group) p99); glyph colour [0, 0.95, 1.0]; a
     non-finite f32 cast reuses `RenderError::VectorGlyphConversion` rather
     than adding a variant.
-- Next action: bring the PR back for review. After approval, validate in the
+- PR #54 review round 1 (2026-11-11): the renderer constructor, endpoint
+  conversion and tail rule were accepted. One fix was requested and made in
+  `4f3a63c`: `rv_other` is tag 2 (`RV_TAG`) and group other, not "any non-LV
+  tag". Waiting on the reviewer to recheck head `4f3a63c`. Do not start
+  Rodero runs or screenshots until they approve.
+- Next action: wait for the recheck of `4f3a63c`. After approval, validate in the
   order set above: workspace tests and A5, the Rodero counts, `compare.py`
   and `verify_glyphs.py` still pass, the samples export, then screenshots.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
