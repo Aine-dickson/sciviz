@@ -1,6 +1,7 @@
 # B1.2 — Ventricular fibre orientation on the boundary surface (design contract)
 
-Status: **design, revised after review round 1. Nothing here is implemented.**
+Status: **design, revised after review round 2 (direction approved). Nothing
+here is implemented.**
 The measurements in §5 came from a scratch program run on 2026-11-10. They are
 not SVF features, and nothing has been committed for them.
 
@@ -131,19 +132,31 @@ excluded: the LV axis is not a valid RV reference, and a second
 coordinate-frame calculation would add an assumption without answering the
 questions in §1.
 
+|α| is computed **only** by the diagnostic example (§7.3) and the independent
+audit (§7.2). It is not part of the svf-core library API, and the Explorer
+does not use it.
+
 ### 4.6 Degenerate cases
 
-These cases are reported by count and excluded. They are never given a
-fabricated value. ε = 1e-6, applied to quantities derived from unit vectors.
+Each case below is detected explicitly, counted, and excluded from the
+quantity it would corrupt. No fabricated angle, normal or glyph is produced
+for it. The audit and the SVF diagnostic apply the same rules and report the
+same counters. These are plain counters in the operation's result and in the
+diagnostic output, not a general validation subsystem.
 
-| Case | Effect |
-|---|---|
-| Triangle with ‖(b − a) × (c − a)‖ = 0 (zero area) | No normal, no θ, no glyph; counted |
-| Source fibre zero or non-finite | No glyph, no θ; counted (none present in case 01) |
-| Helix: ‖t‖ ≤ ε (fibre parallel to the normal) | Excluded from the \|α\| statistics only; counted |
-| Helix: ‖L × n_g‖ ≤ ε (face perpendicular to the LV axis) | Excluded from the \|α\| statistics only; counted |
+All tests use unit inputs, so ε = 1e-6 is an absolute threshold on a
+dimensionless quantity: f̂ = f/‖f‖, n̂ = n_g/‖n_g‖, L̂ = L/‖L‖.
 
-In case 01, every one of these counts is **0** (§5).
+| Case | Test | Excluded from | Where counted |
+|---|---|---|---|
+| Zero-area or non-finite triangle | ‖(b − a) × (c − a)‖ = 0, or not finite | Normal, θ, glyph, binning | svf-core result + diagnostic |
+| Zero or non-finite source fibre | ‖f‖ = 0, or any component not finite | θ, glyph, binning | svf-core result + diagnostic |
+| Zero fibre projection (fibre along the normal) | ‖t‖ ≤ ε, with t = f̂ − (f̂·n̂) n̂ | \|α\| statistics only (θ = 0° is still valid and reported) | Diagnostic only |
+| Degenerate circumferential reference (face perpendicular to the LV axis) | ‖L̂ × n̂‖ ≤ ε | \|α\| statistics only | Diagnostic only |
+
+The two helix cases exist only where |α| exists (§4.5), so svf-core never sees
+them. In case 01, every one of these counts is **0** (§5). The audit will
+confirm this.
 
 ## 5. Baseline measurement (case 01)
 
@@ -197,10 +210,12 @@ Interpretation:
 
    p_start = p_c − (ℓ/2) f̂,  p_end = p_c + (ℓ/2) f̂,  with f̂ = f / ‖f‖.
 
-   The fibre is **not** projected onto the triangle plane. Projecting would
-   change the scientific direction being shown and would conflict with A2. The
-   glyph is therefore only approximately tangent to the surface, by exactly
-   the θ of §4.4 (median 88–89° in case 01). ℓ is a uniform display length in
+   This keeps the source fibre direction. It does **not** mathematically
+   constrain the segment to the triangle plane. The fibre is **not**
+   projected onto that plane, because projecting would change the scientific
+   direction being shown and would conflict with A2. The glyph is therefore
+   only **approximately tangent** to the surface. Its departure from the plane
+   is 90° − θ, using the θ of §4.4 (median θ is 88–89° in case 01). ℓ is a uniform display length in
    mm and does not encode magnitude (all fibres are unit length). The segment
    has no arrowhead.
 4. **Thinning by deterministic spatial binning:**
@@ -208,7 +223,8 @@ Interpretation:
      world origin O = (0, 0, 0) of the source coordinates.
    - A selected triangle's bin index is k = (⌊(p_c,x − O_x)/h⌋,
      ⌊(p_c,y − O_y)/h⌋, ⌊(p_c,z − O_z)/h⌋). Floor is used so that negative
-     coordinates bin consistently.
+     coordinates bin consistently. The floor is taken in f64 and then
+     converted to an integer index.
    - In each occupied bin, keep the eligible triangle with the **lowest
      triangulated-surface index**.
    - This index is a deterministic tie-breaker only, not a scientific
@@ -248,7 +264,21 @@ The first attempt uses the **existing line path unchanged**:
 compensate for rasterisation, and anchors are never offset along n_g, whose
 sign is not certified outward. If the near-coplanar glyphs disappear or show
 depth artefacts in screenshots, a renderer-side remedy is investigated and
-proposed separately.
+proposed separately. That proposal must be based on evidence: screenshots
+and an identified cause.
+
+### Probe consolidation: `crates/svf-core/examples/vtk_inspect.rs`
+
+This replaces the untracked `parse_probe.rs` and `boundary_probe.rs`. It is a
+small diagnostic example, not a second Explorer: there is no rendering, no
+field mapping and no fibre logic.
+- Usage: `cargo run -p svf-core --release --example vtk_inspect -- <file.vtk>`.
+- Reports the point and cell counts, then one line per field: name,
+  association (point/cell), type (scalar/`Vector3`), and value count.
+- Runs the exterior boundary extraction and reports the boundary triangle
+  count and the extraction time.
+- Exits with a non-zero status, and the parser or extraction error, on
+  failure.
 
 ## 7. Verification
 
@@ -271,44 +301,98 @@ statistics are **not** hardcoded into svf-core tests.
 
 ### 7.2 Independent dataset audit (`tools/rodero-fibre-audit/`)
 
-This is a maintained Python script, kept as reproducibility evidence beside
-`tools/analytical-heat-diffusion/`. It must not consume SVF output. It:
-1. reads the **original, unmodified** `01.vtk`;
-2. identifies tetrahedral faces by sorted source point IDs;
-3. counts face incidences and keeps faces that occur exactly once;
-4. recovers each boundary face's source cell index, `ID` and fibre;
-5. computes geometric normals, θ, the ρ wall groups and the LV |α| exactly as
-   defined in §4–§5;
-6. reports the full statistics set: boundary face count; ventricular counts
-   per tag; per-group counts; |cos| p50/p90/p99; the < 0.1 and < 0.2
-   fractions; LV |α| p25/p50/p75; and all §4.6 exclusion counts.
+This is maintained Python (standard library only), kept as reproducibility
+evidence beside `tools/analytical-heat-diffusion/`. It never reads SVF output
+or SVF's extracted boundary as an input. SVF output appears only as the thing
+being checked (`compare.py`, `verify_glyphs.py`).
 
-Its boundary faces are matched to SVF's by sorted point-ID triple and source
-cell index, which also confirms that the two files have identical cell
-indices.
+`audit.py <01.vtk> --tags 1,2 --bin 4 --out <stats.json>`:
+1. reads the **original, unmodified** `01.vtk` with its own parser;
+2. identifies tetrahedral faces by sorted source point-ID triples;
+3. counts face incidences and keeps the faces that occur exactly once;
+4. recovers each boundary face's source cell index, `ID` tag and fibre
+   vector;
+5. computes geometric normals, θ, the ρ wall groups, the §4.6 exclusions, the
+   LV axis and |α|, and the occupied spatial bins, exactly as defined in
+   §4–§6;
+6. writes the statistics set (below) as JSON.
+
+**Statistics set** (one JSON schema, written by both the audit and the SVF
+diagnostic):
+- total boundary triangle count; eligible count per tag; per-tag count of
+  boundary triangles from cells outside the tag set (must be 0 glyphs);
+- per wall group (LV/RV × endo/epi/other): count, |cos| p50/p90/p99, LV |α|
+  p25/p50/p75;
+- over all eligible triangles: the fractions with |cos| < 0.1 and < 0.2;
+- every §4.6 exclusion counter;
+- LV axis length and the apex/base point counts;
+- thinning: the occupied-bin count at the configured h (= total glyph count),
+  plus the count of centroids within 1e-9 mm of a bin face. Bins are
+  independent of the tie-break, so this count is comparable. Per-tag glyph
+  counts depend on which triangle wins a mixed LV/RV bin, so SVF reports them
+  but they are not matched.
+- provenance: the input file's SHA-256 and the parameters used.
+
+`compare.py <audit.json> <svf.json>` applies the matching rule and exits
+non-zero on any mismatch, printing every differing key.
+
+**Matching rule:** all counts must match exactly. Fractions are ratios of
+exactly matching counts, so they match exactly too. Percentiles, angles and
+lengths must match within 1e-9 absolute. Both sides parse the same decimal
+text into f64, so only the order of floating-point operations can differ. The
+occupied-bin count may differ by at most the reported near-face centroid
+count; anything beyond that is a mismatch.
+
+`verify_glyphs.py <01.vtk> <glyphs.csv>` checks each glyph that SVF exports
+against the original file. Each row holds the sorted point-ID triple, the
+source cell index, the tag, the source fibre, θ, p_start and p_end, with f64
+written in shortest round-trip form. For every row it checks that:
+- the triple is an audit boundary face of that cell;
+- the tag is in the tag set;
+- the fibre equals the original value bit for bit;
+- the segment midpoint is the centroid within 1e-9 mm;
+- (p_end − p_start) equals ℓ f̂ within 1e-12 relative;
+- no two glyphs share a bin.
+
+This verifies A2 independently, which the statistics alone cannot do. It also
+confirms that `01.vtk` and `01-svf-order.vtk` have identical cell indices,
+instead of assuming it.
+
+**Baseline:** `tools/rodero-fibre-audit/baseline/case01.json` is the committed
+output of `audit.py` on `01.vtk`, including the input's SHA-256. The dataset
+itself is not committed (91 MB). The README documents the download (Zenodo
+4590294, `01.tar.gz`), the exact commands, and the Python version used. If the
+audit disagrees with the scratch numbers in §5, the audit is the reference and
+§5 is corrected.
 
 ### 7.3 SVF diagnostic path
 
-A small `svf-core` example (separate from `vtk_inspect`) runs the actual
-implementation on the reordered file and prints the same statistics set in
-the same format.
+`crates/svf-core/examples/fibre_diagnostic.rs` (separate from `vtk_inspect`)
+runs the actual svf-core implementation on `01-svf-order.vtk`. It computes the
+diagnostic-only quantities (ρ groups, LV axis, |α|) and writes the same JSON
+schema, plus `glyphs.csv`:
 
-**Matching rule:** all counts must match exactly. Fractions are ratios of
-exactly matching counts, so they match exactly too. Percentiles and angles
-must match within 1e-9 absolute. The audit and SVF parse the same decimal
-text into f64, so only the order of floating-point operations can differ.
+```
+cargo run -p svf-core --release --example fibre_diagnostic -- \
+  <01-svf-order.vtk> --tags 1,2 --bin 4 --length 3 \
+  --out svf-case01.json --glyphs glyphs.csv
+python -I tools/rodero-fibre-audit/compare.py \
+  tools/rodero-fibre-audit/baseline/case01.json svf-case01.json
+python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv
+```
 
 ## 8. Acceptance criteria
 
-- **A1 Selection:** on case 01, exactly 171,473 ventricular boundary triangles
-  are eligible (86,241 LV + 85,232 RV). Zero glyphs come from tags 3–24.
+- **A1 Selection:** on case 01, SVF's eligible counts per tag equal the audit
+  baseline exactly (the scratch measurement gives 86,241 LV + 85,232 RV =
+  171,473). Zero glyphs come from tags 3–24 (`verify_glyphs.py`).
 - **A2 Fidelity:** every glyph lies along its source cell's exact fibre
   direction in f64 (up to sign, since the glyph is axial). Nothing is
   projected or smoothed, and provenance resolves to the right triangle and
-  cell.
-- **A3 Tangency:** the §7.1 synthetic tests pass, and the §7.3 SVF diagnostic
-  output matches the §7.2 independent audit under the §7.3 matching rule,
-  across the full statistics set.
+  cell. Checked independently by `verify_glyphs.py`.
+- **A3 Dataset agreement:** the §7.1 synthetic tests pass, and `compare.py`
+  reports no mismatch between the SVF diagnostic and the audit baseline across
+  the full statistics set (§7.2).
 - **A4 Visual (screenshots inspected directly):**
   - No arrowheads.
   - A spatially coherent pattern, oblique across the LV epicardium and
@@ -347,3 +431,18 @@ text into f64, so only the order of floating-point operations can differ.
 | A3 | Split into synthetic unit tests, independent dataset audit, and SVF diagnostic (§7) |
 | Degenerate geometry | Explicit counted exclusions (§4.6) |
 | Probe files | Consolidate into `crates/svf-core/examples/vtk_inspect.rs`, a small diagnostic only (approved; implementation follows the final design review) |
+
+## 11. Review decisions (round 2: direction approved, revisions required)
+
+| Topic | Decision |
+|---|---|
+| Fibre direction | Exact f̂, centred on p_c; not constrained to the plane; "approximately tangent" (§6.3) |
+| Core tests | Synthetic and general only; no Rodero numbers in svf-core (§7.1) |
+| Dataset comparison | Shared JSON statistics set, `compare.py` matching rule, glyph-level `verify_glyphs.py` (§7.2–7.3) |
+| Degenerate geometry | Four explicit counters; helix cases are diagnostic-only; no new subsystem (§4.6) |
+| Thinning | World-origin cubic bins, floor index, lowest-surface-index tie-break (not a ranking) (§6.4) |
+| Audit | `tools/rodero-fibre-audit/`, own boundary from sorted point IDs, committed baseline, documented run (§7.2) |
+| Depth | Existing line path first; no normal offsets; changes only on evidence (§6) |
+| `vtk_inspect` | Fields with association/type/count, plus a boundary check; small (§6) |
+| h, ℓ | 4 mm and 3 mm, provisional and configurable; tuned after validation |
+| RV | Tangency only; no RV frame and no RV helix diagnostic |

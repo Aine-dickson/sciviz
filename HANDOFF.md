@@ -1,6 +1,6 @@
 # Scientific Visualization Framework — Handoff
 
-Last updated: 2026-11-09
+Last updated: 2026-11-11
 
 ## Project objective
 
@@ -1587,27 +1587,43 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design proposal, pending review)
+## B1.2 — Ventricular fibre orientation (design approved in direction, final review pending)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
-  `b1-2-ventricular-fibre-design`). Revised after review round 1: direction
-  approved; final design review pending. No implementation until then.
+  `b1-2-ventricular-fibre-design`). Round 2 approved the direction subject to
+  revisions, which are now in the document (§11). **Do not implement until
+  the user authorises it after reviewing the diff.**
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
   fibre=(1,0,0) and sheet=(0,1,0), which are unit length and orthogonal like
   the real data. Select by `ID` tag, never by value.
 - Source rule (Zenodo 4590294): ventricular fibres rotate from 80° at the
   endocardium to -60° at the epicardium. Sheets are undocumented.
-- Fibres are axial: use |f·n|, centred segments, no arrowheads.
-- The geometric triangle normal is used. A smoothed normal is a separate
-  concept and needs consistent orientation, which SVF does not have.
-- Baseline (scratch measurement, not an SVF feature): 171,473 ventricular
-  boundary triangles. 93.44% have θ > 84.26°; median θ is 88–89°. The LV
-  helix magnitude (global long axis, sign-free) has median 75.8° at the
-  endocardium and 62.5° at the epicardium.
-- Round-1 decisions are recorded in §10 of the design. Key points: keep the
-  exact fibre direction (no projection); try the existing line depth path
-  first; RV helix check deferred; an independent audit in
-  `tools/rodero-fibre-audit/` with its own boundary extraction.
+- Decisions not to revisit:
+  - Glyph p_c ± (ℓ/2) f̂, with the exact source direction. It is not projected
+    and only approximately tangent. Axial: |f·n|, no arrowheads.
+  - The geometric triangle normal only. No smoothed normals, no
+    orientation-dependent steps.
+  - Thinning: world-origin cubic bins with a floor index; keep the lowest
+    surface index (a tie-break, not a ranking). h = 4 mm and ℓ = 3 mm are
+    provisional and configurable.
+  - Four explicit degenerate counters (§4.6). The helix ones are
+    diagnostic-only.
+  - Use the existing line depth path first. No anchor offsets along normals.
+  - RV: tangency only. No RV frame and no RV helix diagnostic.
+  - svf-core tests are synthetic only, with no Rodero numbers.
+- Verification plan (§7): `tools/rodero-fibre-audit/` (stdlib Python:
+  `audit.py`, `compare.py`, `verify_glyphs.py`, committed
+  `baseline/case01.json`). It derives its own boundary from the original
+  `01.vtk` using sorted point-ID face incidence. The SVF example
+  `fibre_diagnostic.rs` writes the same JSON schema plus `glyphs.csv`.
+- Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
+  boundary triangles; 93.44% have θ > 84.26°; LV |α| median 75.8° (endo) and
+  62.5° (epi). The audit becomes the reference once it exists.
 - Untracked `crates/svf-core/examples/{parse_probe,boundary_probe}.rs`:
-  approved for consolidation into `examples/vtk_inspect.rs`. Not yet done.
+  approved for consolidation into `examples/vtk_inspect.rs` (spec in §6). Not
+  yet done.
+- Next action: the user reviews the PR #49 diff. If approved, implement in
+  this order: vtk_inspect, audit plus baseline, svf-core operation plus unit
+  tests, fibre_diagnostic plus comparison, then renderer/Explorer and
+  screenshots.
