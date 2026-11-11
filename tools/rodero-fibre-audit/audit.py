@@ -19,6 +19,7 @@ import hashlib
 import json
 import math
 import platform
+import re
 import struct
 import sys
 import time
@@ -98,7 +99,7 @@ def binary32(text: str) -> float:
     an f64, so no midpoint can lie strictly between the true value and its
     nearest f64. That one case is resolved with exact rational arithmetic.
     """
-    d = float(text)
+    d = _decimal(text)
     try:
         f = _from_f32_bits(_f32_bits(d))
     except OverflowError:  # the f64 rounds beyond the binary32 range
@@ -123,18 +124,52 @@ def binary32(text: str) -> float:
     return other if (exact > tie) == (other > midpoint) else f
 
 
-def _integer(text: str) -> float:
-    return float(int(text))
+def _decimal(text: str) -> float:
+    """Decimal text -> nearest binary64, accepting only what Rust's parser accepts.
+
+    Python's float() also takes underscores ("1_0") and non-ASCII digits,
+    which SVF rejects, so those are refused here rather than read silently.
+    """
+    if not text.isascii() or "_" in text:
+        raise VtkError(f"invalid floating-point value {text!r}")
+    try:
+        return float(text)
+    except ValueError:
+        raise VtkError(f"invalid floating-point value {text!r}") from None
+
+
+# Declared integer types and their ranges, as SVF parses them (Rust i16, u16,
+# i32, u32, u8). Values outside the range are errors, not wider integers.
+INTEGER_RANGES = {
+    "short": (-(2**15), 2**15 - 1),
+    "unsigned_short": (0, 2**16 - 1),
+    "int": (-(2**31), 2**31 - 1),
+    "unsigned_int": (0, 2**32 - 1),
+    "unsigned_char": (0, 2**8 - 1),
+}
+SIGNED_INTEGER = re.compile(r"[+-]?[0-9]+")
+UNSIGNED_INTEGER = re.compile(r"\+?[0-9]+")  # Rust's unsigned parse has no '-', not even "-0"
+
+
+def _integer_converter(declared: str):
+    low, high = INTEGER_RANGES[declared]
+    pattern = SIGNED_INTEGER if low < 0 else UNSIGNED_INTEGER
+
+    def convert(text: str) -> float:
+        if not pattern.fullmatch(text):
+            raise VtkError(f"invalid {declared} value {text!r}")
+        value = int(text)
+        if not low <= value <= high:
+            raise VtkError(f"{declared} value {text!r} is outside [{low}, {high}]")
+        return float(value)
+
+    return convert
 
 
 CONVERTERS = {
     "float": binary32,
-    "double": float,
-    "short": _integer,
-    "unsigned_short": _integer,
-    "int": _integer,
-    "unsigned_int": _integer,
-    "unsigned_char": _integer,
+    "double": _decimal,
+    **{declared: _integer_converter(declared) for declared in INTEGER_RANGES},
 }
 
 

@@ -55,8 +55,11 @@ choice is stated here and in the design:
 - **Numeric input (corrected in stage 4):** every array is converted by its
   declared VTK type before any calculation, as SVF's parser does. `float`
   becomes the correctly rounded IEEE-754 binary32 value, promoted to f64;
-  `double` becomes binary64; integer types are exact. Every array in `01.vtk`
-  is `float`. The baseline records this as `parameters.numeric_conversion`.
+  `double` becomes binary64; integer types are exact and must lie in the
+  declared range (i16, u16, i32, u32, u8), as in SVF. Text that SVF's
+  parser rejects (underscores, non-ASCII digits, a `-` on an unsigned type)
+  is an error here too; `test_audit.py` and `fibre_diagnostic.rs` share one
+  table of these cases. Every array in `01.vtk` is `float`. The baseline records this as `parameters.numeric_conversion`.
   The stage-2 audit parsed `float` text directly into f64, which is not the
   same input; see `baseline/case01-numeric-conversion.md`.
 - **Tag selection:** by the cell `ID` value, never by fibre value.

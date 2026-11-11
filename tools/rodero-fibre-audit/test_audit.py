@@ -216,6 +216,39 @@ class AuditTests(unittest.TestCase):
         with self.assertRaises(audit.VtkError):
             audit.parse_vtk(self.path)
 
+    # Shared with fibre_diagnostic.rs (svf_parser_accepts_and_rejects_the_audit_edge_cases):
+    # SVF's parser must give the same value, or reject the same text.
+    EDGE_CASES = [
+        ("short", "-32768", -32768.0), ("short", "32767", 32767.0),
+        ("short", "-32769", None), ("short", "32768", None),
+        ("unsigned_short", "0", 0.0), ("unsigned_short", "65535", 65535.0),
+        ("unsigned_short", "65536", None), ("unsigned_short", "-1", None), ("unsigned_short", "-0", None),
+        ("int", "-2147483648", -2147483648.0), ("int", "2147483647", 2147483647.0),
+        ("int", "2147483648", None), ("int", "-2147483649", None),
+        ("int", "+7", 7.0), ("int", "007", 7.0), ("int", "-0", 0.0),
+        ("int", "1.0", None), ("int", "1_0", None), ("int", "٣", None), ("int", "+", None),
+        ("unsigned_int", "4294967295", 4294967295.0), ("unsigned_int", "4294967296", None),
+        ("unsigned_int", "+1", 1.0),
+        ("unsigned_char", "255", 255.0), ("unsigned_char", "256", None), ("unsigned_char", "-0", None),
+        ("double", "1e5", 100000.0), ("double", "-0.25", -0.25), ("double", "1_0.5", None),
+        ("double", "١.5", None), ("double", "abc", None),
+        ("float", "0.5", 0.5), ("float", "1_0", None), ("float", "1e39", math.inf),
+    ]
+
+    def test_declared_types_accept_and_reject_like_svf(self):
+        for declared, text, expected in self.EDGE_CASES:
+            convert = audit.converter(declared, 0)
+            if expected is None:
+                with self.assertRaises(audit.VtkError, msg=f"{declared} {text!r}"):
+                    convert(text)
+            else:
+                self.assertEqual(convert(text), expected, f"{declared} {text!r}")
+
+    def test_out_of_range_integer_in_a_file_is_rejected(self):
+        write_vtk(self.path, ids=(1, 2**31))
+        with self.assertRaises(audit.VtkError):
+            audit.parse_vtk(self.path)
+
     def test_baseline_records_the_numeric_conversion(self):
         write_vtk(self.path)
         stats = audit.audit(self.path, [1], 1, 4.0)

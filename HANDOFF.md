@@ -1721,6 +1721,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - The Rust SHA-256 matches `hashlib` on both files. SVF's parser rounds the
     double-rounding test strings exactly as the audit's `binary32()` does.
   - The audit now takes 64 s, up from 45–49 s.
+  Review round 1 of PR #53 asked for two corrections, both done:
+  - The audit's integer types now enforce the declared ranges and reject
+    text that Rust's parser rejects. SVF's parser was run on the same
+    34-case table and agrees on every case.
+  - `--lv-tag 1` is added to the §7.3 command.
+  Case 01 is unaffected: a fresh audit run still MATCHes the baseline.
 - Next action: address the review of PR #53 and merge it, then stage 5
   (renderer/Explorer and visual validation, design A4).
 - Environment note (2026-11-11): the C: drive filled up and all cargo

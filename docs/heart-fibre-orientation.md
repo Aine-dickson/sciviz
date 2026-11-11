@@ -364,7 +364,8 @@ lengths must match within 1e-9 absolute.
 **Numeric input contract (corrected in stage 4, §15).** Both sides must
 convert every array by its *declared VTK type* before any calculation:
 `float` is parsed as IEEE-754 binary32 (correctly rounded) and then promoted
-to f64; `double` is parsed as binary64; integer types are exact. This is
+to f64; `double` is parsed as binary64; integer types are exact and must lie
+in their declared range (i16, u16, i32, u32, u8). This is
 SVF's existing parser contract (`crates/svf-core/src/vtk_legacy.rs`). It is
 not enough for both sides to read the same decimal text: parsing `float`
 text directly into f64 gives different input values. Every array in
@@ -490,8 +491,8 @@ schema, plus `glyphs.csv`:
 
 ```
 cargo run -p svf-core --release --example fibre_diagnostic -- \
-  <01-svf-order.vtk> --source <01.vtk> --tags 1,2 --bin 4 --length 3 \
-  --out svf-case01.json --glyphs glyphs.csv
+  <01-svf-order.vtk> --source <01.vtk> --tags 1,2 --lv-tag 1 --bin 4 \
+  --length 3 --out svf-case01.json --glyphs glyphs.csv
 python -I tools/rodero-fibre-audit/compare.py \
   tools/rodero-fibre-audit/baseline/case01.json svf-case01.json
 python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv

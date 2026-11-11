@@ -531,6 +531,40 @@ mod tests {
         assert_eq!(dataset.scalar_field("d").unwrap().values()[0], SampleValue::Finite(0.1));
     }
 
+    /// The same table as `EDGE_CASES` in tools/rodero-fibre-audit/test_audit.py.
+    #[test]
+    fn svf_parser_accepts_and_rejects_the_audit_edge_cases() {
+        let cases: &[(&str, &str, Option<f64>)] = &[
+            ("short", "-32768", Some(-32768.0)), ("short", "32767", Some(32767.0)),
+            ("short", "-32769", None), ("short", "32768", None),
+            ("unsigned_short", "0", Some(0.0)), ("unsigned_short", "65535", Some(65535.0)),
+            ("unsigned_short", "65536", None), ("unsigned_short", "-1", None), ("unsigned_short", "-0", None),
+            ("int", "-2147483648", Some(-2147483648.0)), ("int", "2147483647", Some(2147483647.0)),
+            ("int", "2147483648", None), ("int", "-2147483649", None),
+            ("int", "+7", Some(7.0)), ("int", "007", Some(7.0)), ("int", "-0", Some(0.0)),
+            ("int", "1.0", None), ("int", "1_0", None), ("int", "\u{0663}", None), ("int", "+", None),
+            ("unsigned_int", "4294967295", Some(4294967295.0)), ("unsigned_int", "4294967296", None),
+            ("unsigned_int", "+1", Some(1.0)),
+            ("unsigned_char", "255", Some(255.0)), ("unsigned_char", "256", None), ("unsigned_char", "-0", None),
+            ("double", "1e5", Some(100000.0)), ("double", "-0.25", Some(-0.25)), ("double", "1_0.5", None),
+            ("double", "\u{0661}.5", None), ("double", "abc", None),
+            ("float", "0.5", Some(0.5)), ("float", "1_0", None), ("float", "1e39", Some(f64::INFINITY)),
+        ];
+        for &(declared, text, expected) in cases {
+            let vtk = format!(
+                "# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\nPOINTS 4 double\n\
+                 0 0 0\n1 0 0\n0 1 0\n0 0 1\nCELLS 1 5\n4 0 1 2 3\nCELL_TYPES 1\n10\n\
+                 CELL_DATA 1\nSCALARS s {declared} 1\nLOOKUP_TABLE default\n{text}\n"
+            );
+            let parsed = parse_legacy_ascii_unstructured_grid(&vtk)
+                .map(|dataset| dataset.scalar_field("s").unwrap().values()[0]);
+            match expected {
+                None => assert!(parsed.is_err(), "{declared} {text:?} should be rejected, got {parsed:?}"),
+                Some(value) => assert_eq!(parsed, Ok(SampleValue::from_f64(value)), "{declared} {text:?}"),
+            }
+        }
+    }
+
     #[test]
     fn percentile_rounds_halves_up() {
         let values = [1.0, 2.0, 3.0];

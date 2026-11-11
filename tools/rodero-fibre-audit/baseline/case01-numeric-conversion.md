@@ -33,8 +33,10 @@ therefore the only cause.
   and is resolved exactly, with `fractions.Fraction`, in the one case where
   that can be wrong: when the f64 lands exactly on a binary32 midpoint.
 - `double` arrays: decimal-to-binary64, as before.
-- Integer types (such as `ID`): exact integers. An unknown declared type is an
-  error.
+- Integer types (such as `ID`): exact integers within the declared range
+  (i16, u16, i32, u32, u8), as SVF parses them (review of PR #53). Text that
+  SVF's parser rejects is an error. An unknown declared type is an error.
+  Case 01 is unaffected: a fresh audit run still matches this baseline.
 - The baseline records the conversion as `parameters.numeric_conversion`:
   `vtk-declared-type/1: float=binary32 promoted to f64; double=binary64; integer types exact`.
   `compare.py` compares it like any other parameter, and `test_audit.py`
