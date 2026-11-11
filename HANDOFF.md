@@ -1587,7 +1587,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stages 1–2 merged, stage 3 implemented)
+## B1.2 — Ventricular fibre orientation (design approved; stages 1–3 merged, stage 4 implemented)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
@@ -1659,8 +1659,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   Case 01 has 8 near-face centroids, which are reported only. Thinning must
   match the audit exactly. Stage 3 must add an svf-core synthetic test of the
   same kind (the bin flips if the order or formula changes).
-- Stage 3 (PR #52, branch `b1-2-core-glyphs`, opened 2026-11-11; review
-  round 1 asked for a scale-safe norm, now addressed):
+- Stage 3 (PR #52, squash-merged to main as `c832620` on 2026-11-11):
   `crates/svf-core/src/boundary_axial_glyphs.rs`,
   `build_boundary_axial_glyphs(dataset, surface, direction_field, tag_field,
   tags: &[i64], BoundaryAxialGlyphOptions3 { bin_edge, length })`. The
@@ -1693,10 +1692,53 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   a/3 + b/3 + c/3, and fails the tie-break test when the last triangle wins.
   Removing the scale-safe fallback fails both large/small regression tests.
   The workspace (svf-render, Explorer) was not rebuilt; nothing there changed.
-- Next action: get the round-1 fixes on PR #52 re-reviewed, merge, then
-  start stage 4 (fibre_diagnostic, compare.py, verify_glyphs.py). Not in
-  stage 3: Rodero counts in core tests, renderer or Explorer integration,
-  and any change to `tools/rodero-fibre-audit/`.
+- Stage 4 (PR #53, branch `b1-2-diagnostic`, from main at `c832620`;
+  opened 2026-11-11). It is two commits, reviewed separately:
+  1. `feb0592`: the audit converts VTK input by declared type. The decision
+     is design §15 (option A, approved by the reviewer). SVF reads `float`
+     as binary32, while the stage-2 audit read the text as f64. All counts
+     agreed then, but 25 floats differed by up to 4e-5, and the near-face
+     count was 8 against 9. `audit.py` now:
+     - converts `float` to the correctly rounded binary32 value, using
+       Fraction to resolve an f64 that lands on a binary32 midpoint;
+     - converts `double` to binary64 and integer types exactly;
+     - records `parameters.numeric_conversion`.
+     The baseline is regenerated and authoritative.
+     `baseline/case01-numeric-conversion.md` holds the old-versus-new table.
+     The eligible set, every bin assignment and every winner are identical
+     triangle by triangle. Near-face is now 9, with rank 61792 exactly on
+     x = 104. `boundary_axial_glyphs.rs` is untouched.
+  2. Stage-4 tools: `crates/svf-core/examples/fibre_diagnostic.rs`
+     (self-contained SHA-256; reproduces `audit_checks` too), `compare.py`,
+     `verify_glyphs.py` and `test_tools.py`. The diagnostic takes an extra
+     `--lv-tag` that design §7.3 omits, matching the audit's CLI.
+  Verified locally on 2026-11-11:
+  - `compare.py`: MATCH against the new baseline.
+  - `verify_glyphs.py`: PASS (5,183 bins and 5,183 rows, 0 discrepancies,
+    80 s, 887 MB peak). The diagnostic took 34 s.
+  - Self-tests: `test_audit.py` 16 OK, `test_tools.py` 11 OK, the example's
+    tests 3 OK, and `cargo test -p svf-core` 284 passed.
+  - The Rust SHA-256 matches `hashlib` on both files. SVF's parser rounds the
+    double-rounding test strings exactly as the audit's `binary32()` does.
+  - The audit now takes 64 s, up from 45–49 s.
+  Review round 1 of PR #53 asked for two corrections, both done:
+  - The audit's integer types now enforce the declared ranges and reject
+    text that Rust's parser rejects. SVF's parser was run on the same
+    34-case table and agrees on every case.
+  - `--lv-tag 1` is added to the §7.3 command.
+  Case 01 is unaffected: a fresh audit run still MATCHes the baseline.
+  Review round 2 found two more parity gaps, both fixed:
+  - Declared type names are now ASCII case-insensitive, as in SVF.
+  - Float text must match Rust's `from_str` grammar, checked by a regex
+    before `float()`.
+  The shared table now has 71 cases, including the NaN and infinity
+  spellings, and both sides agree on all of them. Case 01 still MATCHes.
+  Known and not changed: the audit matches record keywords (`POINTS`,
+  `LOOKUP_TABLE default`, ...) case-sensitively, while SVF ignores case. The
+  audit therefore rejects a lowercase file loudly; it never reads it
+  differently.
+- Next action: address the review of PR #53 and merge it, then stage 5
+  (renderer/Explorer and visual validation, design A4).
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed

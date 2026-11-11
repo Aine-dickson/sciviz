@@ -19,10 +19,13 @@ import hashlib
 import json
 import math
 import platform
+import re
+import struct
 import sys
 import time
 from array import array
 from collections import Counter
+from fractions import Fraction
 
 SCHEMA = "svf-b1.2-fibre-stats/1"
 EPSILON = 1.0e-6  # section 4.6, on dimensionless unit-vector quantities
@@ -70,6 +73,119 @@ class Lines:
                 return line
 
 
+# Numeric input contract (design section 7.2): each array is converted
+# according to its declared VTK type before any calculation, exactly as SVF's
+# parser does. The baseline records this so it cannot silently revert.
+NUMERIC_CONVERSION = "vtk-declared-type/1: float=binary32 promoted to f64; double=binary64; integer types exact"
+F32_MAX = 3.4028234663852886e38
+F32_OVERFLOW_TIE = 2.0**128 - 2.0**103  # midpoint between F32_MAX and 2**128
+
+
+def _f32_bits(value: float) -> int:
+    return struct.unpack("<I", struct.pack("<f", value))[0]
+
+
+def _from_f32_bits(bits: int) -> float:
+    return struct.unpack("<f", struct.pack("<I", bits))[0]
+
+
+def binary32(text: str) -> float:
+    """Decimal text -> nearest IEEE-754 binary32 (ties to even), as an f64.
+
+    This is the conversion SVF applies to a VTK `float` value (Rust's
+    correctly rounded `str::parse::<f32>`). Rounding the text to f64 first and
+    then to binary32 gives the same result unless the f64 lands exactly on
+    the midpoint between two binary32 values: every such midpoint is itself
+    an f64, so no midpoint can lie strictly between the true value and its
+    nearest f64. That one case is resolved with exact rational arithmetic.
+    """
+    d = _decimal(text)
+    try:
+        f = _from_f32_bits(_f32_bits(d))
+    except OverflowError:  # the f64 rounds beyond the binary32 range
+        if abs(d) == F32_OVERFLOW_TIE and abs(Fraction(text)) < F32_OVERFLOW_TIE:
+            return math.copysign(F32_MAX, d)
+        return math.copysign(math.inf, d)
+    if d == f or not math.isfinite(d):
+        return f
+    # The binary32 neighbour of f on the side of d. Bits are sign-magnitude,
+    # so +1 moves away from zero for either sign (and from ±0 to ±2**-149).
+    bits = _f32_bits(f)
+    other = _from_f32_bits(bits + 1 if abs(d) > abs(f) else bits - 1)
+    if not math.isfinite(other):  # f is F32_MAX and d is above it, below the overflow tie
+        return f
+    midpoint = (f + other) / 2.0  # exact in f64
+    if d != midpoint:
+        return f
+    exact, tie = Fraction(text), Fraction(midpoint)
+    if exact == tie:
+        return f  # a true tie: struct already rounded it to even
+    # Pick whichever neighbour is on the same side of the midpoint as the text.
+    return other if (exact > tie) == (other > midpoint) else f
+
+
+# The grammar of Rust's f32/f64 `from_str`, which SVF uses: an optional sign,
+# then inf, infinity or nan (ASCII, any case), or decimal digits with an
+# optional fraction and exponent. Python's float() accepts a superset
+# (underscores, non-ASCII digits, surrounding whitespace), so text is
+# checked against this grammar first and only then converted.
+RUST_FLOAT = re.compile(r"[+-]?(?:inf|infinity|nan|(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)", re.IGNORECASE)
+
+
+def _decimal(text: str) -> float:
+    """Decimal text -> nearest binary64, accepting exactly what Rust's parser accepts."""
+    if not (text.isascii() and RUST_FLOAT.fullmatch(text)):
+        raise VtkError(f"invalid floating-point value {text!r}")
+    try:
+        return float(text)
+    except ValueError:
+        raise VtkError(f"invalid floating-point value {text!r}") from None
+
+
+# Declared integer types and their ranges, as SVF parses them (Rust i16, u16,
+# i32, u32, u8). Values outside the range are errors, not wider integers.
+INTEGER_RANGES = {
+    "short": (-(2**15), 2**15 - 1),
+    "unsigned_short": (0, 2**16 - 1),
+    "int": (-(2**31), 2**31 - 1),
+    "unsigned_int": (0, 2**32 - 1),
+    "unsigned_char": (0, 2**8 - 1),
+}
+SIGNED_INTEGER = re.compile(r"[+-]?[0-9]+")
+UNSIGNED_INTEGER = re.compile(r"\+?[0-9]+")  # Rust's unsigned parse has no '-', not even "-0"
+
+
+def _integer_converter(declared: str):
+    low, high = INTEGER_RANGES[declared]
+    pattern = SIGNED_INTEGER if low < 0 else UNSIGNED_INTEGER
+
+    def convert(text: str) -> float:
+        if not pattern.fullmatch(text):
+            raise VtkError(f"invalid {declared} value {text!r}")
+        value = int(text)
+        if not low <= value <= high:
+            raise VtkError(f"{declared} value {text!r} is outside [{low}, {high}]")
+        return float(value)
+
+    return convert
+
+
+CONVERTERS = {
+    "float": binary32,
+    "double": _decimal,
+    **{declared: _integer_converter(declared) for declared in INTEGER_RANGES},
+}
+
+
+def converter(declared: str, line: int):
+    """The converter for a declared VTK type. Like SVF (`to_ascii_lowercase`),
+    the type name is case-insensitive in ASCII: FLOAT and float are the same."""
+    try:
+        return CONVERTERS[declared.lower() if declared.isascii() else declared]
+    except KeyError:
+        raise VtkError(f"line {line}: unsupported data type {declared!r}") from None
+
+
 def read_values(lines: Lines, count: int, typecode: str, convert) -> array:
     """Read exactly `count` whitespace-separated values, however they wrap."""
     out = array(typecode)
@@ -103,7 +219,7 @@ def parse_vtk(path: str) -> dict:
             keyword = words[0]
             if keyword == "POINTS":
                 n = int(words[1])
-                points = read_values(lines, 3 * n, "d", float)
+                points = read_values(lines, 3 * n, "d", converter(words[2], lines.number))
             elif keyword == "CELLS":
                 n, size = int(words[1]), int(words[2])
                 raw = read_values(lines, size, "l", int)
@@ -122,11 +238,11 @@ def parse_vtk(path: str) -> dict:
                     raise VtkError(f"line {lines.number}: unsupported SCALARS")
                 if lines.next().split() != ["LOOKUP_TABLE", "default"]:
                     raise VtkError(f"line {lines.number}: expected LOOKUP_TABLE default")
-                target[words[1]] = read_values(lines, target_size, "d", float)
+                target[words[1]] = read_values(lines, target_size, "d", converter(words[2], lines.number))
             elif keyword == "VECTORS":
                 if target is None:
                     raise VtkError(f"line {lines.number}: VECTORS outside a data section")
-                target[words[1]] = read_values(lines, 3 * target_size, "d", float)
+                target[words[1]] = read_values(lines, 3 * target_size, "d", converter(words[2], lines.number))
             else:
                 raise VtkError(f"line {lines.number}: unsupported record {keyword}")
 
@@ -385,6 +501,7 @@ def audit(path: str, tags: list[int], lv_tag: int, bin_mm: float) -> dict:
             "near_face_mm": NEAR_FACE_MM,
             "endo_rho_max": ENDO_MAX,
             "epi_rho_min": EPI_MIN,
+            "numeric_conversion": NUMERIC_CONVERSION,
         },
         "mesh": {"points": data["point_count"], "cells": data["cell_count"]},
         "boundary_triangles": len(boundary),

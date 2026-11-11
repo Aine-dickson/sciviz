@@ -1,8 +1,8 @@
 # B1.2 — Ventricular fibre orientation on the boundary surface (design contract)
 
 Status: **design approved (review round 4). Implementation follows the order
-in §13: stages 1–2 are merged; stage 3 (`svf_core::boundary_axial_glyphs`)
-is implemented.**
+in §13: stages 1–3 are merged; stage 4 (diagnostic and verification, with
+the numeric input correction of §15) is implemented and passes on case 01.**
 The measurements in §5 first came from a scratch program run on 2026-11-10.
 Stage 2 reproduced them with the committed independent audit
 (`tools/rodero-fibre-audit/`), whose reference output is
@@ -189,8 +189,11 @@ source points: endocardial ρ < 0.2, epicardial ρ > 0.8, otherwise "other".
 - LV long axis: 88.5 mm, from 147 apex points and 1,552 base points.
 - Percentiles use the nearest-rank index ⌊(n − 1)·p + 0.5⌋ on the sorted
   values, which rounds halves up (not Python's round-half-to-even).
-- The stage-2 independent audit reproduces every number in this section
-  exactly (`tools/rodero-fibre-audit/baseline/case01.json`).
+- The stage-2 independent audit reproduced every number in this section
+  exactly (`tools/rodero-fibre-audit/baseline/case01.json`). The stage-4
+  declared-type correction (§7.2, §15) moves the unrounded statistics by at
+  most 4e-5 (|α| p25 at the LV epicardium). Every count, and every value at
+  the precision quoted here, is unchanged.
 
 Interpretation:
 - Ventricular fibres lie close to the wall surface almost everywhere: the
@@ -356,8 +359,22 @@ are fixed in the script, so nothing is skipped silently.
 
 **Matching rule:** all counts must match exactly. Fractions are ratios of
 exactly matching counts, so they match exactly too. Percentiles, angles and
-lengths must match within 1e-9 absolute. Both sides parse the same decimal
-text into f64, so only the order of floating-point operations can differ.
+lengths must match within 1e-9 absolute.
+
+**Numeric input contract (corrected in stage 4, §15).** Both sides must
+convert every array by its *declared VTK type* before any calculation:
+`float` is parsed as IEEE-754 binary32 (correctly rounded) and then promoted
+to f64; `double` is parsed as binary64; integer types are exact and must lie
+in their declared range (i16, u16, i32, u32, u8). This is
+SVF's existing parser contract (`crates/svf-core/src/vtk_legacy.rs`). It is
+not enough for both sides to read the same decimal text: parsing `float`
+text directly into f64 gives different input values. Every array in
+`01.vtk` is declared `float`, and its text is the printed binary32 data.
+With the same converted inputs, only the order of floating-point operations
+can differ. The audit records the conversion it used as
+`parameters.numeric_conversion`, and `compare.py` compares it like any other
+parameter, so neither side can silently revert to direct f64 parsing.
+
 The thinning counts (occupied bins and per-tag glyphs) must match exactly
 as well. The centroid arithmetic is pinned (below), so bin assignment is
 bitwise reproducible. The near-face count is reported and compared like any
@@ -416,13 +433,18 @@ audit's bin assignments and winners exactly. Synthetic tests on both sides
 protect it: the audit's `test_audit.py`, and svf-core's in stage 3. Each
 uses a triangle whose bin changes if the order or the formula changes.
 
-**Case 01 has 8 near-face centroids (measured in stage 2).** These are
-recorded and reported, not excused. Each lies *exactly* on a bin face, because the 6-decimal input
-coordinates of those triangles sum to an exact multiple of 3h. Whether f64
-then lands on or just below the face depends on the centroid formula and the
-summation order. None of the 8 is its bin's winner. Two of them (ranks 11530
-and 94448) would win the neighbouring bin if rounded below the face. The bin
-count would be unchanged, but the winners of those two bins would not.
+**Case 01 has 9 near-face centroids** (8 in stage 2, which parsed the text
+directly into f64; see §15). These are recorded and reported, not excused.
+Each lies *exactly* on a bin face, because the input coordinates of those
+triangles sum to an exact multiple of 3h. Whether f64 then lands on or just
+below the face depends on the centroid formula and the summation order.
+None of the 9 is its bin's winner. Two of them (ranks 11530 and 94448) would
+win the neighbouring bin if rounded below the face. The bin count would be
+unchanged, but the winners of those two bins would not. The ninth (rank
+61792) appears with binary32 input: its x values sum to 312.000001 in
+decimal but to exactly 312.0 as binary32, so its centroid lies on the face
+x = 104. It stays in its bin either way, because floor binning puts a point on
+a face in the upper bin.
 
 This is why the centroid contract above is pinned and not left to
 implementation choice.
@@ -452,7 +474,9 @@ output of `audit.py` on `01.vtk`. The dataset itself is not committed
 Peak memory is the OS process peak, still through the standard library:
 `ctypes` and `K32GetProcessMemoryInfo` on Windows, `resource.getrusage` on
 POSIX. This replaces the earlier `tracemalloc` plan, which counted only
-Python allocations. Case 01 took 45–49 s with an 884 MB peak. Performance
+Python allocations. Case 01 took 45–49 s with an 884 MB peak in stage 2, and
+64 s with an 884.6 MB peak after the correctly rounded binary32 conversion of
+stage 4. Performance
 work, such as NumPy, is
 considered only if these measurements show a real problem. If the audit
 disagrees with the scratch numbers in §5, the audit is the reference and §5
@@ -467,8 +491,8 @@ schema, plus `glyphs.csv`:
 
 ```
 cargo run -p svf-core --release --example fibre_diagnostic -- \
-  <01-svf-order.vtk> --source <01.vtk> --tags 1,2 --bin 4 --length 3 \
-  --out svf-case01.json --glyphs glyphs.csv
+  <01-svf-order.vtk> --source <01.vtk> --tags 1,2 --lv-tag 1 --bin 4 \
+  --length 3 --out svf-case01.json --glyphs glyphs.csv
 python -I tools/rodero-fibre-audit/compare.py \
   tools/rodero-fibre-audit/baseline/case01.json svf-case01.json
 python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv
@@ -600,3 +624,12 @@ original file.
 | Near-face centroids | Case 01 has 8. They are reported but grant no allowance. Thinning counts, bin assignments and winners must match the audit exactly (§7.2) |
 | Protection | A synthetic test whose bin flips if the order or the formula changes, in `test_audit.py` now and in svf-core in stage 3 |
 | Audit | Unchanged as the reference |
+
+## 15. Review decisions (stage 4: numeric input contract)
+
+| Topic | Decision |
+|---|---|
+| Finding | SVF parses `float` arrays as binary32 (VTK semantics); the stage-2 audit parsed the same text as f64. All counts agreed, but 25 floating-point statistics differed by up to 4e-5, and the near-face count was 8 against 9. A scratch audit with binary32 input matched SVF on every key |
+| Decision | Option A: the audit converts by declared type (binary32 for `float`, binary64 for `double`, exact integers), and the baseline is regenerated and becomes authoritative. SVF's parser is not changed, and tolerances are not loosened |
+| Safeguards | Correctly rounded decimal-to-binary32 conversion, including the case where the f64 lands on a binary32 midpoint; regression tests for `float` and `double`; the conversion recorded in `parameters.numeric_conversion`; `boundary_axial_glyphs.rs` unchanged |
+| Evidence | `tools/rodero-fibre-audit/baseline/case01-numeric-conversion.md`: old-versus-new values, with identical eligible sets, bin assignments and winners for all 171,473 eligible triangles |
