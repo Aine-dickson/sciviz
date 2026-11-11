@@ -12,10 +12,13 @@ that later stages compare SVF against.
 |---|---|
 | `audit.py` | Computes the statistics set and the thinning baseline as JSON |
 | `test_audit.py` | Synthetic self-tests of the audit's own logic |
+| `compare.py` | Compares an SVF diagnostic statistics file with the baseline (§7.2 matching rule) |
+| `verify_glyphs.py` | Recomputes every bin's expected winner from `01.vtk` and checks SVF's glyph export row by row |
+| `test_tools.py` | Synthetic self-tests of `compare.py` and `verify_glyphs.py` |
 | `baseline/case01.json` | Committed output for case 01 (the reference) |
 | `baseline/case01-numeric-conversion.md` | Why the baseline was regenerated in stage 4, and every value that changed |
 
-`compare.py` and `verify_glyphs.py` are added in stage 4.
+SVF's side is `crates/svf-core/examples/fibre_diagnostic.rs` (design §7.3).
 
 ## Dataset
 
@@ -77,8 +80,9 @@ choice is stated here and in the design:
   refuses any non-tetrahedral cell.
 - **Near-face centroids:** eligible centroids within 1e-9 mm of a bin face.
 
-`audit_checks` holds audit-only sanity results (the face-incidence histogram
-and the sentinel-ρ count). SVF does not reproduce them.
+`audit_checks` holds sanity results: the face-incidence histogram and the
+sentinel-ρ count. The SVF diagnostic reproduces both from its own topology,
+so `compare.py` compares them like every other key.
 
 ## Case 01 results (baseline)
 
@@ -99,6 +103,31 @@ and the sentinel-ρ count). SVF does not reproduce them.
   winners would. This is why the centroid arithmetic is pinned (see
   Definitions). The 9 are reported, but they grant no allowance: SVF must
   match the audit's bin assignments and winners exactly.
+
+## Checking SVF against the baseline (stage 4)
+
+```
+python -I tools/rodero-fibre-audit/test_tools.py
+cargo run -p svf-core --release --example fibre_diagnostic -- <path>/01-svf-order.vtk     --source <path>/01.vtk --tags 1,2 --lv-tag 1 --bin 4 --length 3     --out svf-case01.json --glyphs glyphs.csv
+python -I tools/rodero-fibre-audit/compare.py tools/rodero-fibre-audit/baseline/case01.json svf-case01.json
+python -I tools/rodero-fibre-audit/verify_glyphs.py <path>/01.vtk glyphs.csv
+```
+
+`compare.py` compares every key except `provenance.input_sha256` and `run`,
+which it prints. Counts, strings, `parameters` and the |cos| fractions must
+be equal; other floats must agree within 1e-9. A missing key, or a type
+difference, is a mismatch. `verify_glyphs.py` needs only the original file and
+the export. It checks `source_sha256`, then reports missing, unexpected,
+wrong-winner and duplicate-bin glyphs, a header count mismatch, and per-row
+problems: face and rank, cell, tag, bin, fibre bit for bit, midpoint within
+1e-9 mm, end − start = ℓ f̂ within 1e-12 relative, and θ within 1e-9°. Near-face
+centroids are listed but grant no allowance. Each script exits 1 on any
+discrepancy.
+
+Case 01, 2026-11-11 (Windows 11, Python 3.14.3, release build): the
+diagnostic took 34 s; `compare.py` reported MATCH; and `verify_glyphs.py`
+reported PASS (5,183 expected bins, 5,183 rows, 0 discrepancies of every
+kind) in 80 s with an 887 MB peak working set.
 
 ## Runtime and peak memory
 

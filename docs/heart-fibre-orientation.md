@@ -1,8 +1,8 @@
 # B1.2 — Ventricular fibre orientation on the boundary surface (design contract)
 
 Status: **design approved (review round 4). Implementation follows the order
-in §13: stages 1–3 are merged; stage 4 (diagnostic and verification) is in
-progress, with the numeric input correction of §15.**
+in §13: stages 1–3 are merged; stage 4 (diagnostic and verification, with
+the numeric input correction of §15) is implemented and passes on case 01.**
 The measurements in §5 first came from a scratch program run on 2026-11-10.
 Stage 2 reproduced them with the committed independent audit
 (`tools/rodero-fibre-audit/`), whose reference output is
