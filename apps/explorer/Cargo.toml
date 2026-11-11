@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 pollster.workspace = true
+png = "=0.17.16"
 svf-core = { path = "../../crates/svf-core" }
 svf-render = { path = "../../crates/svf-render" }
 winit.workspace = true

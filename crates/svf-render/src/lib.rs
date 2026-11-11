@@ -41,6 +41,8 @@ pub enum RenderError {
     VectorGlyphConversion,
     IsosurfaceConversion,
     InvalidCameraUniform,
+    UnsupportedCaptureFormat(String),
+    CaptureFailed(String),
 }
 
 impl fmt::Display for RenderError {
@@ -79,11 +81,24 @@ impl fmt::Display for RenderError {
                 f,
                 "camera view-projection matrix cannot be represented by the renderer's f32 uniform format"
             ),
+            Self::UnsupportedCaptureFormat(format) => write!(
+                f,
+                "cannot capture frames from the surface format {format}; expected an 8-bit RGBA or BGRA format"
+            ),
+            Self::CaptureFailed(message) => write!(f, "frame capture failed: {message}"),
         }
     }
 }
 
 impl Error for RenderError {}
+
+/// One captured frame: tightly packed RGBA8, row 0 at the top, alpha 255.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CapturedImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -541,11 +556,27 @@ impl SceneRenderer {
                 label: Some("svf-reference-frame-encoder"),
             });
 
+        self.encode_scene(&mut encoder, &view, &self.depth_view);
+
+        self.queue.submit([encoder.finish()]);
+        self.window.pre_present_notify();
+        self.queue.present(frame);
+        Ok(())
+    }
+
+    /// Record the scene pass into `encoder`. Shared by the window frame and
+    /// the offscreen capture, so both draw exactly the same thing.
+    fn encode_scene(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        color_view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+    ) {
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("svf-reference-lines-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: color_view,
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
@@ -559,7 +590,7 @@ impl SceneRenderer {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
+                    view: depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -587,11 +618,118 @@ impl SceneRenderer {
             pass.set_vertex_buffer(0, self.vector_vertex_buffer.slice(..));
             pass.draw(0..self.vector_vertex_count, 0..1);
         }
+    }
 
+    /// Render one frame offscreen at `width` x `height` and return it as
+    /// tightly packed RGBA8 bytes (alpha forced to 255).
+    ///
+    /// The frame uses the same pipelines, geometry and look-at as the window;
+    /// only the aspect ratio follows the requested size. Bytes are kept in the
+    /// surface's colour encoding, i.e. as they would appear in the window.
+    pub fn capture_rgba8(&mut self, width: u32, height: u32) -> Result<CapturedImage, RenderError> {
+        if width == 0 || height == 0 {
+            return Err(RenderError::CaptureFailed("capture size must be non-zero".to_owned()));
+        }
+        let limit = self.device.limits().max_texture_dimension_2d;
+        if width > limit || height > limit {
+            return Err(RenderError::CaptureFailed(format!(
+                "capture size {width}x{height} exceeds the GPU texture limit {limit}"
+            )));
+        }
+        let swap_channels = match self.config.format {
+            wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
+            other => return Err(RenderError::UnsupportedCaptureFormat(format!("{other:?}"))),
+        };
+
+        // Same look-at and projection as the window, at the capture aspect.
+        let projection = (*self.camera.projection())
+            .with_aspect_ratio(width as f64 / height as f64)
+            .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
+        let capture_camera = Camera3::new(*self.camera.look_at(), projection);
+        let uniform = CameraUniform::from_camera(&capture_camera);
+        self.queue.write_buffer(&self.camera_uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+
+        let color_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("svf-capture-color-target"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let color_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let (_depth_texture, depth_view) = create_depth_target(&self.device, width, height);
+
+        let unpadded_row = width * 4;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let padded_row = unpadded_row.div_ceil(align) * align;
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("svf-capture-readback"),
+            size: u64::from(padded_row) * u64::from(height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("svf-capture-encoder"),
+        });
+        self.encode_scene(&mut encoder, &color_view, &depth_view);
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &color_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
         self.queue.submit([encoder.finish()]);
-        self.window.pre_present_notify();
-        self.queue.present(frame);
-        Ok(())
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        readback.slice(..).map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+        self.device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| RenderError::CaptureFailed(format!("GPU wait failed: {error}")))?;
+        receiver
+            .recv()
+            .map_err(|_| RenderError::CaptureFailed("readback callback never ran".to_owned()))?
+            .map_err(|error| RenderError::CaptureFailed(format!("could not map readback buffer: {error}")))?;
+
+        let mut rgba = Vec::with_capacity(unpadded_row as usize * height as usize);
+        {
+            let mapped = readback.slice(..).get_mapped_range().map_err(|error| {
+                RenderError::CaptureFailed(format!("could not read mapped buffer: {error}"))
+            })?;
+            for row in mapped.chunks(padded_row as usize).take(height as usize) {
+                for pixel in row[..unpadded_row as usize].chunks_exact(4) {
+                    if swap_channels {
+                        rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], 255]);
+                    } else {
+                        rgba.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
+                    }
+                }
+            }
+        }
+        readback.unmap();
+
+        // Restore the window's camera uniform.
+        let window_uniform = CameraUniform::from_camera(&self.camera);
+        self.queue.write_buffer(&self.camera_uniform_buffer, 0, bytemuck::bytes_of(&window_uniform));
+
+        Ok(CapturedImage { width, height, rgba })
     }
 
     fn reconfigure_surface(&mut self) {

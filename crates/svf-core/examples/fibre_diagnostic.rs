@@ -36,10 +36,10 @@ const BASE_Z_MIN: f64 = 0.98;
 const LV_V: f64 = -1.0;
 const SENTINEL: f64 = -10.0;
 const GROUPS: [&str; 3] = ["endo", "epi", "other"];
-/// SVF's VTK parser contract (`vtk_legacy.rs`), stated in the audit's words
-/// (design §7.2). `compare.py` checks that both sides declare the same one.
 /// RV tag of the design (section 5): the "other" group is defined for tag 2 only.
 const RV_TAG: i64 = 2;
+/// SVF's VTK parser contract (`vtk_legacy.rs`), stated in the audit's words
+/// (design §7.2). `compare.py` checks that both sides declare the same one.
 const SAMPLE_SCHEMA: &str = "svf-fibre-samples/1";
 const NUMERIC_CONVERSION: &str =
     "vtk-declared-type/1: float=binary32 promoted to f64; double=binary64; integer types exact";

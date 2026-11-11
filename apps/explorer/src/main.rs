@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+mod camera_setup;
+mod screenshot;
 mod vtk_loading;
 mod vsepr_demo;
 
@@ -113,6 +115,10 @@ struct Explorer {
     drag_origin: Option<[f64; 2]>,
     last_drag_position: Option<[f64; 2]>,
     drag_moved: bool,
+    /// Render one frame to this PNG and exit (stage 5b).
+    screenshot_path: Option<std::path::PathBuf>,
+    /// Process exit code to use after the event loop ends.
+    exit_code: i32,
 }
 
 impl Default for Explorer {
@@ -145,6 +151,8 @@ impl Explorer {
             drag_origin: None,
             last_drag_position: None,
             drag_moved: false,
+            screenshot_path: None,
+            exit_code: 0,
         }
     }
 
@@ -537,6 +545,20 @@ impl ApplicationHandler for Explorer {
                 self.navigation_config = CameraNavigationConfig::for_camera(renderer.camera()).ok();
                 self.renderer = Some(renderer);
                 self.window = Some(window.clone());
+                if let Some(path) = self.screenshot_path.clone() {
+                    let renderer = self.renderer.as_mut().expect("renderer was just stored");
+                    match screenshot::capture_to_png(renderer, &path) {
+                        Ok((width, height)) => {
+                            eprintln!("wrote {} ({width}x{height})", path.display());
+                        }
+                        Err(error) => {
+                            eprintln!("{error}");
+                            self.exit_code = 1;
+                        }
+                    }
+                    event_loop.exit();
+                    return;
+                }
                 window.request_redraw();
             }
             Err(error) => {
@@ -671,10 +693,23 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name>] [--vtk-vectors <field-name>] | --vtk <path> --vtk-isosurface <field-name> --vtk-isovalue <value> [--vtk-isosurface-color <point-scalar-field>]");
+            eprintln!("Usage: svf-explorer [demo flags] | --vtk <path> [--vtk-scalar <field-name> [--vtk-scalar-exclude <value>]...] [--vtk-vectors <field-name>] | --vtk <path> --vtk-isosurface <field-name> --vtk-isovalue <value> [--vtk-isosurface-color <point-scalar-field>]");
+            eprintln!("  Boundary axial glyphs (with --vtk, optionally with --vtk-scalar): --vtk-cell-axial <vector-field> --vtk-cell-tags <field>=<v1,v2,...> [--vtk-axial-bin <mm>] [--vtk-axial-length <mm>]");
+            eprintln!("  Fixed view and capture (with --vtk): [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
+            eprintln!("    The camera orbits the fitted target. Yaw is about world +Y; positive yaw turns the view like dragging right (yaw 90 from +Z ends on -X).");
+            eprintln!("    Positive pitch raises the camera above the XZ plane. Zoom divides the camera distance (2 = twice as close); 0.01 to 100 allowed.");
+            eprintln!("    --screenshot renders one 1600x1200 frame to the PNG and exits.");
             std::process::exit(2);
         }
     };
+
+    let screenshot_path = vtk_config.as_ref().and_then(|config| config.screenshot.clone());
+    if let Some(path) = screenshot_path.as_ref() {
+        if let Err(error) = screenshot::check_output_path(path) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    }
 
     // Import and prepare the complete scientific scene before creating a
     // window, so path/parser/geometry/mapping/camera failures are startup errors.
@@ -705,8 +740,12 @@ fn main() {
 
     let mut app = Explorer::new(mode);
     app.imported_scene = imported_scene;
+    app.screenshot_path = screenshot_path;
     if let Err(error) = event_loop.run_app(&mut app) {
         eprintln!("SVF Explorer terminated with an event-loop error: {error}");
+    }
+    if app.exit_code != 0 {
+        std::process::exit(app.exit_code);
     }
 }
 

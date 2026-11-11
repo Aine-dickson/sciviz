@@ -1952,7 +1952,34 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   without `--vtk-scalar RHO.dat`), commit PNGs plus a README with exact
   commands and dimensions in `docs/evidence/b1-2-stage5/`, then the A4
   assessment from the images, and the user checks rotation and zoom by hand.
-- Next action: implement stage 5b per the spec above (Sonnet).
+- Stage 5b implementation status (2026-11-11, branch `b1-2-capture`):
+  implemented per the spec; awaiting the reviewer. No svf-core library
+  change; no change to glyph generation, anchors, line pipeline, depth state,
+  colours or interaction.
+  - New: `apps/explorer/src/camera_setup.rs` (yaw/pitch through the existing
+    `orbit`, zoom through the existing `zoom`; rejects, never clamps),
+    `apps/explorer/src/screenshot.rs` (fixed 1600x1200, `png` 0.17.16 pinned,
+    Explorer only), `SceneRenderer::capture_rgba8` plus `CapturedImage` and
+    two `RenderError` variants. `render()` now calls a private
+    `encode_scene` that the capture shares.
+  - Deviations from the spec, all small: zoom limits are written as
+    [fitted distance / max, fitted distance / min], which is 0.01 to 100;
+    the pitch rejection message gives the allowed range for the scene; the
+    usage text also lists `--vtk-scalar-exclude`.
+  - Verified: `cargo test --workspace` (svf-core 284, explorer 60, render
+    10, 0 failed); A5 re-run, the same 8 modes with the same summaries and
+    windows staying open; error exits (missing output directory, pitch 80
+    on the smoke fixture, zoom 500) are 1 with clear messages; two smoke
+    captures of `tetra-with-fields.vtk` (default view, and yaw 90, pitch 20,
+    zoom 1.5) were opened and show the scene.
+  - NOT verified: capture on a non-BGRA/RGBA surface format (rejected with an
+    error); the capture has not been compared pixel for pixel with the
+    window; no Rodero capture yet.
+- Next action: reviewer reads the 5b PR. After approval, find the angles for
+  the curated views on case 01 (shared with the user), capture up to 8 PNGs
+  into `docs/evidence/b1-2-stage5/` with a README of exact commands and
+  dimensions, then the A4 assessment from the images, and the user checks
+  rotation and zoom by hand.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
