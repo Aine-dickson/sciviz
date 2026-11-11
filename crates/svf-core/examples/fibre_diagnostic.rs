@@ -38,6 +38,8 @@ const SENTINEL: f64 = -10.0;
 const GROUPS: [&str; 3] = ["endo", "epi", "other"];
 /// SVF's VTK parser contract (`vtk_legacy.rs`), stated in the audit's words
 /// (design §7.2). `compare.py` checks that both sides declare the same one.
+/// RV tag of the design (section 5): the "other" group is defined for tag 2 only.
+const RV_TAG: i64 = 2;
 const SAMPLE_SCHEMA: &str = "svf-fibre-samples/1";
 const NUMERIC_CONVERSION: &str =
     "vtk-declared-type/1: float=binary32 promoted to f64; double=binary64; integer types exact";
@@ -388,7 +390,7 @@ struct ExportRow {
 /// redefined here:
 /// * wall group: the mean of the three vertex rho values, endo if < 0.2, epi
 ///   if > 0.8, otherwise other (as `statistics` does);
-/// * `rv_other`: a tag other than `--lv-tag`, in group other;
+/// * `rv_other`: tag 2 (the design's RV tag, `RV_TAG`) in group other;
 /// * `tail`: |cos| at or above that sample's (tag, group) p99, with the same
 ///   `percentile` rule as the statistics. The design reported the p99 but
 ///   defined no per-sample tail rule; this is the most literal reading.
@@ -444,11 +446,11 @@ fn sample_export(
     }).collect();
 
     let tail_of = |row: &ExportRow| row.abs_cos >= p99[&(row.tag, row.group)];
-    let rv_other_of = |row: &ExportRow| row.tag != args.lv_tag && row.group == 2;
+    let rv_other_of = |row: &ExportRow| row.tag == RV_TAG && row.group == 2;
 
     let tags: Vec<String> = args.tags.iter().map(i64::to_string).collect();
     let mut csv = format!(
-        "# {SAMPLE_SCHEMA} source_sha256={source} input_sha256={input} tags={} lv_tag={} bin_mm={:?} length_mm={:?} tail=abs_cos>=p99(tag,group) rv_other=tag!=lv_tag&group=other\n",
+        "# {SAMPLE_SCHEMA} source_sha256={source} input_sha256={input} tags={} lv_tag={} bin_mm={:?} length_mm={:?} tail=abs_cos>=p99(tag,group) rv_other=tag==2&group=other\n",
         tags.join(","), args.lv_tag, args.bin_mm, args.length_mm,
     );
     csv.push_str("surface_index,cell,tag,group,tail,rv_other,centroid_x,centroid_y,centroid_z,abs_cos,theta_deg,mean_rho,mean_z,sentinel_rho,sentinel_z,axial_s\n");
