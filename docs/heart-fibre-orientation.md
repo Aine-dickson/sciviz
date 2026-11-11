@@ -3,8 +3,10 @@
 Status: **design approved (review round 4). Implementation follows the order
 in §13: stages 1–2 are merged; stage 3 (`svf_core::boundary_axial_glyphs`)
 is implemented.**
-The measurements in §5 came from a scratch program run on 2026-11-10. They are
-not SVF features, and nothing has been committed for them.
+The measurements in §5 first came from a scratch program run on 2026-11-10.
+Stage 2 reproduced them with the committed independent audit
+(`tools/rodero-fibre-audit/`), whose reference output is
+`baseline/case01.json`. They are measurements, not SVF features.
 
 SVF-only evaluation. Mava and Prismal are excluded.
 
