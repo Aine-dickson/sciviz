@@ -11,7 +11,10 @@
 //! - geometric normal n = (b − a) × (c − a) in stored vertex order; its sign
 //!   is not certified outward and nothing here depends on it;
 //! - centroid p_c = ((a + b) + c) / 3.0 per coordinate in f64, stored order;
-//! - |cos| = |f̂ · n̂| with f̂ = f · (1/‖f‖) and n̂ = n · (1/‖n‖);
+//! - |cos| = |f̂ · n̂| with f̂ = f · (1/‖f‖) and n̂ = n · (1/‖n‖). Where
+//!   squaring would overflow or underflow, the vector (or, for n, each edge)
+//!   is first divided by its largest component; elsewhere the result is
+//!   bitwise identical to the audit's √(u·u) form;
 //! - bin index ⌊p_c / h⌋ per axis, with the grid origin at the world origin;
 //! - the winner of a bin is its eligible triangle with the lowest surface
 //!   index (a deterministic tie-break, not a ranking);
@@ -55,6 +58,7 @@ pub struct BoundaryAxialSample3 {
     source_cell_index: usize,
     tag: i64,
     direction: WorldVector3,
+    unit_direction: WorldVector3,
     centroid: WorldPoint3,
     unit_normal: WorldVector3,
     abs_cos: f64,
@@ -77,6 +81,10 @@ impl BoundaryAxialSample3 {
     /// Returns the unmodified f64 source direction of the cell.
     #[must_use]
     pub const fn direction(&self) -> WorldVector3 { self.direction }
+
+    /// Returns f̂, the unit source direction used for θ and the glyph.
+    #[must_use]
+    pub const fn unit_direction(&self) -> WorldVector3 { self.unit_direction }
 
     /// Returns the pinned f64 centroid ((a + b) + c) / 3.0.
     #[must_use]
@@ -307,26 +315,18 @@ pub fn build_boundary_axial_glyphs(
         *selected_by_tag.entry(tag).or_insert(0) += 1;
 
         let [a, b, c] = triangle.vertices().map(|vertex| points[vertex as usize].to_array());
-        let normal = cross(sub(b, a), sub(c, a));
-        let normal_length = norm(normal);
-        if normal_length == 0.0 || !normal_length.is_finite() {
+        let Some(n_hat) = unit_normal(sub(b, a), sub(c, a)) else {
             zero_area_count += 1;
             continue;
-        }
-        let direction = directions[cell].as_finite_world_vector();
-        let Some(direction) = direction else {
+        };
+        let Some(direction) = directions[cell].as_finite_world_vector() else {
             invalid_direction_count += 1;
             continue;
         };
-        let f = direction.to_vector().to_array();
-        let f_length = norm(f);
-        if f_length == 0.0 || !f_length.is_finite() {
+        let Some(f_hat) = unit_vector(direction.to_vector().to_array()) else {
             invalid_direction_count += 1;
             continue;
-        }
-
-        let n_hat = scale(normal, 1.0 / normal_length);
-        let f_hat = scale(f, 1.0 / f_length);
+        };
         let abs_cos = dot(f_hat, n_hat).abs();
         let centroid = [0, 1, 2].map(|axis| ((a[axis] + b[axis]) + c[axis]) / 3.0);
         let bin = bin_index(centroid, bin_edge)
@@ -338,6 +338,7 @@ pub fn build_boundary_axial_glyphs(
             source_cell_index: cell,
             tag,
             direction,
+            unit_direction: WorldVector3::new(f_hat[0], f_hat[1], f_hat[2]),
             centroid: WorldPoint3::new(centroid[0], centroid[1], centroid[2]),
             unit_normal: WorldVector3::new(n_hat[0], n_hat[1], n_hat[2]),
             abs_cos,
@@ -352,9 +353,7 @@ pub fn build_boundary_axial_glyphs(
         .map(|index| {
             let sample = samples[index];
             let p = sample.centroid.to_array();
-            let f = sample.direction.to_vector().to_array();
-            let f_hat = scale(f, 1.0 / norm(f));
-            let offset = scale(f_hat, half_length);
+            let offset = scale(sample.unit_direction.to_vector().to_array(), half_length);
             let start = sub(p, offset);
             let end = add(p, offset);
             // Always finite: the centroid sum ((a + b) + c) is finite, so
@@ -419,7 +418,49 @@ fn cross(u: [f64; 3], v: [f64; 3]) -> [f64; 3] {
 
 fn dot(u: [f64; 3], v: [f64; 3]) -> f64 { u[0] * v[0] + u[1] * v[1] + u[2] * v[2] }
 
-fn norm(u: [f64; 3]) -> f64 { dot(u, u).sqrt() }
+/// Returns u / ‖u‖, or None when u is zero or has a non-finite component.
+///
+/// Where the squared length is a finite normal f64, this is exactly the
+/// audit's u · (1 / √(u·u)), so results are bitwise identical in that range.
+/// Otherwise squaring would overflow or underflow, and u is first divided by
+/// its largest absolute component, which changes no direction.
+fn unit_vector(u: [f64; 3]) -> Option<[f64; 3]> {
+    if !u.iter().all(|value| value.is_finite()) {
+        return None;
+    }
+    let squared = dot(u, u);
+    if squared.is_finite() && squared >= f64::MIN_POSITIVE {
+        return Some(scale(u, 1.0 / squared.sqrt()));
+    }
+    let largest = u.iter().fold(0.0_f64, |m, value| m.max(value.abs()));
+    if largest == 0.0 {
+        return None;
+    }
+    let reduced = u.map(|value| value / largest);
+    Some(scale(reduced, 1.0 / dot(reduced, reduced).sqrt()))
+}
+
+/// Returns the unit geometric normal of edges e1 = b − a and e2 = c − a, or
+/// None for zero or non-finite area.
+///
+/// The cross product is used as is where it is safe, matching the audit. If
+/// it overflows or underflows, each edge is first divided by its largest
+/// absolute component; positive scale factors do not change the normal.
+fn unit_normal(e1: [f64; 3], e2: [f64; 3]) -> Option<[f64; 3]> {
+    if !e1.iter().chain(&e2).all(|value| value.is_finite()) {
+        return None;
+    }
+    let normal = cross(e1, e2);
+    let squared = dot(normal, normal);
+    if squared.is_finite() && squared >= f64::MIN_POSITIVE {
+        return Some(scale(normal, 1.0 / squared.sqrt()));
+    }
+    let reduce = |e: [f64; 3]| {
+        let largest = e.iter().fold(0.0_f64, |m, value| m.max(value.abs()));
+        (largest > 0.0).then(|| e.map(|value| value / largest))
+    };
+    unit_vector(cross(reduce(e1)?, reduce(e2)?))
+}
 
 fn scale(u: [f64; 3], s: f64) -> [f64; 3] { [u[0] * s, u[1] * s, u[2] * s] }
 
@@ -472,6 +513,8 @@ mod tests {
         ids.sort_unstable();
         ids
     }
+
+    fn norm(u: [f64; 3]) -> f64 { dot(u, u).sqrt() }
 
     fn close(u: [f64; 3], v: [f64; 3], tolerance: f64) -> bool {
         u.iter().zip(v).all(|(a, b)| (a - b).abs() <= tolerance)
@@ -685,7 +728,7 @@ mod tests {
         let both = build(&dataset(&flat, &CELLS[..1], &[1.0], &[[0.0, 0.0, 0.0]]), &[1], 4.0, 1.0).unwrap();
         assert_eq!((both.zero_area_count(), both.invalid_direction_count()), (1, 3));
 
-        for fibre in [[0.0, 0.0, 0.0], [f64::NAN, 0.0, 1.0], [0.0, f64::INFINITY, 0.0], [1e300, 1e300, 0.0]] {
+        for fibre in [[0.0, 0.0, 0.0], [-0.0, 0.0, -0.0], [f64::NAN, 0.0, 1.0], [0.0, f64::INFINITY, 0.0]] {
             let data = dataset(&POINTS, &CELLS, &[1.0, 2.0], &[fibre, [0.0, 0.0, 1.0]]);
             let result = build(&data, &[1, 2], 4.0, 1.0).unwrap();
             assert_eq!((result.zero_area_count(), result.invalid_direction_count()), (0, 3), "{fibre:?}");
@@ -744,9 +787,74 @@ mod tests {
     }
 
     #[test]
+    fn unit_vectors_match_the_audit_formula_bitwise_in_the_safe_range() {
+        // The audit computes u · (1 / √(u·u)); stage 4 compares against it exactly.
+        for u in [[0.3, -0.5, 0.7], [1.0, 0.0, 0.0], [1e150, -2e150, 3e150], [1e-150, 2e-150, 0.0], [-7.25, 1e-200, 3.0]] {
+            let audit = scale(u, 1.0 / norm(u));
+            assert_eq!(unit_vector(u).unwrap().map(f64::to_bits), audit.map(f64::to_bits), "{u:?}");
+        }
+        let (e1, e2) = ([1.0, 0.25, -3.0], [0.5, 2.0, 0.125]);
+        let n = cross(e1, e2);
+        assert_eq!(unit_normal(e1, e2).unwrap().map(f64::to_bits), scale(n, 1.0 / norm(n)).map(f64::to_bits));
+    }
+
+    #[test]
+    fn large_and_small_finite_directions_are_valid() {
+        // Squaring these overflows or underflows f64; the directions themselves are fine.
+        let reference = build(&dataset(&POINTS[..4], &CELLS[..1], &[1.0], &[[1.0, 2.0, 0.0]]), &[1], 0.25, 1.0).unwrap();
+        for fibre in [[1e300, 2e300, 0.0], [1e-300, 2e-300, 0.0], [f64::MAX / 2.0, f64::MAX, 0.0], [5e-324, 1e-323, 0.0]] {
+            let result = build(&dataset(&POINTS[..4], &CELLS[..1], &[1.0], &[fibre]), &[1], 0.25, 1.0).unwrap();
+            assert_eq!(result.invalid_direction_count(), 0, "{fibre:?}");
+            assert_eq!(result.samples().len(), 4);
+            assert_eq!(result.glyphs().len(), reference.glyphs().len());
+            for (sample, expected) in result.samples().iter().zip(reference.samples()) {
+                assert_eq!(sample.direction().to_vector().to_array(), fibre, "unmodified source value");
+                let f_hat = sample.unit_direction().to_vector().to_array();
+                assert!((norm(f_hat) - 1.0).abs() <= 1e-15);
+                assert!(close(f_hat, expected.unit_direction().to_vector().to_array(), 1e-15), "{fibre:?}");
+                assert!((sample.abs_cos() - expected.abs_cos()).abs() <= 1e-15);
+            }
+            for (glyph, expected) in result.glyphs().iter().zip(reference.glyphs()) {
+                assert!(close(glyph.start().to_array(), expected.start().to_array(), 1e-15));
+                assert!(close(glyph.end().to_array(), expected.end().to_array(), 1e-15));
+            }
+        }
+    }
+
+    #[test]
+    fn large_and_small_finite_triangles_have_correct_normals() {
+        // Edge products overflow (1e200²) or underflow (1e-200²) in the cross product.
+        for factor in [1e200, 1e-200, 1e-160] {
+            let points: Vec<[f64; 3]> = POINTS[..4].iter().map(|p| p.map(|x| x * factor)).collect();
+            let data = dataset(&points, &CELLS[..1], &[1.0], &[[1.0, 0.0, 0.0]]);
+            let surface = surface(&data);
+            let result = build(&data, &[1], 4.0 * factor, 1.0).unwrap();
+            assert_eq!(result.zero_area_count(), 0, "factor {factor}");
+            assert_eq!(result.samples().len(), 4);
+            let s3 = 1.0 / 3.0_f64.sqrt();
+            for sample in result.samples() {
+                let n = sample.unit_normal().to_vector().to_array();
+                let axis = match sorted_ids(&surface, sample.triangle_index()) {
+                    [0, 2, 3] => [1.0, 0.0, 0.0],
+                    [0, 1, 3] => [0.0, 1.0, 0.0],
+                    [0, 1, 2] => [0.0, 0.0, 1.0],
+                    _ => [s3, s3, s3],
+                };
+                assert!(close(n, axis, 1e-15) || close(n, scale(axis, -1.0), 1e-15), "factor {factor}: {n:?}");
+            }
+        }
+        // Truly collinear points remain zero area at any scale.
+        let flat: Vec<[f64; 3]> = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+            .iter().map(|p| p.map(|x| x * 1e-200)).collect();
+        let result = build(&dataset(&flat, &CELLS[..1], &[1.0], &[[0.0, 1.0, 0.0]]), &[1], 1.0, 1.0).unwrap();
+        assert_eq!(result.zero_area_count(), 1);
+        // An edge that overflows f64 is a non-finite triangle.
+        assert_eq!(unit_normal([f64::INFINITY, 0.0, 0.0], [0.0, 1.0, 0.0]), None);
+    }
+
+    #[test]
     fn extreme_finite_inputs_give_finite_endpoints() {
-        // A centroid near the finite-sum limit, with the longest length. The
-        // faces touching point 3 overflow their area and are excluded.
+        // A centroid near the finite-sum limit, with the longest length.
         let x = f64::MAX / 4.0;
         let far = [[x, 0.0, 0.0], [x, 1.0, 0.0], [x, 0.0, 1.0], [x * 0.5, 0.0, 0.0]];
         let data = dataset(&far, &CELLS[..1], &[1.0], &[[1.0, 0.0, 0.0]]);
