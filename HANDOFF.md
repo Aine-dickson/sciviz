@@ -2034,3 +2034,25 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   5. renderer/Explorer plus visual validation.
 
   Establish fidelity (stages 2 and 4) before judging visuals.
+
+
+## Direction reset (2026-11-11) and B2 proposal (PR #57)
+
+- Purpose, from the user: SVF gives students 3D learning structures, mostly
+  biology, and must generalise across organisms ("heart today, cockroach
+  tomorrow", plant stem/leaf, cockroach dissection, plus the chemistry case).
+  It fills the structural gap that the user's simulation engine does not
+  cover; keep other products out of SVF work.
+- Authoring without datasets is the justification for SVF; glTF/VTK are
+  inputs to adapt, not the product.
+- B1.2 fibre work stops at stage 5: close A4 with documented limitations and
+  merge #54 -> #55 -> #56. No stage 6 fibre work.
+- B2 proposal `docs/explorable-structures.md` (PR #57, branch
+  `b2-explorable-structures-design`): structure model (parts, relations,
+  layers, views; recipe / adapted / imported geometry), authoring blocks,
+  capped sections, layer peeling, a camera headlight (one camera-fixed light
+  in mesh.wgsl, switchable, off for colour-mapped data). Order: headlight ->
+  dicot stem recipe -> sections/peeling -> cockroach -> heart from Rodero.
+  The user agreed to this order.
+- Next action: reviewer reads PR #56 (A4 close) and PR #57 (B2 proposal).
+  After #57 is approved, write the step 1 (headlight) design note.
