@@ -1975,7 +1975,30 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - NOT verified: capture on a non-BGRA/RGBA surface format (rejected with an
     error); the capture has not been compared pixel for pixel with the
     window; no Rodero capture yet.
-- Next action: reviewer reads the 5b PR. After approval, find the angles for
+- Stage 5b review (2026-11-11): PR #55 head `e8b0ff8` reviewed with no
+  blocking issue. One non-blocking note: if GPU readback fails,
+  `capture_rgba8` can leave the capture-aspect camera uniform in place. The
+  one-shot CLI exits on failure, so it is harmless now; not changed.
+- Stage 5 evidence (branch `b1-2-evidence`, stacked on #55): eight PNGs in
+  `docs/evidence/b1-2-stage5/` (four views, each plain and RHO-coloured, all
+  1600x1200), `capture.sh` to regenerate them, and a README with the exact
+  commands, camera parameters, data hashes and the author's observations. The
+  four views are yaw 270, 180, 90 at zoom 1.5 and yaw 270 at zoom 3.5, pitch 0.
+  Case 01 summary on every run: 5,183 glyphs (2,836 + 2,347).
+  - Deviations: views are named by camera only (anterior/posterior were not
+    established); the atrial side replaces the "basal view into the
+    ventricles" (a basal view looks at the atria); tail and RV-other
+    triangles are not marked in the images (no highlight option, by decision)
+    and are located only through the `--samples` export.
+  - Observations, not a verdict: lines only, no arrowheads; no glyphs on the
+    atria or vessels in any view; a coherent direction pattern; visible on
+    the plain surface but low contrast at whole-heart scale, clear on RHO
+    colour; no depth artefact seen at these views. NOT assessable here:
+    "steeper on the endocardium", the Viridis mid-teal contrast (the exterior
+    is RHO about 1), and an oblique close-up for partly hidden glyphs.
+  - A4 stays open until the reviewer inspects the images and the user checks
+    interactive rotation and zoom by hand.
+- Superseded next action (kept for the record): reviewer reads the 5b PR. After approval, find the angles for
   the curated views on case 01 (shared with the user), capture up to 8 PNGs
   into `docs/evidence/b1-2-stage5/` with a README of exact commands and
   dimensions, then the A4 assessment from the images, and the user checks
