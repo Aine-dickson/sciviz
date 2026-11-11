@@ -1831,15 +1831,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   (the existing VTK modes on the smoke fixture) → Rodero counts (86,241 +
   85,232 eligible and 2,836 + 2,347 = 5,183 glyphs, exactly) → the samples
   export → screenshots and the A4 assessment.
-- Stage 5 implementation status: written and unit-tested; local validation
-  has NOT started (the reviewer asked for PR review first).
-  - Verified so far: `cargo test --workspace` passes (svf-core 284,
-    explorer 47, svf-render 10). The example `fibre_diagnostic` builds and its
-    own tests pass. No Rodero run, no A5 smoke run, no screenshots yet.
+- Stage 5 implementation status: implementation review complete (see the
+  rounds below); local validation steps 1–4 done, step 5 (screenshots, A4)
+  not started.
   - svf-core library source is untouched. `fibre_diagnostic.rs` changed: the
     LV-axis sums moved into a shared helper (same arithmetic order) and
-    `--samples` was added, so `compare.py` and `verify_glyphs.py` must be
-    re-run to confirm the existing outputs are still byte-identical.
+    `--samples` was added.
   - Not covered by a unit test: `sample_export` (it needs RHO.dat, Z.dat and
     V.dat). It is checked only on case 01.
   - For review: the single public constructor
@@ -1850,11 +1847,39 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - PR #54 review round 1 (2026-11-11): the renderer constructor, endpoint
   conversion and tail rule were accepted. One fix was requested and made in
   `4f3a63c`: `rv_other` is tag 2 (`RV_TAG`) and group other, not "any non-LV
-  tag". Waiting on the reviewer to recheck head `4f3a63c`. Do not start
-  Rodero runs or screenshots until they approve.
-- Next action: wait for the recheck of `4f3a63c`. After approval, validate in the
-  order set above: workspace tests and A5, the Rodero counts, `compare.py`
-  and `verify_glyphs.py` still pass, the samples export, then screenshots.
+  tag".
+- PR #54 review round 2 (2026-11-11): the fix was accepted. The PR
+  description's `rv_other` line was corrected to "tag 2 (`RV_TAG`) and group
+  other". Implementation review is complete.
+- Local validation, 2026-11-11 (Windows 11, head `0b9ec5e` code):
+  1. `cargo test --workspace` (full rebuild): svf-core 284, explorer 47,
+     svf-render 10, 0 failed. The only warnings already exist on main.
+     A5 on `apps/explorer/examples/tetra-with-fields.vtk`: plain, point scalar
+     (temperature), cell scalar (density), scalar + exclude, vectors,
+     scalar + vectors, isosurface, isosurface + colour each load, print the
+     expected summary and keep the window open (killed at 8 s). The missing
+     file exits 1, and axial + vectors or axial + isosurface exits 2 with a
+     clear error. This checks loading and the summaries only; nobody looked at
+     the windows.
+  2. Rodero case 01, release Explorer, `--vtk-cell-axial fibres
+     --vtk-cell-tags ID=1,2` (defaults bin 4, length 3): tag 1 86,241
+     eligible / 2,836 glyphs, tag 2 85,232 / 2,347, total 5,183, 0 zero-area,
+     0 invalid-direction. Exact.
+  3. Diagnostic run with and without `--samples`: `glyphs.csv` is
+     byte-identical, and the JSON differs only in `run.runtime_s`.
+     `compare.py`: MATCH for both. `verify_glyphs.py`: PASS (5,183/5,183, 0
+     discrepancies, 75 s). `test_tools.py` 11 OK, `test_audit.py` 20 OK.
+  4. Samples: 2,443 unique rows (LV tail 864, RV tail 855, RV other 732;
+     8 rows are both RV tail and RV other). `rv_other` = 732, all tag 2 and
+     group other, equal to the baseline `groups.2.other.count`. Tail counts
+     are about 1% of each baseline group; LV "other" is empty (count 0).
+     Region proxies: RV other has median `axial_s` 0.61 (0.06–0.95); the
+     tails sit near the base (median 0.98 LV, 0.85 RV).
+  The Explorer usage line does not list the axial flags (cosmetic, not
+  changed).
+- Next action: step 5, screenshots per the curated plan (at most 8 PNGs in
+  `docs/evidence/b1-2-stage5/`), then a separate A4 assessment from the
+  screenshots alone. The counts above are not evidence for A4.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
