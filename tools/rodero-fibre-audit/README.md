@@ -58,9 +58,11 @@ choice is stated here and in the design:
 - **Percentiles:** nearest rank, index `floor((n - 1) p + 0.5)` on the sorted
   values, which rounds halves up. This is not Python's `round` (which rounds
   halves to even). The SVF diagnostic must use the same expression.
-- **Centroid:** `((a + b) + c) / 3` per component in f64, with a, b, c in the
-  boundary face's cycle order (the source cell's Tetrahedron4 template cycle,
-  from `docs/volume-boundary-extraction.md`).
+- **Centroid (pinned contract, design §7.2):** `((a + b) + c) / 3.0` for each
+  coordinate in f64, with a, b, c in the boundary face's stored cycle order
+  (the source cell's Tetrahedron4 template cycle, from
+  `docs/volume-boundary-extraction.md`). `test_audit.py` protects it with a
+  triangle whose bin changes under reversed order or `a/3 + b/3 + c/3`.
 - **Thinning:** floor bins of edge h from the world origin. The winner of each
   bin is the eligible triangle with the lowest sorted-key rank, which is the
   expected triangulated-surface index for an all-tetrahedron mesh. The audit
@@ -84,7 +86,9 @@ and the sentinel-ρ count). SVF does not reproduce them.
   396.000000). None of them is its bin's winner. Two of them (ranks 11530
   and 94448) would win the neighbouring lower bin if their centroid were
   rounded below the face. The bin count would not change, but those two bins'
-  winners would. The design question this raises is recorded in design §7.2.
+  winners would. This is why the centroid arithmetic is pinned (see
+  Definitions). The 8 are reported, but they grant no allowance: SVF must
+  match the audit's bin assignments and winners exactly.
 
 ## Runtime and peak memory
 

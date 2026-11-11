@@ -1622,8 +1622,8 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     surface index is the rank of the sorted point-ID key, from the existing
     boundary/triangulation ordering contracts, and holds for all-tet meshes
     only. It fails on any missing, unexpected, wrong-winner or duplicate
-    glyph, unless a near-face centroid (within 1e-9 mm) explains that
-    specific discrepancy. Per-tag thinned glyph counts are compared exactly.
+    glyph, with no near-face allowance. Per-tag thinned glyph counts are
+    compared exactly.
   - Provenance: `source_sha256` (original `01.vtk`; the diagnostic takes it
     through a required `--source`) must match. `input_sha256` (the file
     actually parsed) is kept but not compared. The baseline pins the hash.
@@ -1647,7 +1647,8 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Stage 2 (branch `b1-2-rodero-audit`): `tools/rodero-fibre-audit/`
   (`audit.py`, `test_audit.py`, `README.md`, `baseline/case01.json`).
   Verified locally on 2026-11-11:
-  - 10 synthetic self-tests pass.
+  - 11 synthetic self-tests pass. The centroid test was mutation-checked:
+    reversing the summation order makes it fail.
   - Two audit runs on the original `01.vtk` are identical apart from the run
     record. Each took 45–49 s, with an 884 MB peak working set.
   - Every scratch number in design §5 is reproduced exactly.
@@ -1655,13 +1656,13 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - Corrections made to the design: an LV point is V == −1 exactly (V < 0
     admits the sentinel); percentiles round halves up; peak memory comes
     from the OS (ctypes), not `tracemalloc`.
-- Open decision (design §7.2), before stage 3: case 01 has 8 near-face
-  centroids, each exactly on a bin face, because the 6-decimal inputs sum to
-  a multiple of 3h. Two of them could change a neighbouring bin's winner.
-  Proposal: pin the centroid as ((a+b)+c)/3 in the surface vertex order, so
-  that bin assignment is bitwise reproducible.
-- Next action: the user reviews the stage-2 PR and decides the centroid pin.
-  Then implement stage 3. The stages, one per reviewable PR (PR #49 merged
+- Decided in round 5 (design §7.2, §14): the centroid is pinned as
+  ((a + b) + c) / 3.0 for each coordinate in f64, in stored vertex order.
+  Case 01 has 8 near-face centroids, which are reported only. Thinning must
+  match the audit exactly. Stage 3 must add an svf-core synthetic test of the
+  same kind (the bin flips if the order or formula changes).
+- Next action: merge PR #51 (stage 2 accepted in review), then implement
+  stage 3. Keep the audit unchanged. The stages, one per reviewable PR (PR #49 merged
   as 198e568; stage 1 merged):
   1. vtk_inspect;
   2. audit plus committed baseline;

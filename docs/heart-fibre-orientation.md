@@ -207,8 +207,11 @@ Interpretation:
    in an explicitly supplied tag set ({1, 2} here), via the existing
    `TriangulatedSurface3::source_cell_index` provenance. There is no
    Rodero-specific hardcoding.
-2. **Anchor:** the triangle centroid p_c = (a + b + c)/3. It is a display
-   location only. The fibre is constant over the source tetrahedron, so the
+2. **Anchor:** the triangle centroid, computed as
+   p_c = ((a + b) + c) / 3.0 for each coordinate in f64, with a, b, c in the
+   triangle's stored vertex order. This exact arithmetic is a numerical
+   contract (§7.2), because the centroid decides bin assignment. It is a
+   display location only. The fibre is constant over the source tetrahedron, so the
    anchor does not claim where the fibre was measured.
 3. **Glyph:** a centred axial segment along the **exact source fibre
    direction**:
@@ -352,12 +355,10 @@ are fixed in the script, so nothing is skipped silently.
 exactly matching counts, so they match exactly too. Percentiles, angles and
 lengths must match within 1e-9 absolute. Both sides parse the same decimal
 text into f64, so only the order of floating-point operations can differ.
-The thinning counts (occupied bins and per-tag glyphs) are the one
-exception. Each may differ by at most the reported near-face count, and only
-for the discrepancies `verify_glyphs.py` attributes individually to near-face
-centroids. That count is a bound for
-floating-point bin assignment, not a general allowance for unexplained glyph
-differences.
+The thinning counts (occupied bins and per-tag glyphs) must match exactly
+as well. The centroid arithmetic is pinned (below), so bin assignment is
+bitwise reproducible. The near-face count is reported and compared like any
+other count, but it grants no allowance.
 
 #### Glyph-level verification: `verify_glyphs.py <01.vtk> <glyphs.csv>`
 
@@ -397,27 +398,31 @@ the verifier reports and counts each of these:
 - **duplicate bin:** two or more exported glyphs in one bin;
 - **header mismatch:** the header glyph count differs from the number of rows.
 
-A missing, unexpected or wrong-winner discrepancy is attributed to binning
-only if the bin assignment of a near-face centroid explains it, meaning that
-centroid would fall in the other bin under a 1e-9 mm shift. Each attributed
-discrepancy is listed individually, with its triangles and bins. Any
-discrepancy that is not attributed fails, and so does any duplicate bin or
-header mismatch.
+Any discrepancy of any of these kinds fails. There is no near-face
+allowance. For diagnosis, the verifier lists every discrepancy with its
+triangles and bins, and flags any that involve a near-face centroid.
 
-**Case 01 has 8 near-face centroids (measured in stage 2), not 0 as
-expected.** Each lies *exactly* on a bin face, because the 6-decimal input
+**Centroid contract (accepted in round 5).** svf-core computes
+p_c = ((a + b) + c) / 3.0 independently for each coordinate in f64, with
+a, b, c in the triangle's stored vertex order. For a tetrahedral boundary
+face, that order is the source cell's Tetrahedron4 template cycle
+(`docs/volume-boundary-extraction.md`, passed through unchanged by
+`docs/surface-triangulation.md`). The audit reproduces this contract
+independently from the original file. With it pinned, case 01 must match the
+audit's bin assignments and winners exactly. Synthetic tests on both sides
+protect it: the audit's `test_audit.py`, and svf-core's in stage 3. Each
+uses a triangle whose bin changes if the order or the formula changes.
+
+**Case 01 has 8 near-face centroids (measured in stage 2).** These are
+recorded and reported, not excused. Each lies *exactly* on a bin face, because the 6-decimal input
 coordinates of those triangles sum to an exact multiple of 3h. Whether f64
 then lands on or just below the face depends on the centroid formula and the
 summation order. None of the 8 is its bin's winner. Two of them (ranks 11530
 and 94448) would win the neighbouring bin if rounded below the face. The bin
 count would be unchanged, but the winners of those two bins would not.
 
-*Open (to be decided before stage 3):* pin the centroid as
-((a + b) + c) / 3 per component in f64, with a, b, c in the triangulated
-surface's vertex order. For a tetrahedral boundary face that is the source
-cell's template cycle, which the audit uses. Bin assignment would then be
-bitwise reproducible, and an exact match could be required for case 01.
-Without this pin, the attributed-discrepancy rule above applies.
+This is why the centroid contract above is pinned and not left to
+implementation choice.
 
 **Per-row checks**, for every exported glyph:
 - the triple is an audit boundary face of that source cell, and its surface
@@ -572,7 +577,7 @@ original file.
 | Topic | Decision |
 |---|---|
 | Glyph verification | Kept, and strengthened. It computes the expected winner per bin from its own boundary and the surface-index rank, then reports missing, unexpected, wrong-winner and duplicate-bin glyphs (§7.2) |
-| Near-face tolerance | 1e-9 mm, with the count reported. Only individually attributed discrepancies are allowed; it is not a general allowance (§7.2) |
+| Near-face tolerance | 1e-9 mm, with the count reported. Only individually attributed discrepancies are allowed; it is not a general allowance (§7.2). Superseded in round 5: the count is reported only |
 | Audit implementation | Standard-library Python. Runtime and peak memory are recorded; no NumPy unless the measurements show a need (§7.2) |
 | Input provenance | `source_sha256` must match; `input_sha256` is kept but not compared; the diagnostic requires `--source` (§7.4) |
 
@@ -580,6 +585,15 @@ original file.
 
 | Topic | Decision |
 |---|---|
-| Per-tag glyph counts | Added to the statistics and compared exactly. The near-face exception still applies only to individually attributed discrepancies (§7.2) |
+| Per-tag glyph counts | Added to the statistics and compared exactly. The near-face exception still applies only to individually attributed discrepancies (§7.2). Superseded in round 5: there is no exception |
 | Provenance wording | Automated checks (compare.py, the pinned baseline, verify_glyphs.py) are kept separate from the README's documentation consistency (§7.4) |
 | Implementation order | vtk_inspect; audit plus baseline; svf-core operation plus synthetic tests; fibre_diagnostic, compare and verify_glyphs; renderer/Explorer plus visual validation. Each stage is reviewed separately |
+
+## 14. Review decisions (round 5: stage 2 accepted)
+
+| Topic | Decision |
+|---|---|
+| Centroid | Pinned: ((a + b) + c) / 3.0 for each coordinate in f64, in stored vertex order. This is part of SVF's geometry contract, and the audit reproduces it independently (§6, §7.2) |
+| Near-face centroids | Case 01 has 8. They are reported but grant no allowance. Thinning counts, bin assignments and winners must match the audit exactly (§7.2) |
+| Protection | A synthetic test whose bin flips if the order or the formula changes, in `test_audit.py` now and in svf-core in stage 3 |
+| Audit | Unchanged as the reference |

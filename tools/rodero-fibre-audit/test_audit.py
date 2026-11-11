@@ -109,6 +109,26 @@ class AuditTests(unittest.TestCase):
         stats = audit.audit(self.path, [1], 1, 0.25)
         self.assertGreater(stats["thinning"]["occupied_bins"], 1)
 
+    def test_pinned_centroid_arithmetic_and_vertex_order(self):
+        # Contract (design §7.2): p_c = ((a + b) + c) / 3.0 per coordinate in f64,
+        # with a, b, c in the triangle's stored vertex order. For a tetrahedral
+        # boundary face that is the Tetrahedron4 template cycle; local face 1
+        # is [0, 3, 2]. These x values sum to exactly 396 in stored order, but
+        # not in reversed order or as a/3 + b/3 + c/3, so the bin depends on it.
+        xa, xb, xc = 132.211618, 131.696712, 132.09167  # points 0, 3, 2
+        self.assertEqual(((xa + xb) + xc) / 3.0, 132.0)
+        self.assertLess(((xc + xb) + xa) / 3.0, 132.0)
+        self.assertLess(xa / 3.0 + xb / 3.0 + xc / 3.0, 132.0)
+        points = [(xa, 1.0, 1.0), (131.0, 2.0, 1.0), (xc, 1.0, 2.0), (xb, 2.0, 2.0)]
+        write_vtk(self.path, points=points, cells=((0, 1, 2, 3),), types=(10,), ids=(1,),
+                  fibres=((0, 0, 1),), z=(0.0, 0.0, 1.0, 1.0), v=(-1, -1, -1, -1), rho=(0.1,) * 4)
+        stats = audit.audit(self.path, [1], 1, 4.0)
+        self.assertEqual(stats["exclusions"]["zero_area"], 0)
+        # Face [0, 3, 2] lands exactly on x = 132 -> bin x 33. The other three
+        # faces have x < 132 -> bin x 32. Any other order would give one bin.
+        self.assertEqual(stats["thinning"]["occupied_bins"], 2)
+        self.assertEqual(stats["thinning"]["near_face_centroids"], 1)
+
     def test_near_face_centroid(self):
         # Face (0,1,2) of a tet with points 0..3 at z=0 -> centroid z = 0, a bin face.
         write_vtk(self.path)
