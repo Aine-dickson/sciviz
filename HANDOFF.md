@@ -1587,11 +1587,11 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved in direction, final review pending)
+## B1.2 — Ventricular fibre orientation (design revised after round 3, final review pending)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
-  `b1-2-ventricular-fibre-design`). Round 2 approved the direction subject to
-  revisions, which are now in the document (§11). **Do not implement until
+  `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
+  revisions from rounds 2 and 3 are in the document (§11, §12). **Do not implement until
   the user authorises it after reviewing the diff.**
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
@@ -1617,6 +1617,17 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   `baseline/case01.json`). It derives its own boundary from the original
   `01.vtk` using sorted point-ID face incidence. The SVF example
   `fibre_diagnostic.rs` writes the same JSON schema plus `glyphs.csv`.
+  - `verify_glyphs.py` recomputes the expected winner of every bin. The
+    surface index is the rank of the sorted point-ID key, from the existing
+    boundary/triangulation ordering contracts, and holds for all-tet meshes
+    only. It fails on any missing, unexpected, wrong-winner or duplicate
+    glyph, unless a near-face centroid (within 1e-9 mm) explains that
+    specific discrepancy.
+  - Provenance: `source_sha256` (original `01.vtk`; the diagnostic takes it
+    through a required `--source`) must match. `input_sha256` (the file
+    actually parsed) is kept but not compared.
+  - Record the audit's runtime and peak memory (`tracemalloc`). No NumPy
+    unless those measurements show a need.
 - Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
   boundary triangles; 93.44% have θ > 84.26°; LV |α| median 75.8° (endo) and
   62.5° (epi). The audit becomes the reference once it exists.

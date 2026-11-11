@@ -1,6 +1,6 @@
 # B1.2 — Ventricular fibre orientation on the boundary surface (design contract)
 
-Status: **design, revised after review round 2 (direction approved). Nothing
+Status: **design, revised after review round 3; final review pending. Nothing
 here is implemented.**
 The measurements in §5 came from a scratch program run on 2026-11-10. They are
 not SVF features, and nothing has been committed for them.
@@ -331,39 +331,100 @@ diagnostic):
   independent of the tie-break, so this count is comparable. Per-tag glyph
   counts depend on which triangle wins a mixed LV/RV bin, so SVF reports them
   but they are not matched.
-- provenance: the input file's SHA-256 and the parameters used.
+- provenance (§7.4): `source_sha256`, `input_sha256`, and the parameters
+  used.
+- run record (not compared): wall-clock runtime and peak memory.
 
 `compare.py <audit.json> <svf.json>` applies the matching rule and exits
-non-zero on any mismatch, printing every differing key.
+non-zero on any mismatch, printing every differing key. A key that is missing
+from either side is a mismatch. The only keys it does not compare are
+`input_sha256` and the run record. It prints both of these, and their names
+are fixed in the script, so nothing is skipped silently.
 
 **Matching rule:** all counts must match exactly. Fractions are ratios of
 exactly matching counts, so they match exactly too. Percentiles, angles and
 lengths must match within 1e-9 absolute. Both sides parse the same decimal
-text into f64, so only the order of floating-point operations can differ. The
-occupied-bin count may differ by at most the reported near-face centroid
-count; anything beyond that is a mismatch.
+text into f64, so only the order of floating-point operations can differ.
+The occupied-bin count is the one exception. It may differ by at most the
+reported near-face count, and only for the discrepancies `verify_glyphs.py`
+attributes to near-face centroids. That count is a bound for
+floating-point bin assignment, not a general allowance for unexplained glyph
+differences.
 
-`verify_glyphs.py <01.vtk> <glyphs.csv>` checks each glyph that SVF exports
-against the original file. Each row holds the sorted point-ID triple, the
-source cell index, the tag, the source fibre, θ, p_start and p_end, with f64
-written in shortest round-trip form. For every row it checks that:
-- the triple is an audit boundary face of that cell;
+#### Glyph-level verification: `verify_glyphs.py <01.vtk> <glyphs.csv>`
+
+The verifier establishes both fidelity and deterministic selection. It does
+this from the original file alone, without trusting which glyphs SVF chose to
+export.
+
+**Expected surface index.** svf-core's triangulated-surface order is fixed by
+existing contracts. Boundary faces are ordered lexicographically by their
+sorted point-ID key, independent of cell order
+(`docs/volume-boundary-extraction.md`, `docs/boundary-surface.md`).
+Triangles follow face order, one per triangular face
+(`docs/surface-triangulation.md`). For an all-tetrahedron mesh, a triangle's
+surface index is therefore the rank of its sorted point-ID key among all
+boundary faces. The verifier checks that every cell is a tetrahedron
+(VTK type 10) and stops if any is not. It then computes this rank itself.
+
+**Expected glyph set.** Using its own boundary, eligibility (tag set and the
+§4.6 exclusions), centroids and floor binning (§6.4), the verifier picks for
+every occupied bin the eligible triangle with the lowest expected surface
+index. This set of (bin, winner) pairs is the expected glyph set. It also
+records every eligible centroid that lies within 1e-9 mm of a bin face (the
+near-face set).
+
+**CSV contents.** The export has a header line with `source_sha256`,
+`input_sha256`, h, ℓ and the glyph count, then one row per glyph. Each row
+holds the surface index, the sorted point-ID triple, the source cell index,
+the tag, the bin index, the source fibre, θ, p_start and p_end. f64 values
+are written in shortest round-trip form.
+
+**Set comparison.** Matching the exported glyphs to the expected set by bin,
+the verifier reports and counts each of these:
+- **missing:** an expected bin with no exported glyph;
+- **unexpected:** an exported glyph in a bin that is not expected;
+- **wrong winner:** an exported glyph whose triangle is not the expected
+  winner of its bin;
+- **duplicate bin:** two or more exported glyphs in one bin;
+- **header mismatch:** the header glyph count differs from the number of rows.
+
+A missing, unexpected or wrong-winner discrepancy is attributed to binning
+only if the bin assignment of a near-face centroid explains it, meaning that
+centroid would fall in the other bin under a 1e-9 mm shift. Each attributed
+discrepancy is listed individually, with its triangles and bins. Any
+discrepancy that is not attributed fails, and so does any duplicate bin or
+header mismatch. In case 01 the near-face count is expected to be 0, and then
+no discrepancy is allowed.
+
+**Per-row checks**, for every exported glyph:
+- the triple is an audit boundary face of that source cell, and its surface
+  index equals the expected rank;
 - the tag is in the tag set;
 - the fibre equals the original value bit for bit;
 - the segment midpoint is the centroid within 1e-9 mm;
 - (p_end − p_start) equals ℓ f̂ within 1e-12 relative;
-- no two glyphs share a bin.
+- θ matches the verifier's own value within 1e-9.
 
-This verifies A2 independently, which the statistics alone cannot do. It also
-confirms that `01.vtk` and `01-svf-order.vtk` have identical cell indices,
-instead of assuming it.
+Together these verify A2 and the thinning rule independently, which aggregate
+statistics cannot do. The checks also confirm that `01.vtk` and
+`01-svf-order.vtk` have identical cell indices and point IDs, instead of
+assuming it.
 
 **Baseline:** `tools/rodero-fibre-audit/baseline/case01.json` is the committed
-output of `audit.py` on `01.vtk`, including the input's SHA-256. The dataset
-itself is not committed (91 MB). The README documents the download (Zenodo
-4590294, `01.tar.gz`), the exact commands, and the Python version used. If the
-audit disagrees with the scratch numbers in §5, the audit is the reference and
-§5 is corrected.
+output of `audit.py` on `01.vtk`. The dataset itself is not committed
+(91 MB). The README documents:
+- the download (Zenodo 4590294, `01.tar.gz`);
+- the expected `source_sha256`;
+- the exact commands and the Python version used;
+- the measured runtime and peak memory of each script.
+
+Peak memory is measured with `tracemalloc`, which counts Python allocations
+only (the standard library has no portable process RSS on Windows). The
+README states this limitation. Performance work, such as NumPy, is
+considered only if these measurements show a real problem. If the audit
+disagrees with the scratch numbers in §5, the audit is the reference and §5
+is corrected.
 
 ### 7.3 SVF diagnostic path
 
@@ -374,12 +435,30 @@ schema, plus `glyphs.csv`:
 
 ```
 cargo run -p svf-core --release --example fibre_diagnostic -- \
-  <01-svf-order.vtk> --tags 1,2 --bin 4 --length 3 \
+  <01-svf-order.vtk> --source <01.vtk> --tags 1,2 --bin 4 --length 3 \
   --out svf-case01.json --glyphs glyphs.csv
 python -I tools/rodero-fibre-audit/compare.py \
   tools/rodero-fibre-audit/baseline/case01.json svf-case01.json
 python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv
 ```
+
+### 7.4 Input provenance
+
+The audit reads the original `01.vtk`. The SVF diagnostic reads the reordered
+working copy `01-svf-order.vtk`. The two files differ byte for byte, so a
+single "input hash" would always mismatch. Two hashes are therefore kept:
+
+| Key | Meaning | Audit | SVF diagnostic | Rule |
+|---|---|---|---|---|
+| `source_sha256` | SHA-256 of the original source dataset `01.vtk` | Hash of the file it reads | Hash of the file passed with `--source`, which it hashes but does not parse | **Must be equal** in `compare.py`, and equal to the README value. `verify_glyphs.py` also checks the CSV header against the file it reads. A mismatch fails |
+| `input_sha256` | SHA-256 of the file actually parsed | Equal to `source_sha256` | Hash of `01-svf-order.vtk` | Not compared. Printed by `compare.py` and kept as diagnostic provenance |
+
+`--source` is required. The diagnostic refuses to run without it, so no output
+can lack source provenance. The hashes alone do not prove that the working
+copy is a faithful reordering of the source. That is established by the
+results: matching statistics in `compare.py`, plus `verify_glyphs.py`
+confirming every exported glyph's cell index, point IDs and fibre against the
+original file.
 
 ## 8. Acceptance criteria
 
@@ -389,7 +468,10 @@ python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv
 - **A2 Fidelity:** every glyph lies along its source cell's exact fibre
   direction in f64 (up to sign, since the glyph is axial). Nothing is
   projected or smoothed, and provenance resolves to the right triangle and
-  cell. Checked independently by `verify_glyphs.py`.
+  cell. Thinning selects exactly the expected winner in every occupied bin,
+  with no missing, unexpected or duplicate glyphs. Both are checked
+  independently by `verify_glyphs.py` (§7.2), and source provenance agrees
+  (§7.4).
 - **A3 Dataset agreement:** the §7.1 synthetic tests pass, and `compare.py`
   reports no mismatch between the SVF diagnostic and the audit baseline across
   the full statistics set (§7.2).
@@ -446,3 +528,12 @@ python -I tools/rodero-fibre-audit/verify_glyphs.py <01.vtk> glyphs.csv
 | `vtk_inspect` | Fields with association/type/count, plus a boundary check; small (§6) |
 | h, ℓ | 4 mm and 3 mm, provisional and configurable; tuned after validation |
 | RV | Tangency only; no RV frame and no RV helix diagnostic |
+
+## 12. Review decisions (round 3)
+
+| Topic | Decision |
+|---|---|
+| Glyph verification | Kept, and strengthened. It computes the expected winner per bin from its own boundary and the surface-index rank, then reports missing, unexpected, wrong-winner and duplicate-bin glyphs (§7.2) |
+| Near-face tolerance | 1e-9 mm, with the count reported. Only individually attributed discrepancies are allowed; it is not a general allowance (§7.2) |
+| Audit implementation | Standard-library Python. Runtime and peak memory are recorded; no NumPy unless the measurements show a need (§7.2) |
+| Input provenance | `source_sha256` must match; `input_sha256` is kept but not compared; the diagnostic requires `--source` (§7.4) |
