@@ -1587,13 +1587,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stage 1 merged, stage 2 in review)
+## B1.2 — Ventricular fibre orientation (design approved; stages 1–2 merged, stage 3 implemented)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
   revisions from rounds 2–4 are in the document (§11–§13). Round 4 approved
-  the design. **Do not implement until
-  the user authorises it after reviewing the diff.**
+  the design. Implementation is authorised, one stage per PR.
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
   fibre=(1,0,0) and sheet=(0,1,0), which are unit length and orthogonal like
@@ -1628,11 +1627,10 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     through a required `--source`) must match. `input_sha256` (the file
     actually parsed) is kept but not compared. The baseline pins the hash.
     The README value is documentation only; no script reads it.
-  - Record the audit's runtime and peak memory (`tracemalloc`). No NumPy
-    unless those measurements show a need.
-- Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
-  boundary triangles; 93.44% have θ > 84.26°; LV |α| median 75.8° (endo) and
-  62.5° (epi). The audit becomes the reference once it exists.
+  - Record the audit's runtime and peak memory (OS working set). No NumPy.
+- Reference numbers now come from the committed `baseline/case01.json`
+  (171,473 ventricular boundary triangles; 93.44% have θ > 84.26°; LV |α|
+  median 75.8° endo, 62.5° epi).
 - Stage 1 (branch `b1-2-vtk-inspect`): `crates/svf-core/examples/vtk_inspect.rs`
   replaces the deleted probes. Verified locally on 2026-11-11:
   - `01-svf-order.vtk`: 7 fields reported, with association, type and count.
@@ -1644,7 +1642,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     limitation).
   - Missing file: exits 1. No argument: exits 2.
   - `cargo test -p svf-core`: 269 passed.
-- Stage 2 (branch `b1-2-rodero-audit`): `tools/rodero-fibre-audit/`
+- Stage 2 (PR #51, squash-merged to main as `5a0ef74` on 2026-11-11): `tools/rodero-fibre-audit/`
   (`audit.py`, `test_audit.py`, `README.md`, `baseline/case01.json`).
   Verified locally on 2026-11-11:
   - 11 synthetic self-tests pass. The centroid test was mutation-checked:
@@ -1661,9 +1659,50 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   Case 01 has 8 near-face centroids, which are reported only. Thinning must
   match the audit exactly. Stage 3 must add an svf-core synthetic test of the
   same kind (the bin flips if the order or formula changes).
-- Next action: merge PR #51 (stage 2 accepted in review), then implement
-  stage 3. Keep the audit unchanged. The stages, one per reviewable PR (PR #49 merged
-  as 198e568; stage 1 merged):
+- Stage 3 (PR #52, branch `b1-2-core-glyphs`, opened 2026-11-11; review
+  round 1 asked for a scale-safe norm, now addressed):
+  `crates/svf-core/src/boundary_axial_glyphs.rs`,
+  `build_boundary_axial_glyphs(dataset, surface, direction_field, tag_field,
+  tags: &[i64], BoundaryAxialGlyphOptions3 { bin_edge, length })`. The
+  result holds every eligible sample (triangle, cell, tag, unmodified
+  direction, centroid, unit normal, |cos|, bin), one glyph per occupied bin
+  in surface order, `boundary_by_tag`, `selected_by_tag`, `eligible_by_tag`,
+  `glyphs_by_tag`, `zero_area_count` and `invalid_direction_count`.
+  Implementation choices for review:
+  - The arithmetic mirrors `audit.py`: an explicit cross product, and
+    normalisation by multiplying with the reciprocal. Zero area is tested
+    before the direction, and counters cover selected triangles only.
+  - Every boundary triangle's tag must be a finite integer, otherwise it is
+    an error (like the audit's `tag_key`). Tags beyond 2^53 are rejected.
+  - The near-face count and the |α| and ρ statistics stay out of core. The
+    stage-4 diagnostic derives them from the exposed samples.
+  - There is no endpoint-overflow error: with a finite centroid sum,
+    |p_c| ≤ MAX/3 and (ℓ/2)|f̂ᵢ| ≤ MAX/2, so endpoints are always finite
+    (checked with `debug_assert`, and tested at MAX/4 with ℓ = MAX).
+  - Scale-safe norms (review round 1): where u·u is a finite normal f64,
+    normalisation is bitwise the audit's u · (1/√(u·u)). Otherwise the
+    vector, or each triangle edge before the cross product, is divided by
+    its largest absolute component. A finite non-zero direction such as
+    [1e300, 2e300, 0] or [5e-324, 1e-323, 0] is therefore valid, and so are
+    tiny or huge triangles. The audit keeps the naive norm, so the two
+    differ only where squaring overflows or underflows. Case 01 (unit
+    fibres, mm-scale triangles) is entirely in the identical range.
+  Verified locally on 2026-11-11: `cargo test -p svf-core` 284 passed
+  (269 + 15 new). The only warning is the known `VectorSource3::new`. A
+  mutation check fails the centroid test under reversed summation and under
+  a/3 + b/3 + c/3, and fails the tie-break test when the last triangle wins.
+  Removing the scale-safe fallback fails both large/small regression tests.
+  The workspace (svf-render, Explorer) was not rebuilt; nothing there changed.
+- Next action: get the round-1 fixes on PR #52 re-reviewed, merge, then
+  start stage 4 (fibre_diagnostic, compare.py, verify_glyphs.py). Not in
+  stage 3: Rodero counts in core tests, renderer or Explorer integration,
+  and any change to `tools/rodero-fibre-audit/`.
+- Environment note (2026-11-11): the C: drive filled up and all cargo
+  `target/` dirs were deleted, including this repo's, so the first build is
+  a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
+  at stage 1.
+- The stages, one per reviewable PR (PR #49 merged as 198e568; stages 1–2
+  merged):
   1. vtk_inspect;
   2. audit plus committed baseline;
   3. svf-core operation plus synthetic tests;
