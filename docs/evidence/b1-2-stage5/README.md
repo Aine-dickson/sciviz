@@ -125,3 +125,26 @@ Observations (the author's; not a verdict):
   cannot be told from the images. Zooming toward the bounding-box centre allows
   this by design (zoom range 0.01 to 100). Glyphs on this inner surface are
   visible, but these views are not a controlled endocardium check.
+
+## Live input check (`live.ps1` -> `live/`)
+
+The interactive window itself, driven by posted Win32 mouse messages (left-drag
+orbit, wheel zoom) and captured with `PrintWindow`, 22 frames at 1280 x 800.
+Same data and start view as v1 (RHO, yaw 270, zoom 1.5). Sequence: 360 px
+horizontal drag (frame every 60 px), 150 px down and back, 6 single wheel
+notches in, a diagonal drag while zoomed in, 6 then 12 notches out, 12 back in.
+
+Observations (the author's; not a verdict):
+
+- Orbit follows the drag continuously; consecutive frames differ by small, even
+  steps with no jump. Vertical drag and its return work.
+- Each wheel notch zooms gradually. Zooming always heads for the bounding-box
+  centre, which lies in the atrial region, so by notch 5 to 6 the view is
+  mostly magenta atria; the ventricles are reached by orbiting, not zooming.
+- Rotating while zoomed in works; zooming out leaves the whole heart small and
+  framed; 12 notches back in restores the same framing as 12 notches out
+  (`20-out6` and `22-back` match).
+- In every frame the glyphs stay on the ventricular surface; the process stayed
+  alive throughout.
+- Not covered: temporal flicker between frames (the frames are snapshots,
+  not video), and real-hardware mouse/trackpad quirks.

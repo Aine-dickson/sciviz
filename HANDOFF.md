@@ -2009,6 +2009,10 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     close-ups show fragmented (broken/dotted) segments, i.e. partial occlusion
     and likely z-fighting of the unprojected segments against the surface.**
     Zoom 8/20 puts the camera past the outer wall (allowed by design).
+  - Live input then checked by Claude (`live.ps1` -> `live/`, 22 frames):
+    posted drag/wheel messages to the real window. Orbit continuous, zoom
+    gradual and reversible, no jumps, glyphs stay on the ventricles. Zoom
+    heads for the bbox centre (atrial region). Temporal flicker not covered.
   - A4 open pending the reviewer's call: is the oblique fragmentation a
     documented limitation, or does it need a depth bias / normal offset
     (which reopens the "no anchor offsets" decision - needs Opus)?
