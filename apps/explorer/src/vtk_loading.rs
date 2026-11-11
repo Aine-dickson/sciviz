@@ -5,6 +5,8 @@
 
 use std::{fs, path::PathBuf};
 
+use crate::camera_setup::{apply_camera_setup, CameraSetup};
+
 use svf_core::{
     boundary_axial_glyphs::{build_boundary_axial_glyphs, BoundaryAxialGlyphOptions3, BoundaryAxialGlyphSet3},
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
@@ -37,6 +39,10 @@ pub struct VtkLoadConfig {
     pub vector_field: Option<String>,
     pub scalar_excluded_values: Vec<f64>,
     pub axial: Option<AxialGlyphConfig>,
+    /// Deterministic view relative to the fitted camera (stage 5b).
+    pub camera: CameraSetup,
+    /// Render one frame to this PNG and exit (stage 5b).
+    pub screenshot: Option<PathBuf>,
 }
 
 /// Boundary axial glyph request (design B1.2 section 6): a cell direction
@@ -148,6 +154,16 @@ fn parse_cell_tags(value: &str) -> Result<(String, Vec<i64>), String> {
     Ok((field.to_owned(), tags))
 }
 
+fn parse_finite_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
+    let value = value.ok_or_else(|| format!("{flag} requires a finite f64 value"))?;
+    let parsed = value.parse::<f64>()
+        .map_err(|_| format!("invalid {flag} '{value}': expected a finite f64"))?;
+    if !parsed.is_finite() {
+        return Err(format!("{flag} must be finite"));
+    }
+    Ok(parsed)
+}
+
 fn parse_positive_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
     let value = value.ok_or_else(|| format!("{flag} requires a finite positive f64 value"))?;
     let parsed = value.parse::<f64>()
@@ -168,7 +184,8 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let has_isosurface_color = args.iter().any(|arg| arg == "--vtk-isosurface-color");
     let has_vectors = args.iter().any(|arg| arg == "--vtk-vectors");
     let has_scalar_exclusions = args.iter().any(|arg| arg == "--vtk-scalar-exclude");
-    let has_axial_option = ["--vtk-cell-axial", "--vtk-cell-tags", "--vtk-axial-bin", "--vtk-axial-length"]
+    let has_axial_option = ["--vtk-cell-axial", "--vtk-cell-tags", "--vtk-axial-bin", "--vtk-axial-length",
+        "--camera-yaw", "--camera-pitch", "--camera-zoom", "--screenshot"]
         .iter().any(|flag| args.iter().any(|arg| arg == flag));
     if !has_vtk {
         return if has_scalar || has_isosurface || has_isovalue || has_isosurface_color || has_vectors || has_scalar_exclusions || has_axial_option {
@@ -203,6 +220,8 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
     let mut axial_tags: Option<(String, Vec<i64>)> = None;
     let mut axial_bin = None;
     let mut axial_length = None;
+    let mut camera = CameraSetup::default();
+    let mut screenshot: Option<PathBuf> = None;
     let mut index = 1;
     while index < args.len() {
         match args[index].as_str() {
@@ -298,6 +317,28 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
                 axial_length = Some(parse_positive_f64("--vtk-axial-length", args.get(index + 1))?);
                 index += 2;
             }
+            "--camera-yaw" => {
+                if camera.yaw_degrees.is_some() { return Err("--camera-yaw may only be supplied once".to_owned()); }
+                camera.yaw_degrees = Some(parse_finite_f64("--camera-yaw", args.get(index + 1))?);
+                index += 2;
+            }
+            "--camera-pitch" => {
+                if camera.pitch_degrees.is_some() { return Err("--camera-pitch may only be supplied once".to_owned()); }
+                camera.pitch_degrees = Some(parse_finite_f64("--camera-pitch", args.get(index + 1))?);
+                index += 2;
+            }
+            "--camera-zoom" => {
+                if camera.zoom_factor.is_some() { return Err("--camera-zoom may only be supplied once".to_owned()); }
+                camera.zoom_factor = Some(parse_positive_f64("--camera-zoom", args.get(index + 1))?);
+                index += 2;
+            }
+            "--screenshot" => {
+                if screenshot.is_some() { return Err("--screenshot may only be supplied once".to_owned()); }
+                let value = args.get(index + 1).filter(|value| !value.starts_with("--") && !value.is_empty())
+                    .ok_or_else(|| "--screenshot requires an output PNG path".to_owned())?;
+                screenshot = Some(PathBuf::from(value));
+                index += 2;
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in VTK mode"));
             }
@@ -359,6 +400,8 @@ pub fn parse_vtk_args(args: &[String]) -> Result<Option<VtkLoadConfig>, String> 
         vector_field,
         scalar_excluded_values,
         axial,
+        camera,
+        screenshot,
     }))
 }
 
@@ -385,6 +428,7 @@ pub fn load_vtk_scene(config: &VtkLoadConfig) -> Result<ImportedScene, String> {
             format!("could not build axial glyphs for VTK file '{}': {error}", config.path.display())
         })?;
     }
+    scene.camera = apply_camera_setup(&scene.camera, &config.camera)?;
     Ok(scene)
 }
 
@@ -798,6 +842,8 @@ LOOKUP_TABLE default
                 vector_field: None,
                 scalar_excluded_values: Vec::new(),
                 axial: None,
+                camera: CameraSetup::default(),
+                screenshot: None,
             }),
         );
     }
@@ -1263,5 +1309,74 @@ VECTORS fibres double
             vec![0, 1, 2],
         ).unwrap();
         assert!(fit_camera(&point_mesh, 1.0).is_ok());
+    }
+
+    fn view_config(extra: &[&str]) -> Result<Option<VtkLoadConfig>, String> {
+        let mut args = vec!["svf-explorer", "--vtk", "heart.vtk"];
+        args.extend_from_slice(extra);
+        parse_vtk_args(&config(&args))
+    }
+
+    #[test]
+    fn camera_and_screenshot_options_parse_and_default_to_unset() {
+        let plain = view_config(&[]).unwrap().unwrap();
+        assert_eq!(plain.camera, CameraSetup::default());
+        assert_eq!(plain.screenshot, None);
+
+        let parsed = view_config(&[
+            "--camera-yaw", "-35.5", "--camera-pitch", "12", "--camera-zoom", "2.5",
+            "--screenshot", "out/frame one.png",
+        ]).unwrap().unwrap();
+        assert_eq!(parsed.camera, CameraSetup {
+            yaw_degrees: Some(-35.5),
+            pitch_degrees: Some(12.0),
+            zoom_factor: Some(2.5),
+        });
+        assert_eq!(parsed.screenshot, Some(PathBuf::from("out/frame one.png")));
+    }
+
+    #[test]
+    fn camera_and_screenshot_options_combine_with_every_vtk_mode() {
+        let tail = ["--camera-yaw", "10", "--screenshot", "f.png"];
+        for mode in [
+            vec!["--vtk-scalar", "Z"],
+            vec!["--vtk-vectors", "v"],
+            vec!["--vtk-isosurface", "t", "--vtk-isovalue", "1"],
+            vec!["--vtk-cell-axial", "fibres", "--vtk-cell-tags", "ID=1"],
+        ] {
+            let mut extra = mode.clone();
+            extra.extend_from_slice(&tail);
+            assert!(view_config(&extra).unwrap().unwrap().screenshot.is_some(), "{mode:?}");
+        }
+    }
+
+    #[test]
+    fn invalid_camera_and_screenshot_options_are_rejected() {
+        for bad in [
+            vec!["--camera-yaw", "NaN"],
+            vec!["--camera-yaw", "inf"],
+            vec!["--camera-yaw", "abc"],
+            vec!["--camera-yaw"],
+            vec!["--camera-pitch", "-inf"],
+            vec!["--camera-zoom", "0"],
+            vec!["--camera-zoom", "-2"],
+            vec!["--camera-zoom", "NaN"],
+            vec!["--camera-yaw", "1", "--camera-yaw", "2"],
+            vec!["--camera-pitch", "1", "--camera-pitch", "2"],
+            vec!["--camera-zoom", "1", "--camera-zoom", "2"],
+            vec!["--screenshot"],
+            vec!["--screenshot", "--vtk-scalar"],
+            vec!["--screenshot", "a.png", "--screenshot", "b.png"],
+        ] {
+            assert!(view_config(&bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn camera_and_screenshot_options_require_vtk() {
+        for flag in [["--camera-yaw", "5"], ["--camera-pitch", "5"], ["--camera-zoom", "2"], ["--screenshot", "f.png"]] {
+            let args = config(&["svf-explorer", flag[0], flag[1]]);
+            assert!(parse_vtk_args(&args).unwrap_err().contains("require --vtk"), "{flag:?}");
+        }
     }
 }

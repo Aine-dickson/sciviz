@@ -1831,15 +1831,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   (the existing VTK modes on the smoke fixture) → Rodero counts (86,241 +
   85,232 eligible and 2,836 + 2,347 = 5,183 glyphs, exactly) → the samples
   export → screenshots and the A4 assessment.
-- Stage 5 implementation status: written and unit-tested; local validation
-  has NOT started (the reviewer asked for PR review first).
-  - Verified so far: `cargo test --workspace` passes (svf-core 284,
-    explorer 47, svf-render 10). The example `fibre_diagnostic` builds and its
-    own tests pass. No Rodero run, no A5 smoke run, no screenshots yet.
+- Stage 5 implementation status: implementation review complete (see the
+  rounds below); local validation steps 1–4 done, step 5 (screenshots, A4)
+  not started.
   - svf-core library source is untouched. `fibre_diagnostic.rs` changed: the
     LV-axis sums moved into a shared helper (same arithmetic order) and
-    `--samples` was added, so `compare.py` and `verify_glyphs.py` must be
-    re-run to confirm the existing outputs are still byte-identical.
+    `--samples` was added.
   - Not covered by a unit test: `sample_export` (it needs RHO.dat, Z.dat and
     V.dat). It is checked only on case 01.
   - For review: the single public constructor
@@ -1850,11 +1847,139 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - PR #54 review round 1 (2026-11-11): the renderer constructor, endpoint
   conversion and tail rule were accepted. One fix was requested and made in
   `4f3a63c`: `rv_other` is tag 2 (`RV_TAG`) and group other, not "any non-LV
-  tag". Waiting on the reviewer to recheck head `4f3a63c`. Do not start
-  Rodero runs or screenshots until they approve.
-- Next action: wait for the recheck of `4f3a63c`. After approval, validate in the
-  order set above: workspace tests and A5, the Rodero counts, `compare.py`
-  and `verify_glyphs.py` still pass, the samples export, then screenshots.
+  tag".
+- PR #54 review round 2 (2026-11-11): the fix was accepted. The PR
+  description's `rv_other` line was corrected to "tag 2 (`RV_TAG`) and group
+  other". Implementation review is complete.
+- Local validation, 2026-11-11 (Windows 11, head `0b9ec5e` code):
+  1. `cargo test --workspace` (full rebuild): svf-core 284, explorer 47,
+     svf-render 10, 0 failed. The only warnings already exist on main.
+     A5 on `apps/explorer/examples/tetra-with-fields.vtk`: plain, point scalar
+     (temperature), cell scalar (density), scalar + exclude, vectors,
+     scalar + vectors, isosurface, isosurface + colour each load, print the
+     expected summary and keep the window open (killed at 8 s). The missing
+     file exits 1, and axial + vectors or axial + isosurface exits 2 with a
+     clear error. This checks loading and the summaries only; nobody looked at
+     the windows.
+  2. Rodero case 01, release Explorer, `--vtk-cell-axial fibres
+     --vtk-cell-tags ID=1,2` (defaults bin 4, length 3): tag 1 86,241
+     eligible / 2,836 glyphs, tag 2 85,232 / 2,347, total 5,183, 0 zero-area,
+     0 invalid-direction. Exact.
+  3. Diagnostic run with and without `--samples`: `glyphs.csv` is
+     byte-identical, and the JSON differs only in `run.runtime_s`.
+     `compare.py`: MATCH for both. `verify_glyphs.py`: PASS (5,183/5,183, 0
+     discrepancies, 75 s). `test_tools.py` 11 OK, `test_audit.py` 20 OK.
+  4. Samples: 2,443 unique rows (LV tail 864, RV tail 855, RV other 732;
+     8 rows are both RV tail and RV other). `rv_other` = 732, all tag 2 and
+     group other, equal to the baseline `groups.2.other.count`. Tail counts
+     are about 1% of each baseline group; LV "other" is empty (count 0).
+     Region proxies: RV other has median `axial_s` 0.61 (0.06–0.95); the
+     tails sit near the base (median 0.98 LV, 0.85 RV).
+  The Explorer usage line does not list the axial flags (cosmetic, not
+  changed).
+  The reviewer accepted steps 1–4 as passed. A4 stays open until the
+  screenshots are inspected; windows loading is not evidence for A4.
+- Stage 5b (approved by the reviewer, 2026-11-11): deterministic camera setup
+  and one-shot PNG capture, because the planned views cannot be reproduced by
+  hand. Branch `b1-2-capture` from `b1-2-render`; PR base `b1-2-render`
+  (stacked on #54). Implementation review comes before any capture.
+  Strictly out of scope: glyph generation, anchors, the line pipeline, depth
+  state, colours, camera interaction, selection and diagnostic calculations.
+  No svf-core change.
+  Spec (Sonnet implements):
+  1. CLI (`vtk_loading.rs`), valid only with `--vtk`, each at most once:
+     `--camera-yaw <deg>`, `--camera-pitch <deg>` (finite),
+     `--camera-zoom <factor>` (finite, > 0), `--screenshot <png>`. All are
+     allowed with every VTK mode. Omitted camera flags leave the fitted
+     camera bit-identical to today's (test this).
+  2. Camera setup, a pure function in Explorer applied to `scene.camera`
+     before the window (so errors are startup errors, exit 1):
+     - Order: yaw and pitch together in ONE call of the existing
+       `camera_navigation::orbit`, then the zoom through the existing
+       `camera_navigation::zoom` (it already maintains near/far).
+     - Orbit config: `CameraNavigationConfig::new(min, max, 0.02,
+       PI/180, 0.12)` with min/max from `for_camera(fitted)`, so one "pixel"
+       is one degree: `orbit(fitted, yaw_deg, pitch_deg, cfg)`.
+     - Meaning, to document in `--help`/usage and the evidence README:
+       the camera orbits the fitted target. Azimuth = atan2(x, z) of the
+       camera offset, about world +Y; positive yaw DEcreases azimuth (same
+       as dragging right by that many degrees). Elevation is measured from
+       the world XZ plane toward +Y; positive pitch raises the camera.
+     - No silent clamping: compute fitted elevation + pitch and reject if it
+       falls outside ±(90° − 0.02 rad), naming the allowed range.
+     - Zoom: camera-target distance becomes fitted distance / factor
+       (factor > 1 is closer), via `zoom(cam, ln(factor) / 0.12, cfg)`.
+       Reject a factor whose distance falls outside the `for_camera`
+       [min, max] (factor outside [0.01, 100]) instead of clamping.
+     - Tests: omitted flags → identical camera; yaw 90 from a camera on +Z
+       ends on −X (azimuth 0 − 90°, x = sin(−90°));
+       pitch raises y; zoom 2 halves the distance; target unchanged; the
+       rejections.
+  3. svf-render: one public method
+     `capture_rgba8(&mut self, width, height) -> Result<CapturedImage,
+     RenderError>` (`CapturedImage { width, height, rgba: Vec<u8> }`).
+     - Move the render pass body of `render()` into a private
+       `encode_scene(&self, encoder, color_view, depth_view)` used by both,
+       so the capture draws exactly what the window draws. `render()`
+       output must not change.
+     - Offscreen colour texture in `self.config.format` with
+       RENDER_ATTACHMENT | COPY_SRC, its own depth target from
+       `create_depth_target`, sample count 1 like the window.
+     - Camera uniform for the capture uses the same look-at with the
+       aspect ratio width/height (as `resize()` builds it); restore the
+       window uniform afterwards.
+     - Copy to a buffer with rows padded to
+       `COPY_BYTES_PER_ROW_ALIGNMENT`, map, poll until done, strip padding.
+       Accept `Rgba8Unorm[Srgb]` and `Bgra8Unorm[Srgb]` (swizzle BGRA);
+       any other format is a new `RenderError` variant. Bytes are stored as
+       is (sRGB-encoded, as displayed); alpha forced to 255.
+  4. Explorer: with `--screenshot`, after the renderer is created and the
+     camera set, call `capture_rgba8(1600, 1200)` (a named constant), encode
+     with the `png` crate (the one new dependency, Explorer only, pinned
+     version at least two weeks old), write the file, print
+     `wrote <path> (1600x1200)`, and exit 0. Any capture or write error:
+     a clear message naming the path, exit 1. The window may flash; no
+     interaction is involved.
+  5. Cosmetic, from the reviewer: add the axial and camera/screenshot flags
+     to the usage line; move the "SVF's VTK parser contract" doc comment in
+     `fibre_diagnostic.rs` back above the constant it describes.
+  6. Acceptance before review: `cargo test --workspace`; A5 re-run (the 8
+     modes, no new flags) unchanged; one smoke capture of
+     `tetra-with-fields.vtk` opened with the Read tool to confirm it is the
+     scene, not black or garbage. Do NOT capture the Rodero views yet.
+  After review: find the angles for the curated views (≤ 8 PNGs: anterior
+  and posterior epicardium, basal view, one zoomed depth view, each with and
+  without `--vtk-scalar RHO.dat`), commit PNGs plus a README with exact
+  commands and dimensions in `docs/evidence/b1-2-stage5/`, then the A4
+  assessment from the images, and the user checks rotation and zoom by hand.
+- Stage 5b implementation status (2026-11-11, branch `b1-2-capture`):
+  implemented per the spec; awaiting the reviewer. No svf-core library
+  change; no change to glyph generation, anchors, line pipeline, depth state,
+  colours or interaction.
+  - New: `apps/explorer/src/camera_setup.rs` (yaw/pitch through the existing
+    `orbit`, zoom through the existing `zoom`; rejects, never clamps),
+    `apps/explorer/src/screenshot.rs` (fixed 1600x1200, `png` 0.17.16 pinned,
+    Explorer only), `SceneRenderer::capture_rgba8` plus `CapturedImage` and
+    two `RenderError` variants. `render()` now calls a private
+    `encode_scene` that the capture shares.
+  - Deviations from the spec, all small: zoom limits are written as
+    [fitted distance / max, fitted distance / min], which is 0.01 to 100;
+    the pitch rejection message gives the allowed range for the scene; the
+    usage text also lists `--vtk-scalar-exclude`.
+  - Verified: `cargo test --workspace` (svf-core 284, explorer 60, render
+    10, 0 failed); A5 re-run, the same 8 modes with the same summaries and
+    windows staying open; error exits (missing output directory, pitch 80
+    on the smoke fixture, zoom 500) are 1 with clear messages; two smoke
+    captures of `tetra-with-fields.vtk` (default view, and yaw 90, pitch 20,
+    zoom 1.5) were opened and show the scene.
+  - NOT verified: capture on a non-BGRA/RGBA surface format (rejected with an
+    error); the capture has not been compared pixel for pixel with the
+    window; no Rodero capture yet.
+- Next action: reviewer reads the 5b PR. After approval, find the angles for
+  the curated views on case 01 (shared with the user), capture up to 8 PNGs
+  into `docs/evidence/b1-2-stage5/` with a README of exact commands and
+  dimensions, then the A4 assessment from the images, and the user checks
+  rotation and zoom by hand.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
