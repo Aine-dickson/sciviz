@@ -1587,7 +1587,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stages 1–3 merged, stage 4 implemented)
+## B1.2 — Ventricular fibre orientation (design approved; stages 1–4 merged, stage 5 in progress)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
@@ -1737,8 +1737,102 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   `LOOKUP_TABLE default`, ...) case-sensitively, while SVF ignores case. The
   audit therefore rejects a lowercase file loudly; it never reads it
   differently.
-- Next action: address the review of PR #53 and merge it, then stage 5
-  (renderer/Explorer and visual validation, design A4).
+  PR #53 was squash-merged to main as `04c4bca` on 2026-11-11.
+- Stage 5 (branch `b1-2-render`, from main at `04c4bca`): renderer, Explorer
+  and visual validation. The plan was approved by the reviewer on 2026-11-11.
+  Decisions not to revisit:
+  - Tail and RV "other" triangles are located through a `fibre_diagnostic`
+    export. There is no new Explorer rendering option for them.
+  - Glyphs have one fixed colour, a bright cyan, independent of the scalar
+    mapping. There are no arrowheads and no per-tag colours. The colour must
+    stay distinguishable from the whole Viridis range and from
+    `INVALID_COLOR`. Viridis passes through a mid teal, about (0.13, 0.57,
+    0.55), so check that the cyan differs from it by lightness in the
+    screenshots.
+  - A curated screenshot set is committed in `docs/evidence/b1-2-stage5/`.
+    The plan is at most 8 reasonably sized PNGs: anterior epicardium,
+    posterior epicardium, a basal view into the ventricles and one zoomed
+    depth view, each with and without RHO colouring. Near-duplicates are
+    dropped.
+  - Numerical verification and visual verification are separate acceptance
+    conditions:
+    - Numerical: the rendered set equals the established 5,183 glyphs.
+    - Visual (A4): the glyphs are visible, correctly placed and
+      interpretable, judged only from the screenshots.
+    Passing tests or matching counts are not evidence for A4.
+  Implementation spec (Sonnet):
+  1. svf-render: add `convert_axial_glyphs(&BoundaryAxialGlyphSet3) ->
+     Result<Vec<LineVertex>, RenderError>`.
+     - Each glyph becomes one segment: the vertices are `start()` and `end()`,
+       each component cast `as f32`. Nothing is normalised, offset, shortened
+       or otherwise reinterpreted.
+     - A non-finite cast is an error.
+     - The colour is an `AXIAL_GLYPH_COLOR` constant.
+     - The vertices feed the existing `vector_vertices` argument of
+       `new_with_mesh_data`. The line pipeline and depth state stay as they
+       are.
+     - Public entry point: `new_with_mesh_data` is private, and every public
+       constructor is a fixed combination. A minimal public entry is
+       therefore unavoidable. It is ONE constructor,
+       `new_with_axial_glyphs(window, mesh: &TriangleMesh3, mapped:
+       Option<&MappedSurface3>, glyphs)`, which delegates to
+       `new_with_mesh_data`. The reviewer must confirm this in PR review,
+       because they asked for no new constructor variant.
+  2. Explorer, `vtk_loading.rs`:
+     - Add `--vtk-cell-axial <field> --vtk-cell-tags <field>=<v1,v2,…>
+       [--vtk-axial-bin <mm>] [--vtk-axial-length <mm>]`. The first two are
+       required together.
+     - Bin and length must be finite and > 0. Their defaults come from
+       `BoundaryAxialGlyphOptions3::default()` (4 and 3), not from
+       literals.
+     - The flags are allowed with `--vtk-scalar` and
+       `--vtk-scalar-exclude`. They are rejected, with a clear error, with
+       `--vtk-vectors` and with the isosurface flags.
+     - The scene calls `build_boundary_axial_glyphs` on the boundary surface
+       already built. The full boundary is always drawn; the tags select
+       glyphs only.
+     - The summary prints, per tag, eligible triangles, emitted glyphs, and
+       `zero_area_count` and `invalid_direction_count`, all taken from the
+       core result.
+  3. `fibre_diagnostic.rs`: add `--samples <csv>`, which exports the tail
+     and RV "other" samples. The existing criteria are kept unchanged:
+     - Group: the diagnostic's existing mean-of-three-vertex ρ rule (endo if
+       < 0.2, epi if > 0.8, otherwise other). It is applied to every
+       eligible sample, as `statistics()` already does.
+     - `rv_other`: tag 2 and group other. That is the 732 triangles.
+     - `tail`: |cos| ≥ that sample's (tag, group) `abs_cos_p99`, with the
+       existing `percentile()`. The design never defined a per-sample tail
+       rule; it only reported p99. This one is the most literal reading, and
+       must be stated as such in the PR. A sample can be in both groups, so
+       it gets one row with both flags.
+     - Columns: surface index, source cell index, tag, group, `tail`,
+       `rv_other`, centroid x, y and z, |cos|, θ in degrees, the mean ρ, the
+       mean Z.dat, a flag for any sentinel vertex in either field, and
+       `axial_s`.
+     - `axial_s` is (p_c − apex centroid)·axis_unit / axis_length: 0 at the
+       apex centroid and 1 at the base centroid. It is a base-plane proxy
+       taken from the existing LV axis. The apex centroid has to be kept for
+       it.
+     - A short summary per (tag, class): count, and min/median/max of
+       `axial_s`, Z.dat and ρ. These are region proxies, not anatomical
+       proof.
+     The existing JSON and `glyphs.csv` stay byte-identical, so `compare.py`
+     must still MATCH.
+  4. Unit tests:
+     - CLI parse and reject cases, in the style of the existing ones.
+     - The converter: 2 × glyph-count vertices, endpoints equal to the f32
+       casts, no extra segments, a non-finite case is an error.
+     - Explorer on a tiny synthetic tagged mesh: only the requested tags
+       produce lines, and the surface triangle count is unchanged.
+  Do not modify svf-core, the line depth state or the anchors. A depth
+  artefact is documented with screenshots, and any fix is proposed
+  separately.
+  Order: PR review of the implementation → `cargo test --workspace` and A5
+  (the existing VTK modes on the smoke fixture) → Rodero counts (86,241 +
+  85,232 eligible and 2,836 + 2,347 = 5,183 glyphs, exactly) → the samples
+  export → screenshots and the A4 assessment.
+- Next action: implement the stage 5 spec above on `b1-2-render` (Sonnet),
+  open the PR, and bring it back for review before any local validation.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
