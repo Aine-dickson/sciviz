@@ -1,6 +1,6 @@
 # B2 — Explorable biological structures (proposal)
 
-Status: proposal for review. No implementation is authorised by this document.
+Status: accepted direction (2026-11-11). Each step below still gets its own short design note before code.
 
 ## 1. Purpose
 
@@ -17,9 +17,6 @@ The learner questions that define success:
 | Plant stem or leaf (O/A level) | see the tissue layers and how they are arranged, in a transverse and a longitudinal section |
 | Cockroach dissection (O level) | identify external features, then remove layers in dissection order and identify the internal organs |
 | Chemistry bonding (A level) | already covered in principle by the VSEPR case, which builds shapes from rules rather than data |
-
-Curriculum anchors (the exact NCDC syllabus topics) are to be confirmed per
-lesson before acceptance, as the VSEPR case did. None are claimed here.
 
 ## 2. Why not just adopt glTF
 
@@ -127,11 +124,11 @@ Photorealism, textures, lighting rigs, shadows, a graphical editor (authoring
 is a text file first), animation, simulation, and integration with other
 products.
 
-## 10. Questions for review
+## 10. Decisions
 
-1. Is the three-source model (recipe, adapted, imported) the right split?
-2. Text format for structure files: RON, TOML or JSON? Recommendation: RON,
-   since it maps directly onto Rust types and allows comments.
-3. Is the headlight acceptable as "not a lighting system", with its scope
-   capped as in section 6?
-4. Stem first, then cockroach, then heart: agreed?
+1. Geometry comes from three sources: recipe, adapted, imported.
+2. Structure files are RON: it maps directly onto Rust types and allows comments.
+3. The headlight is in scope as defined in section 6 and goes no further.
+4. Order: headlight, stem, sections and peeling, cockroach, heart.
+5. No curriculum anchoring at framework level; that belongs to the lessons
+   built on top.
