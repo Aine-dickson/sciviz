@@ -1737,8 +1737,11 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   `LOOKUP_TABLE default`, ...) case-sensitively, while SVF ignores case. The
   audit therefore rejects a lowercase file loudly; it never reads it
   differently.
-- Next action: address the review of PR #53 and merge it, then stage 5
-  (renderer/Explorer and visual validation, design A4).
+- Next action: wait for the reviewer's re-review of PR #53 after round 2
+  (head `b30563e`). The open question is whether to also make the audit's
+  record keywords case-insensitive in this PR. Once #53 is merged, start
+  stage 5 (renderer/Explorer and visual validation, design A4) on a new
+  branch from main.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
