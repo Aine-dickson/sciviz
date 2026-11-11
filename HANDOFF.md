@@ -1727,6 +1727,16 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     34-case table and agrees on every case.
   - `--lv-tag 1` is added to the §7.3 command.
   Case 01 is unaffected: a fresh audit run still MATCHes the baseline.
+  Review round 2 found two more parity gaps, both fixed:
+  - Declared type names are now ASCII case-insensitive, as in SVF.
+  - Float text must match Rust's `from_str` grammar, checked by a regex
+    before `float()`.
+  The shared table now has 78 cases, including the NaN and infinity
+  spellings, and both sides agree on all of them. Case 01 still MATCHes.
+  Known and not changed: the audit matches record keywords (`POINTS`,
+  `LOOKUP_TABLE default`, ...) case-sensitively, while SVF ignores case. The
+  audit therefore rejects a lowercase file loudly; it never reads it
+  differently.
 - Next action: address the review of PR #53 and merge it, then stage 5
   (renderer/Explorer and visual validation, design A4).
 - Environment note (2026-11-11): the C: drive filled up and all cargo

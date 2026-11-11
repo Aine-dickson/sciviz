@@ -45,6 +45,9 @@ def write_vtk(path, points=POINTS, cells=((0, 1, 2, 3), (1, 2, 3, 4)), types=(10
     Path(path).write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
+NAN = object()  # sentinel: the value must be NaN
+
+
 class AuditTests(unittest.TestCase):
     def setUp(self):
         handle, self.path = tempfile.mkstemp(suffix=".vtk")
@@ -218,7 +221,7 @@ class AuditTests(unittest.TestCase):
 
     # Shared with fibre_diagnostic.rs (svf_parser_accepts_and_rejects_the_audit_edge_cases):
     # SVF's parser must give the same value, or reject the same text.
-    EDGE_CASES = [
+    EDGE_CASES = [  # expected None: rejected; NAN: parses to NaN
         ("short", "-32768", -32768.0), ("short", "32767", 32767.0),
         ("short", "-32769", None), ("short", "32768", None),
         ("unsigned_short", "0", 0.0), ("unsigned_short", "65535", 65535.0),
@@ -233,6 +236,19 @@ class AuditTests(unittest.TestCase):
         ("double", "1e5", 100000.0), ("double", "-0.25", -0.25), ("double", "1_0.5", None),
         ("double", "١.5", None), ("double", "abc", None),
         ("float", "0.5", 0.5), ("float", "1_0", None), ("float", "1e39", math.inf),
+        # Declared type names are ASCII case-insensitive, as in SVF.
+        ("FLOAT", "0.5", 0.5), ("Double", "-0.25", -0.25), ("INT", "7", 7.0), ("Unsigned_Char", "255", 255.0),
+        # Special values: exactly Rust's spellings (any case, optional sign).
+        ("float", "inf", math.inf), ("float", "INFINITY", math.inf), ("float", "-Infinity", -math.inf),
+        ("float", "+inf", math.inf), ("double", "Inf", math.inf), ("float", "NaN", NAN), ("float", "-nan", NAN),
+        ("double", "nan", NAN), ("double", "+NAN", NAN),
+        ("float", "infinit", None), ("float", "infinityy", None), ("float", "in", None), ("float", "nan(1)", None),
+        ("float", "nan1", None), ("float", "snan", None), ("double", "qnan", None), ("int", "inf", None),
+        # Other edges of the decimal grammar.
+        ("double", "1.", 1.0), ("double", ".5", 0.5), ("double", "+.5", 0.5), ("double", "1E+5", 100000.0),
+        ("double", ".", None), ("double", "-.", None), ("double", "1e", None), ("double", "1e+", None),
+        ("double", "e5", None), ("double", "0x10", None), ("double", "1d5", None), ("double", "1.5f", None),
+        ("double", "+-1", None), ("double", "1,5", None), ("double", "1e400", math.inf), ("float", "1e-400", 0.0),
     ]
 
     def test_declared_types_accept_and_reject_like_svf(self):
@@ -241,8 +257,24 @@ class AuditTests(unittest.TestCase):
             if expected is None:
                 with self.assertRaises(audit.VtkError, msg=f"{declared} {text!r}"):
                     convert(text)
+            elif expected is NAN:
+                self.assertTrue(math.isnan(convert(text)), f"{declared} {text!r}")
             else:
                 self.assertEqual(convert(text), expected, f"{declared} {text!r}")
+
+    def test_float_grammar_is_rusts_not_pythons(self):
+        # float() accepts these; Rust's from_str does not. A VTK token cannot
+        # contain whitespace, so this is checked at the converter only.
+        for text in (" 1", "1 ", "	2.5", "1_0", "٣"):
+            for declared in ("float", "double"):
+                with self.assertRaises(audit.VtkError, msg=f"{declared} {text!r}"):
+                    audit.converter(declared, 0)(text)
+
+    def test_declared_type_name_is_case_insensitive_in_a_file(self):
+        write_vtk(self.path, point_type="FLOAT")
+        upper = audit.parse_vtk(self.path)["points"]
+        write_vtk(self.path, point_type="float")
+        self.assertEqual(upper, audit.parse_vtk(self.path)["points"])
 
     def test_out_of_range_integer_in_a_file_is_rejected(self):
         write_vtk(self.path, ids=(1, 2**31))

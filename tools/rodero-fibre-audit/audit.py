@@ -124,13 +124,17 @@ def binary32(text: str) -> float:
     return other if (exact > tie) == (other > midpoint) else f
 
 
-def _decimal(text: str) -> float:
-    """Decimal text -> nearest binary64, accepting only what Rust's parser accepts.
+# The grammar of Rust's f32/f64 `from_str`, which SVF uses: an optional sign,
+# then inf, infinity or nan (ASCII, any case), or decimal digits with an
+# optional fraction and exponent. Python's float() accepts a superset
+# (underscores, non-ASCII digits, surrounding whitespace), so text is
+# checked against this grammar first and only then converted.
+RUST_FLOAT = re.compile(r"[+-]?(?:inf|infinity|nan|(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)", re.IGNORECASE)
 
-    Python's float() also takes underscores ("1_0") and non-ASCII digits,
-    which SVF rejects, so those are refused here rather than read silently.
-    """
-    if not text.isascii() or "_" in text:
+
+def _decimal(text: str) -> float:
+    """Decimal text -> nearest binary64, accepting exactly what Rust's parser accepts."""
+    if not (text.isascii() and RUST_FLOAT.fullmatch(text)):
         raise VtkError(f"invalid floating-point value {text!r}")
     try:
         return float(text)
@@ -174,8 +178,10 @@ CONVERTERS = {
 
 
 def converter(declared: str, line: int):
+    """The converter for a declared VTK type. Like SVF (`to_ascii_lowercase`),
+    the type name is case-insensitive in ASCII: FLOAT and float are the same."""
     try:
-        return CONVERTERS[declared]
+        return CONVERTERS[declared.lower() if declared.isascii() else declared]
     except KeyError:
         raise VtkError(f"line {line}: unsupported data type {declared!r}") from None
 

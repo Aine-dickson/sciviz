@@ -549,6 +549,16 @@ mod tests {
             ("double", "1e5", Some(100000.0)), ("double", "-0.25", Some(-0.25)), ("double", "1_0.5", None),
             ("double", "\u{0661}.5", None), ("double", "abc", None),
             ("float", "0.5", Some(0.5)), ("float", "1_0", None), ("float", "1e39", Some(f64::INFINITY)),
+            ("FLOAT", "0.5", Some(0.5)), ("Double", "-0.25", Some(-0.25)), ("INT", "7", Some(7.0)), ("Unsigned_Char", "255", Some(255.0)),
+            ("float", "inf", Some(f64::INFINITY)), ("float", "INFINITY", Some(f64::INFINITY)), ("float", "-Infinity", Some(f64::NEG_INFINITY)),
+            ("float", "+inf", Some(f64::INFINITY)), ("double", "Inf", Some(f64::INFINITY)), ("float", "NaN", Some(f64::NAN)), ("float", "-nan", Some(f64::NAN)),
+            ("double", "nan", Some(f64::NAN)), ("double", "+NAN", Some(f64::NAN)),
+            ("float", "infinit", None), ("float", "infinityy", None), ("float", "in", None), ("float", "nan(1)", None),
+            ("float", "nan1", None), ("float", "snan", None), ("double", "qnan", None), ("int", "inf", None),
+            ("double", "1.", Some(1.0)), ("double", ".5", Some(0.5)), ("double", "+.5", Some(0.5)), ("double", "1E+5", Some(100000.0)),
+            ("double", ".", None), ("double", "-.", None), ("double", "1e", None), ("double", "1e+", None),
+            ("double", "e5", None), ("double", "0x10", None), ("double", "1d5", None), ("double", "1.5f", None),
+            ("double", "+-1", None), ("double", "1,5", None), ("double", "1e400", Some(f64::INFINITY)), ("float", "1e-400", Some(0.0)),
         ];
         for &(declared, text, expected) in cases {
             let vtk = format!(

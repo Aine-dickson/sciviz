@@ -56,9 +56,12 @@ choice is stated here and in the design:
   declared VTK type before any calculation, as SVF's parser does. `float`
   becomes the correctly rounded IEEE-754 binary32 value, promoted to f64;
   `double` becomes binary64; integer types are exact and must lie in the
-  declared range (i16, u16, i32, u32, u8), as in SVF. Text that SVF's
-  parser rejects (underscores, non-ASCII digits, a `-` on an unsigned type)
-  is an error here too; `test_audit.py` and `fibre_diagnostic.rs` share one
+  declared range (i16, u16, i32, u32, u8), as in SVF. Type names are ASCII
+  case-insensitive (`FLOAT` = `float`), as in SVF. Floating-point text must
+  match the grammar of Rust's `from_str` (optional sign; `inf`, `infinity` or
+  `nan` in any case; or decimal digits with optional fraction and exponent),
+  so text that SVF's parser rejects (underscores, non-ASCII digits, `nan(1)`,
+  a `-` on an unsigned type) is an error here too; `test_audit.py` and `fibre_diagnostic.rs` share one
   table of these cases. Every array in `01.vtk` is `float`. The baseline records this as `parameters.numeric_conversion`.
   The stage-2 audit parsed `float` text directly into f64, which is not the
   same input; see `baseline/case01-numeric-conversion.md`.
