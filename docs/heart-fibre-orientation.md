@@ -1,7 +1,7 @@
 # B1.2 — Ventricular fibre orientation on the boundary surface (design contract)
 
-Status: **design, revised after review round 3; final review pending. Nothing
-here is implemented.**
+Status: **design approved (review round 4). Nothing here is implemented yet;
+implementation follows the order in §13.**
 The measurements in §5 came from a scratch program run on 2026-11-10. They are
 not SVF features, and nothing has been committed for them.
 
@@ -326,11 +326,13 @@ diagnostic):
 - over all eligible triangles: the fractions with |cos| < 0.1 and < 0.2;
 - every §4.6 exclusion counter;
 - LV axis length and the apex/base point counts;
-- thinning: the occupied-bin count at the configured h (= total glyph count),
-  plus the count of centroids within 1e-9 mm of a bin face. Bins are
-  independent of the tie-break, so this count is comparable. Per-tag glyph
-  counts depend on which triangle wins a mixed LV/RV bin, so SVF reports them
-  but they are not matched.
+- thinning, at the configured h:
+  - the occupied-bin count (= total glyph count);
+  - the thinned glyph count per tag, i.e. the tag of each bin's winning
+    triangle under the lowest-surface-index rule. The audit determines each
+    winner independently (§7.2, expected surface index), so a mixed LV/RV bin
+    is not ambiguous and these counts are compared exactly;
+  - the count of eligible centroids within 1e-9 mm of a bin face.
 - provenance (§7.4): `source_sha256`, `input_sha256`, and the parameters
   used.
 - run record (not compared): wall-clock runtime and peak memory.
@@ -345,9 +347,11 @@ are fixed in the script, so nothing is skipped silently.
 exactly matching counts, so they match exactly too. Percentiles, angles and
 lengths must match within 1e-9 absolute. Both sides parse the same decimal
 text into f64, so only the order of floating-point operations can differ.
-The occupied-bin count is the one exception. It may differ by at most the
-reported near-face count, and only for the discrepancies `verify_glyphs.py`
-attributes to near-face centroids. That count is a bound for
+The thinning counts (occupied bins and per-tag glyphs) are the one
+exception. Each may differ by at most the reported near-face count, and only
+for the discrepancies `verify_glyphs.py` attributes individually to near-face
+centroids. Case 01 is expected to have zero near-face centroids, so there its
+thinning counts must match exactly. That count is a bound for
 floating-point bin assignment, not a general allowance for unexplained glyph
 differences.
 
@@ -450,8 +454,22 @@ single "input hash" would always mismatch. Two hashes are therefore kept:
 
 | Key | Meaning | Audit | SVF diagnostic | Rule |
 |---|---|---|---|---|
-| `source_sha256` | SHA-256 of the original source dataset `01.vtk` | Hash of the file it reads | Hash of the file passed with `--source`, which it hashes but does not parse | **Must be equal** in `compare.py`, and equal to the README value. `verify_glyphs.py` also checks the CSV header against the file it reads. A mismatch fails |
+| `source_sha256` | SHA-256 of the original source dataset `01.vtk` | Hash of the file it reads | Hash of the file passed with `--source`, which it hashes but does not parse **Must be equal**; see the automated checks below |
 | `input_sha256` | SHA-256 of the file actually parsed | Equal to `source_sha256` | Hash of `01-svf-order.vtk` | Not compared. Printed by `compare.py` and kept as diagnostic provenance |
+
+The automated checks, each of which fails the run on a mismatch, are:
+1. `compare.py` checks that the baseline's `source_sha256` equals the SVF
+   diagnostic's `source_sha256`.
+2. The committed baseline `baseline/case01.json` pins the expected
+   original-dataset hash. Check 1 therefore ties every SVF run to that pinned
+   hash.
+3. `verify_glyphs.py` hashes the original `01.vtk` it reads and checks it
+   against the `source_sha256` in the CSV header.
+
+Separately, the README documents the same expected hash for people
+downloading the dataset. That is a documentation-consistency requirement,
+kept in step by hand when the baseline is regenerated. No script reads the
+README.
 
 `--source` is required. The diagnostic refuses to run without it, so no output
 can lack source provenance. The hashes alone do not prove that the working
@@ -537,3 +555,11 @@ original file.
 | Near-face tolerance | 1e-9 mm, with the count reported. Only individually attributed discrepancies are allowed; it is not a general allowance (§7.2) |
 | Audit implementation | Standard-library Python. Runtime and peak memory are recorded; no NumPy unless the measurements show a need (§7.2) |
 | Input provenance | `source_sha256` must match; `input_sha256` is kept but not compared; the diagnostic requires `--source` (§7.4) |
+
+## 13. Review decisions (round 4: approved pending these edits)
+
+| Topic | Decision |
+|---|---|
+| Per-tag glyph counts | Added to the statistics and compared exactly. The near-face exception still applies only to individually attributed discrepancies (§7.2) |
+| Provenance wording | Automated checks (compare.py, the pinned baseline, verify_glyphs.py) are kept separate from the README's documentation consistency (§7.4) |
+| Implementation order | vtk_inspect; audit plus baseline; svf-core operation plus synthetic tests; fibre_diagnostic, compare and verify_glyphs; renderer/Explorer plus visual validation. Each stage is reviewed separately |

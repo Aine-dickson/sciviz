@@ -1587,11 +1587,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design revised after round 3, final review pending)
+## B1.2 — Ventricular fibre orientation (design approved; implementation not started)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
-  revisions from rounds 2 and 3 are in the document (§11, §12). **Do not implement until
+  revisions from rounds 2–4 are in the document (§11–§13). Round 4 approved
+  the design. **Do not implement until
   the user authorises it after reviewing the diff.**
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
@@ -1622,10 +1623,11 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     boundary/triangulation ordering contracts, and holds for all-tet meshes
     only. It fails on any missing, unexpected, wrong-winner or duplicate
     glyph, unless a near-face centroid (within 1e-9 mm) explains that
-    specific discrepancy.
+    specific discrepancy. Per-tag thinned glyph counts are compared exactly.
   - Provenance: `source_sha256` (original `01.vtk`; the diagnostic takes it
     through a required `--source`) must match. `input_sha256` (the file
-    actually parsed) is kept but not compared.
+    actually parsed) is kept but not compared. The baseline pins the hash.
+    The README value is documentation only; no script reads it.
   - Record the audit's runtime and peak memory (`tracemalloc`). No NumPy
     unless those measurements show a need.
 - Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
@@ -1634,7 +1636,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Untracked `crates/svf-core/examples/{parse_probe,boundary_probe}.rs`:
   approved for consolidation into `examples/vtk_inspect.rs` (spec in §6). Not
   yet done.
-- Next action: the user reviews the PR #49 diff. If approved, implement in
-  this order: vtk_inspect, audit plus baseline, svf-core operation plus unit
-  tests, fibre_diagnostic plus comparison, then renderer/Explorer and
-  screenshots.
+- Next action: after PR #49 merges, implement one stage per reviewable PR,
+  in this order:
+  1. vtk_inspect;
+  2. audit plus committed baseline;
+  3. svf-core operation plus synthetic tests;
+  4. fibre_diagnostic, compare and verify_glyphs;
+  5. renderer/Explorer plus visual validation.
+
+  Establish fidelity (stages 2 and 4) before judging visuals.
