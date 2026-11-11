@@ -119,7 +119,9 @@ For a selected boundary triangle with source cell fibre f:
 Project the fibre onto the face plane, t = f − (f·n_g) n_g. Take the
 circumferential direction as c = L × n_g, where L is a single global LV
 long-axis direction (the mean position of the LV points with Z > 0.98 minus
-that of the LV points with Z < 0.02, using V < 0). Then
+that of the LV points with Z < 0.02). An LV point is one with V = −1
+exactly. A bare V < 0 test is wrong, because the −10 sentinel (V = Z = −10)
+would admit 138,056 non-ventricular points as apex points. Then
 
 |α| = arccos( |t̂ · ĉ| ),  |α| ∈ [0°, 90°]
 
@@ -182,7 +184,10 @@ source points: endocardial ρ < 0.2, epicardial ρ > 0.8, otherwise "other".
 
 - No LV boundary triangle falls in the 0.2 ≤ ρ ≤ 0.8 group.
 - LV long axis: 88.5 mm, from 147 apex points and 1,552 base points.
-- Percentiles use the nearest-rank index round((n − 1)·p) on the sorted values.
+- Percentiles use the nearest-rank index ⌊(n − 1)·p + 0.5⌋ on the sorted
+  values, which rounds halves up (not Python's round-half-to-even).
+- The stage-2 independent audit reproduces every number in this section
+  exactly (`tools/rodero-fibre-audit/baseline/case01.json`).
 
 Interpretation:
 - Ventricular fibres lie close to the wall surface almost everywhere: the
@@ -350,8 +355,7 @@ text into f64, so only the order of floating-point operations can differ.
 The thinning counts (occupied bins and per-tag glyphs) are the one
 exception. Each may differ by at most the reported near-face count, and only
 for the discrepancies `verify_glyphs.py` attributes individually to near-face
-centroids. Case 01 is expected to have zero near-face centroids, so there its
-thinning counts must match exactly. That count is a bound for
+centroids. That count is a bound for
 floating-point bin assignment, not a general allowance for unexplained glyph
 differences.
 
@@ -398,8 +402,22 @@ only if the bin assignment of a near-face centroid explains it, meaning that
 centroid would fall in the other bin under a 1e-9 mm shift. Each attributed
 discrepancy is listed individually, with its triangles and bins. Any
 discrepancy that is not attributed fails, and so does any duplicate bin or
-header mismatch. In case 01 the near-face count is expected to be 0, and then
-no discrepancy is allowed.
+header mismatch.
+
+**Case 01 has 8 near-face centroids (measured in stage 2), not 0 as
+expected.** Each lies *exactly* on a bin face, because the 6-decimal input
+coordinates of those triangles sum to an exact multiple of 3h. Whether f64
+then lands on or just below the face depends on the centroid formula and the
+summation order. None of the 8 is its bin's winner. Two of them (ranks 11530
+and 94448) would win the neighbouring bin if rounded below the face. The bin
+count would be unchanged, but the winners of those two bins would not.
+
+*Open (to be decided before stage 3):* pin the centroid as
+((a + b) + c) / 3 per component in f64, with a, b, c in the triangulated
+surface's vertex order. For a tetrahedral boundary face that is the source
+cell's template cycle, which the audit uses. Bin assignment would then be
+bitwise reproducible, and an exact match could be required for case 01.
+Without this pin, the attributed-discrepancy rule above applies.
 
 **Per-row checks**, for every exported glyph:
 - the triple is an audit boundary face of that source cell, and its surface
@@ -423,9 +441,11 @@ output of `audit.py` on `01.vtk`. The dataset itself is not committed
 - the exact commands and the Python version used;
 - the measured runtime and peak memory of each script.
 
-Peak memory is measured with `tracemalloc`, which counts Python allocations
-only (the standard library has no portable process RSS on Windows). The
-README states this limitation. Performance work, such as NumPy, is
+Peak memory is the OS process peak, still through the standard library:
+`ctypes` and `K32GetProcessMemoryInfo` on Windows, `resource.getrusage` on
+POSIX. This replaces the earlier `tracemalloc` plan, which counted only
+Python allocations. Case 01 took 45–49 s with an 884 MB peak. Performance
+work, such as NumPy, is
 considered only if these measurements show a real problem. If the audit
 disagrees with the scratch numbers in §5, the audit is the reference and §5
 is corrected.

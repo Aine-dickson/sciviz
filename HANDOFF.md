@@ -1587,7 +1587,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stage 1 in review)
+## B1.2 — Ventricular fibre orientation (design approved; stage 1 merged, stage 2 in review)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
@@ -1637,15 +1637,32 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   replaces the deleted probes. Verified locally on 2026-11-11:
   - `01-svf-order.vtk`: 7 fields reported, with association, type and count.
     329,952 boundary faces, all triangles, 329,952 triangulated triangles,
-    matching the scratch baseline. Parse took 7.4 s and boundary 8.8 s
-    (release).
+    matching the scratch baseline. Read-and-parse took 7.4 s. Boundary
+    extraction plus `triangulate()` took 8.8 s combined (release; the two
+    were not timed separately).
   - Original `01.vtk`: exits 1 with "expected CELLS record" (the known parser
     limitation).
   - Missing file: exits 1. No argument: exits 2.
   - `cargo test -p svf-core`: 269 passed.
-- Next action: the user reviews the stage-1 PR. Then implement stage 2. The
-  stages, one per reviewable PR (PR #49 merged as 198e568):
-  in this order:
+- Stage 2 (branch `b1-2-rodero-audit`): `tools/rodero-fibre-audit/`
+  (`audit.py`, `test_audit.py`, `README.md`, `baseline/case01.json`).
+  Verified locally on 2026-11-11:
+  - 10 synthetic self-tests pass.
+  - Two audit runs on the original `01.vtk` are identical apart from the run
+    record. Each took 45–49 s, with an 884 MB peak working set.
+  - Every scratch number in design §5 is reproduced exactly.
+  - Thinning at 4 mm: 5,183 bins; 2,836 LV and 2,347 RV glyphs.
+  - Corrections made to the design: an LV point is V == −1 exactly (V < 0
+    admits the sentinel); percentiles round halves up; peak memory comes
+    from the OS (ctypes), not `tracemalloc`.
+- Open decision (design §7.2), before stage 3: case 01 has 8 near-face
+  centroids, each exactly on a bin face, because the 6-decimal inputs sum to
+  a multiple of 3h. Two of them could change a neighbouring bin's winner.
+  Proposal: pin the centroid as ((a+b)+c)/3 in the surface vertex order, so
+  that bin assignment is bitwise reproducible.
+- Next action: the user reviews the stage-2 PR and decides the centroid pin.
+  Then implement stage 3. The stages, one per reviewable PR (PR #49 merged
+  as 198e568; stage 1 merged):
   1. vtk_inspect;
   2. audit plus committed baseline;
   3. svf-core operation plus synthetic tests;

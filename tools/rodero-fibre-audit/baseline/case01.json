@@ -1,0 +1,162 @@
+{
+  "schema": "svf-b1.2-fibre-stats/1",
+  "parameters": {
+    "tags": [
+      1,
+      2
+    ],
+    "lv_tag": 1,
+    "bin_mm": 4.0,
+    "grid_origin_mm": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "epsilon": 1e-06,
+    "near_face_mm": 1e-09,
+    "endo_rho_max": 0.2,
+    "epi_rho_min": 0.8
+  },
+  "mesh": {
+    "points": 493151,
+    "cells": 2477866
+  },
+  "boundary_triangles": 329952,
+  "boundary_by_tag": {
+    "1": 86241,
+    "2": 85232,
+    "3": 47912,
+    "4": 59474,
+    "5": 18610,
+    "6": 5597,
+    "7": 3397,
+    "8": 8037,
+    "9": 2425,
+    "10": 2898,
+    "11": 492,
+    "12": 741,
+    "13": 577,
+    "14": 453,
+    "15": 1005,
+    "16": 945,
+    "17": 866,
+    "18": 1072,
+    "19": 783,
+    "20": 602,
+    "21": 590,
+    "22": 698,
+    "23": 685,
+    "24": 620
+  },
+  "selected_by_tag": {
+    "1": 86241,
+    "2": 85232
+  },
+  "eligible_by_tag": {
+    "1": 86241,
+    "2": 85232
+  },
+  "exclusions": {
+    "zero_area": 0,
+    "invalid_fibre": 0,
+    "helix_zero_projection": 0,
+    "helix_degenerate_circumferential": 0
+  },
+  "groups": {
+    "1": {
+      "endo": {
+        "count": 35339,
+        "abs_cos_p50": 0.03497678925013399,
+        "abs_cos_p90": 0.10557991497066152,
+        "abs_cos_p99": 0.28286217317939,
+        "alpha_count": 35339,
+        "alpha_deg_p25": 68.30728812035083,
+        "alpha_deg_p50": 75.75185845806715,
+        "alpha_deg_p75": 82.92043224657384
+      },
+      "epi": {
+        "count": 50902,
+        "abs_cos_p50": 0.0169957618892784,
+        "abs_cos_p90": 0.06231078185159622,
+        "abs_cos_p99": 0.3566700321036724,
+        "alpha_count": 50902,
+        "alpha_deg_p25": 54.08673153809052,
+        "alpha_deg_p50": 62.51768174519754,
+        "alpha_deg_p75": 72.70225461753303
+      },
+      "other": {
+        "count": 0,
+        "abs_cos_p50": null,
+        "abs_cos_p90": null,
+        "abs_cos_p99": null,
+        "alpha_count": 0,
+        "alpha_deg_p25": null,
+        "alpha_deg_p50": null,
+        "alpha_deg_p75": null
+      }
+    },
+    "2": {
+      "endo": {
+        "count": 40904,
+        "abs_cos_p50": 0.021255088506141384,
+        "abs_cos_p90": 0.06949084980889148,
+        "abs_cos_p99": 0.3066268655153014
+      },
+      "epi": {
+        "count": 43596,
+        "abs_cos_p50": 0.022545294993684017,
+        "abs_cos_p90": 0.05782430973181882,
+        "abs_cos_p99": 0.2988867212414074
+      },
+      "other": {
+        "count": 732,
+        "abs_cos_p50": 0.1379271199884837,
+        "abs_cos_p90": 0.5501484466481944,
+        "abs_cos_p99": 0.9091985632271642
+      }
+    }
+  },
+  "fractions": {
+    "eligible": 171473,
+    "abs_cos_lt_0_1_count": 160232,
+    "abs_cos_lt_0_2_count": 167599,
+    "abs_cos_lt_0_1": 0.9344444898030594,
+    "abs_cos_lt_0_2": 0.9774075218839118
+  },
+  "lv_axis": {
+    "vector_mm": [
+      -38.78325849553791,
+      57.028950566243104,
+      55.53346511379647
+    ],
+    "length_mm": 88.54607890677012,
+    "apex_points": 147,
+    "base_points": 1552
+  },
+  "thinning": {
+    "occupied_bins": 5183,
+    "glyphs_by_tag": {
+      "1": 2836,
+      "2": 2347
+    },
+    "near_face_centroids": 8
+  },
+  "audit_checks": {
+    "face_incidence_histogram": {
+      "1": 329952,
+      "2": 4790756
+    },
+    "eligible_triangles_with_sentinel_rho_vertex": 0
+  },
+  "provenance": {
+    "source_sha256": "20bf29b8ec86454de4cfde2a0afc19992715107b6ef8a7dabe61f52e8f78f440",
+    "input_sha256": "20bf29b8ec86454de4cfde2a0afc19992715107b6ef8a7dabe61f52e8f78f440"
+  },
+  "run": {
+    "runtime_s": 44.7,
+    "peak_memory_bytes": 884215808,
+    "peak_memory_method": "Windows PeakWorkingSetSize",
+    "python": "3.14.3",
+    "platform": "Windows-11-10.0.26200-SP0"
+  }
+}
