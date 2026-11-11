@@ -666,6 +666,14 @@ impl ApplicationHandler for Explorer {
                                 eprintln!("Amplitude update failed: {error}");
                             }
                         }
+                        PhysicalKey::Code(KeyCode::KeyL) => {
+                            if let Some(renderer) = self.renderer.as_mut() {
+                                renderer.set_shaded(!renderer.shaded());
+                                if let Some(window) = self.window.as_ref() {
+                                    window.request_redraw();
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 }

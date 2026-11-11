@@ -119,14 +119,28 @@ struct MeshVertex {
 struct CameraUniform {
     // Four columns, matching WGSL mat4x4 column-major storage.
     view_projection: [[f32; 4]; 4],
+    // Camera position (xyz) and the headlight switch (w: 1.0 on, 0.0 off).
+    eye_shading: [f32; 4],
 }
 
 impl CameraUniform {
-    fn from_camera(camera: &Camera3) -> Self {
+    fn from_camera(camera: &Camera3, shaded: bool) -> Self {
         let columns = camera.view_projection_matrix().to_cols_array_2d();
+        let eye = camera.look_at().position().to_array();
         Self {
             view_projection: columns.map(|column| column.map(|value| value as f32)),
+            eye_shading: [
+                eye[0] as f32,
+                eye[1] as f32,
+                eye[2] as f32,
+                if shaded { 1.0 } else { 0.0 },
+            ],
         }
+    }
+
+    fn is_finite(&self) -> bool {
+        self.view_projection.iter().flatten().all(|value| value.is_finite())
+            && self.eye_shading.iter().all(|value| value.is_finite())
     }
 }
 
@@ -139,6 +153,8 @@ pub struct SceneRenderer {
     queue: wgpu::Queue,
     config: SurfaceConfiguration,
     camera: Camera3,
+    /// Camera headlight on the mesh surface; see `docs/surface-headlight.md`.
+    shaded: bool,
     camera_uniform_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
@@ -167,8 +183,8 @@ impl SceneRenderer {
     /// The GPU uniform is validated and written before the stored camera is
     /// replaced, so an unrepresentable matrix cannot leave the two out of sync.
     pub fn set_camera(&mut self, camera: Camera3) -> Result<(), RenderError> {
-        let uniform = CameraUniform::from_camera(&camera);
-        if !uniform.view_projection.iter().flatten().all(|value| value.is_finite()) {
+        let uniform = CameraUniform::from_camera(&camera, self.shaded);
+        if !uniform.is_finite() {
             return Err(RenderError::InvalidCameraUniform);
         }
         self.queue.write_buffer(
@@ -180,10 +196,24 @@ impl SceneRenderer {
         Ok(())
     }
 
+    /// Whether the camera headlight shades the mesh surface.
+    #[must_use]
+    pub const fn shaded(&self) -> bool {
+        self.shaded
+    }
+
+    /// Switches the camera headlight on or off. Lines are never shaded.
+    pub fn set_shaded(&mut self, shaded: bool) {
+        self.shaded = shaded;
+        let uniform = CameraUniform::from_camera(&self.camera, self.shaded);
+        self.queue
+            .write_buffer(&self.camera_uniform_buffer, 0, bytemuck::bytes_of(&uniform));
+    }
+
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
     }
 
     /// Initialize the renderer with a mesh and prepared vector glyphs from svf-core.
@@ -194,7 +224,7 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
         let vector_vertices = convert_vector_glyphs(glyphs)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, true).await
     }
 
     /// Initialize the renderer with a scalar-mapped surface and prepared vector glyphs.
@@ -205,7 +235,8 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
         let vector_vertices = convert_vector_glyphs(glyphs)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+        // Colour encodes a value here, so the headlight starts off.
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, false).await
     }
 
     /// Initialize the renderer with a surface (optionally scalar-mapped) and
@@ -222,7 +253,15 @@ impl SceneRenderer {
             None => convert_mesh(mesh)?,
         };
         let vector_vertices = convert_axial_glyphs(glyphs)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+        // Shade a plain surface; keep a scalar-mapped one unshaded so colour stays true.
+        Self::new_with_mesh_data(
+            window,
+            mesh_vertices,
+            mesh_indices,
+            vector_vertices,
+            mapped.is_none(),
+        )
+        .await
     }
 
     /// Initialize the renderer with a scalar-mapped surface produced by svf-core.
@@ -231,7 +270,7 @@ impl SceneRenderer {
         surface: &svf_core::scalar_visualization::MappedSurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false).await
     }
 
     /// Initialize the renderer with a provenance-preserving mapped isosurface.
@@ -240,7 +279,7 @@ impl SceneRenderer {
         surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new()).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false).await
     }
 
     /// Initialize a mapped isosurface with a depth-tested overlay of unique mesh edges.
@@ -250,7 +289,7 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
         let edge_vertices = convert_isosurface_edges(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, edge_vertices).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, edge_vertices, false).await
     }
 
     async fn new_with_mesh_data(
@@ -258,6 +297,7 @@ impl SceneRenderer {
         mesh_vertices: Vec<MeshVertex>,
         mesh_indices: Vec<u32>,
         vector_vertices: Vec<LineVertex>,
+        shaded: bool,
     ) -> Result<Self, RenderError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
@@ -292,14 +332,14 @@ impl SceneRenderer {
 
         let aspect_ratio = config.width as f64 / config.height as f64;
         let camera = reference_camera(aspect_ratio)?;
-        let camera_uniform = CameraUniform::from_camera(&camera);
+        let camera_uniform = CameraUniform::from_camera(&camera, shaded);
 
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("svf-camera-bind-group-layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -461,6 +501,7 @@ impl SceneRenderer {
             queue,
             config,
             camera,
+            shaded,
             camera_uniform_buffer,
             camera_bind_group,
             pipeline,
@@ -516,7 +557,7 @@ impl SceneRenderer {
             .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
         self.camera = Camera3::new(*self.camera.look_at(), projection);
 
-        let camera_uniform = CameraUniform::from_camera(&self.camera);
+        let camera_uniform = CameraUniform::from_camera(&self.camera, self.shaded);
         self.queue.write_buffer(
             &self.camera_uniform_buffer,
             0,
@@ -647,7 +688,7 @@ impl SceneRenderer {
             .with_aspect_ratio(width as f64 / height as f64)
             .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
         let capture_camera = Camera3::new(*self.camera.look_at(), projection);
-        let uniform = CameraUniform::from_camera(&capture_camera);
+        let uniform = CameraUniform::from_camera(&capture_camera, self.shaded);
         self.queue.write_buffer(&self.camera_uniform_buffer, 0, bytemuck::bytes_of(&uniform));
 
         let color_texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -726,7 +767,7 @@ impl SceneRenderer {
         readback.unmap();
 
         // Restore the window's camera uniform.
-        let window_uniform = CameraUniform::from_camera(&self.camera);
+        let window_uniform = CameraUniform::from_camera(&self.camera, self.shaded);
         self.queue.write_buffer(&self.camera_uniform_buffer, 0, bytemuck::bytes_of(&window_uniform));
 
         Ok(CapturedImage { width, height, rgba })
@@ -1261,14 +1302,23 @@ mod tests {
     #[test]
     fn camera_uniform_conversion_produces_finite_f32_values() {
         let camera = reference_camera(16.0 / 9.0).expect("valid reference camera");
-        let uniform = CameraUniform::from_camera(&camera);
+        let uniform = CameraUniform::from_camera(&camera, true);
 
-        assert!(
-            uniform
-                .view_projection
-                .iter()
-                .flatten()
-                .all(|value| value.is_finite())
-        );
+        assert!(uniform.is_finite());
+    }
+
+    #[test]
+    fn camera_uniform_carries_eye_and_headlight_switch() {
+        let camera = reference_camera(16.0 / 9.0).expect("valid reference camera");
+        let eye = camera.look_at().position().to_array();
+
+        let on = CameraUniform::from_camera(&camera, true);
+        let off = CameraUniform::from_camera(&camera, false);
+
+        assert_eq!(on.eye_shading[..3], [eye[0] as f32, eye[1] as f32, eye[2] as f32]);
+        assert_eq!(on.eye_shading[3], 1.0);
+        assert_eq!(off.eye_shading[3], 0.0);
+        assert_eq!(on.view_projection, off.view_projection);
+        assert_eq!(size_of::<CameraUniform>(), 80);
     }
 }

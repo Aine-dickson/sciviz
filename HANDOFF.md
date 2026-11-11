@@ -2079,3 +2079,19 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   switch, off by default for colour-mapped scalar surfaces; lines unlit.
   Verify on the Rodero heart without RHO (shape readable) and with RHO
   (shading off, colours unchanged).
+
+
+## B2 step 1 — camera headlight (implemented on `b2-1-headlight`, PR open)
+
+- Design: `docs/surface-headlight.md`. mesh.wgsl shades by `0.25 + 0.75*|n.v|`
+  with `n` from dpdx/dpdy of world position (flat, two-sided); camera uniform
+  is now 80 bytes (`eye_shading`: eye xyz + switch). Lines unshaded.
+- Defaults: on for plain meshes, off for every scalar-mapped constructor.
+  `SceneRenderer::set_shaded/shaded`; Explorer key `L` toggles.
+- Verified: workspace tests all pass (svf-render 11); Rodero heart, yaw 270,
+  zoom 1.5: plain is clearly readable as a 3D shape, RHO is unshaded with the
+  same colours as the B1.2 evidence. Images in `docs/evidence/b2-1-headlight/`.
+- Not verified: the `L` toggle by live keypress (code path is two lines);
+  axial glyph overlays with shading on.
+- Next action: merge this PR (needs the user's OK), then B2 step 2 (structure
+  model + dicot stem recipe) starting with a design note.
