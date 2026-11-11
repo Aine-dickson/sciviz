@@ -87,3 +87,41 @@ view was not established; the labels are camera parameters only.
   part of A4 cannot be judged from these images.
 - Not tested here: rotation and zoom in the interactive window (a manual check).
   The images come from a scripted camera and do not exercise those controls.
+
+## Scripted sweep (in place of the interactive check)
+
+The hands-on rotate/zoom check could not be done. Instead `sweep.sh` renders 18
+more views into `sweep/` (RHO-coloured unless named `-plain`). `--camera-yaw`,
+`--camera-pitch` and `--camera-zoom` call the same `camera_navigation::orbit` and
+`zoom` functions, with the same distance and pole limits, as mouse navigation.
+What this does **not** test is live input: drag and wheel event handling, frame
+to frame continuity, flicker over time. Every run printed the 5,183-glyph baseline.
+
+| Files | Yaw | Pitch | Zoom | Purpose |
+|---|---|---|---|---|
+| `s-yaw{000..315}.png` (8) | 0 to 315, step 45 | 0 | 1.5 | Full turn around the heart |
+| `p-yaw270-pitch{+55,-60,-110}.png` | 270 | +55, -60, -110 | 1.5 | From above and below |
+| `o-yaw{225,315,135}-pitch*-z3p5.png`, one `-plain` | 225, 315, 135 | +30, -30, +20 | 3.5 | Oblique close-ups |
+| `z-yaw270-z{0p5,8,20}.png` | 270 | 0 | 0.5, 8, 20 | Zoom extremes |
+
+Observations (the author's; not a verdict):
+
+- Full turn, above and below: at every pose the heart is framed, glyphs lie on
+  the yellow ventricular surface and none on the magenta atria/vessels. Framing
+  changes smoothly between 45-degree steps; no pose lost the model.
+- **Oblique close-ups show partial occlusion.** Many segments are drawn broken
+  or dotted: parts of a segment fall behind the surface. This is the case the
+  stage 5 review flagged (the exact source direction is not projected to the
+  surface and there is no normal offset, so a segment leaving the surface plane
+  is partly hidden, and near-coplanar parts can z-fight). Direction stays
+  readable, but the segments are visibly fragmented. Seen in all three oblique
+  RHO views and the plain one; clearest in `o-yaw315-pitch-30-z3p5.png`.
+  Whether this can stay as a documented limitation or needs a depth bias is a
+  review decision; nothing was changed.
+- Zoom out (0.5): the whole heart stays in view, small, nothing clipped.
+- Zoom in (8, 20): the camera ends up past the outer wall. The images show a
+  dark (low-RHO) inner surface with glyphs and the magenta region at the edge;
+  whether the camera is inside the wall/cavity or the near plane cuts the wall
+  cannot be told from the images. Zooming toward the bounding-box centre allows
+  this by design (zoom range 0.01 to 100). Glyphs on this inner surface are
+  visible, but these views are not a controlled endocardium check.

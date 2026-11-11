@@ -1996,8 +1996,22 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     colour; no depth artefact seen at these views. NOT assessable here:
     "steeper on the endocardium", the Viridis mid-teal contrast (the exterior
     is RHO about 1), and an oblique close-up for partly hidden glyphs.
-  - A4 stays open until the reviewer inspects the images and the user checks
-    interactive rotation and zoom by hand.
+  - Reviewer (2026-11-11) inspected the eight PNGs: lines-only, ventricular
+    placement and no depth artefacts pass at those views; coherent direction
+    supported; plain contrast weak (document, don't change the renderer this
+    stage); endocardium, mid-teal, tail/RV-other locations and oblique
+    occlusion not established. No blocking issue in README/capture.sh.
+  - The user cannot do the hands-on rotate/zoom check. Agreed substitute:
+    scripted sweep `sweep.sh` -> `sweep/` (18 RHO PNGs + 1 plain: full yaw
+    turn, pitch +55/-60/-110, oblique zoom-3.5 close-ups, zoom 0.5/8/20). Same
+    orbit/zoom functions as mouse navigation; live input NOT tested.
+  - Sweep findings: framing and placement hold at every pose. **Oblique
+    close-ups show fragmented (broken/dotted) segments, i.e. partial occlusion
+    and likely z-fighting of the unprojected segments against the surface.**
+    Zoom 8/20 puts the camera past the outer wall (allowed by design).
+  - A4 open pending the reviewer's call: is the oblique fragmentation a
+    documented limitation, or does it need a depth bias / normal offset
+    (which reopens the "no anchor offsets" decision - needs Opus)?
 - Superseded next action (kept for the record): reviewer reads the 5b PR. After approval, find the angles for
   the curated views on case 01 (shared with the user), capture up to 8 PNGs
   into `docs/evidence/b1-2-stage5/` with a README of exact commands and
