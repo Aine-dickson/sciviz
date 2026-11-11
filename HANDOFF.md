@@ -1975,7 +1975,48 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - NOT verified: capture on a non-BGRA/RGBA surface format (rejected with an
     error); the capture has not been compared pixel for pixel with the
     window; no Rodero capture yet.
-- Next action: reviewer reads the 5b PR. After approval, find the angles for
+- Stage 5b review (2026-11-11): PR #55 head `e8b0ff8` reviewed with no
+  blocking issue. One non-blocking note: if GPU readback fails,
+  `capture_rgba8` can leave the capture-aspect camera uniform in place. The
+  one-shot CLI exits on failure, so it is harmless now; not changed.
+- Stage 5 evidence (branch `b1-2-evidence`, stacked on #55): eight PNGs in
+  `docs/evidence/b1-2-stage5/` (four views, each plain and RHO-coloured, all
+  1600x1200), `capture.sh` to regenerate them, and a README with the exact
+  commands, camera parameters, data hashes and the author's observations. The
+  four views are yaw 270, 180, 90 at zoom 1.5 and yaw 270 at zoom 3.5, pitch 0.
+  Case 01 summary on every run: 5,183 glyphs (2,836 + 2,347).
+  - Deviations: views are named by camera only (anterior/posterior were not
+    established); the atrial side replaces the "basal view into the
+    ventricles" (a basal view looks at the atria); tail and RV-other
+    triangles are not marked in the images (no highlight option, by decision)
+    and are located only through the `--samples` export.
+  - Observations, not a verdict: lines only, no arrowheads; no glyphs on the
+    atria or vessels in any view; a coherent direction pattern; visible on
+    the plain surface but low contrast at whole-heart scale, clear on RHO
+    colour; no depth artefact seen at these views. NOT assessable here:
+    "steeper on the endocardium", the Viridis mid-teal contrast (the exterior
+    is RHO about 1), and an oblique close-up for partly hidden glyphs.
+  - Reviewer (2026-11-11) inspected the eight PNGs: lines-only, ventricular
+    placement and no depth artefacts pass at those views; coherent direction
+    supported; plain contrast weak (document, don't change the renderer this
+    stage); endocardium, mid-teal, tail/RV-other locations and oblique
+    occlusion not established. No blocking issue in README/capture.sh.
+  - The user cannot do the hands-on rotate/zoom check. Agreed substitute:
+    scripted sweep `sweep.sh` -> `sweep/` (17 RHO PNGs + 1 plain: full yaw
+    turn, pitch +55/-60/-110, oblique zoom-3.5 close-ups, zoom 0.5/8/20). Same
+    orbit/zoom functions as mouse navigation; live input NOT tested.
+  - Sweep findings: framing and placement hold at every pose. **Oblique
+    close-ups show fragmented (broken/dotted) segments, i.e. partial occlusion
+    and likely z-fighting of the unprojected segments against the surface.**
+    Zoom 8/20 puts the camera past the outer wall (allowed by design).
+  - Live input then checked by Claude (`live.ps1` -> `live/`, 22 frames):
+    posted drag/wheel messages to the real window. Orbit continuous, zoom
+    gradual and reversible, no jumps, glyphs stay on the ventricles. Zoom
+    heads for the bbox centre (atrial region). Temporal flicker not covered.
+  - A4 open pending the reviewer's call: is the oblique fragmentation a
+    documented limitation, or does it need a depth bias / normal offset
+    (which reopens the "no anchor offsets" decision - needs Opus)?
+- Superseded next action (kept for the record): reviewer reads the 5b PR. After approval, find the angles for
   the curated views on case 01 (shared with the user), capture up to 8 PNGs
   into `docs/evidence/b1-2-stage5/` with a README of exact commands and
   dimensions, then the A4 assessment from the images, and the user checks
@@ -1993,3 +2034,25 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   5. renderer/Explorer plus visual validation.
 
   Establish fidelity (stages 2 and 4) before judging visuals.
+
+
+## Direction reset (2026-11-11) and B2 proposal (PR #57)
+
+- Purpose, from the user: SVF gives students 3D learning structures, mostly
+  biology, and must generalise across organisms ("heart today, cockroach
+  tomorrow", plant stem/leaf, cockroach dissection, plus the chemistry case).
+  It fills the structural gap that the user's simulation engine does not
+  cover; keep other products out of SVF work.
+- Authoring without datasets is the justification for SVF; glTF/VTK are
+  inputs to adapt, not the product.
+- B1.2 fibre work stops at stage 5: close A4 with documented limitations and
+  merge #54 -> #55 -> #56. No stage 6 fibre work.
+- B2 proposal `docs/explorable-structures.md` (PR #57, branch
+  `b2-explorable-structures-design`): structure model (parts, relations,
+  layers, views; recipe / adapted / imported geometry), authoring blocks,
+  capped sections, layer peeling, a camera headlight (one camera-fixed light
+  in mesh.wgsl, switchable, off for colour-mapped data). Order: headlight ->
+  dicot stem recipe -> sections/peeling -> cockroach -> heart from Rodero.
+  The user agreed to this order.
+- Next action: reviewer reads PR #56 (A4 close) and PR #57 (B2 proposal).
+  After #57 is approved, write the step 1 (headlight) design note.
