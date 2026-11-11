@@ -1731,7 +1731,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - Declared type names are now ASCII case-insensitive, as in SVF.
   - Float text must match Rust's `from_str` grammar, checked by a regex
     before `float()`.
-  The shared table now has 78 cases, including the NaN and infinity
+  The shared table now has 71 cases, including the NaN and infinity
   spellings, and both sides agree on all of them. Case 01 still MATCHes.
   Known and not changed: the audit matches record keywords (`POINTS`,
   `LOOKUP_TABLE default`, ...) case-sensitively, while SVF ignores case. The
