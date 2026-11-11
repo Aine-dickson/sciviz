@@ -509,7 +509,11 @@ impl ApplicationHandler for Explorer {
                 ExplorerMode::Imported => {
                     let scene = self.imported_scene.as_ref()
                         .ok_or("imported VTK scene was not prepared before window creation")?;
-                    let mut renderer = if let Some(glyphs) = scene.vector_glyphs.as_ref() {
+                    let mut renderer = if let Some(axial) = scene.axial_glyphs.as_ref() {
+                        pollster::block_on(SceneRenderer::new_with_axial_glyphs(
+                            window.clone(), &scene.mesh, scene.mapped_surface.as_ref(), axial,
+                        ))?
+                    } else if let Some(glyphs) = scene.vector_glyphs.as_ref() {
                         if let Some(mapped) = scene.mapped_surface.as_ref() {
                             pollster::block_on(SceneRenderer::new_with_mapped_surface_and_vectors(window.clone(), mapped, glyphs))?
                         } else {

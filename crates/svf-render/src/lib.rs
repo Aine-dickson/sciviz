@@ -9,6 +9,7 @@ use std::{error::Error, fmt, mem::size_of, num::NonZeroU64, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
 use svf_core::{
+    boundary_axial_glyphs::BoundaryAxialGlyphSet3,
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
     geometry::TriangleMesh3,
     spatial::{WorldPoint3, WorldVector3},
@@ -23,6 +24,8 @@ const X_AXIS_COLOR: [f32; 3] = [0.95, 0.25, 0.22];
 const Y_AXIS_COLOR: [f32; 3] = [0.28, 0.88, 0.38];
 const Z_AXIS_COLOR: [f32; 3] = [0.25, 0.52, 0.98];
 const VECTOR_GLYPH_COLOR: [f32; 3] = [0.98, 0.72, 0.20];
+/// Fixed bright cyan for boundary axial glyphs; independent of any scalar mapping.
+const AXIAL_GLYPH_COLOR: [f32; 3] = [0.0, 0.95, 1.0];
 
 /// Errors raised while initializing or using the rendering infrastructure.
 #[derive(Debug)]
@@ -187,6 +190,23 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
         let vector_vertices = convert_vector_glyphs(glyphs)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
+    }
+
+    /// Initialize the renderer with a surface (optionally scalar-mapped) and
+    /// the thinned boundary axial glyphs from svf-core. The full surface is
+    /// always drawn; glyph endpoints are the exact core endpoints cast to f32.
+    pub async fn new_with_axial_glyphs(
+        window: Arc<Window>,
+        mesh: &TriangleMesh3,
+        mapped: Option<&svf_core::scalar_visualization::MappedSurface3>,
+        glyphs: &BoundaryAxialGlyphSet3,
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = match mapped {
+            Some(surface) => convert_mapped_surface(surface)?,
+            None => convert_mesh(mesh)?,
+        };
+        let vector_vertices = convert_axial_glyphs(glyphs)?;
         Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices).await
     }
 
@@ -759,6 +779,30 @@ fn convert_vector_glyphs(
     Ok(vertices)
 }
 
+/// One line segment per glyph: the core `start()` and `end()` cast to f32,
+/// with nothing normalised, offset or shortened.
+fn convert_axial_glyphs(glyphs: &BoundaryAxialGlyphSet3) -> Result<Vec<LineVertex>, RenderError> {
+    let capacity = glyphs
+        .glyphs()
+        .len()
+        .checked_mul(2)
+        .ok_or(RenderError::VectorGlyphConversion)?;
+    let mut vertices = Vec::new();
+    vertices
+        .try_reserve_exact(capacity)
+        .map_err(|_| RenderError::VectorGlyphConversion)?;
+    for glyph in glyphs.glyphs() {
+        for point in [glyph.start(), glyph.end()] {
+            let position = point.to_array().map(|value| value as f32);
+            if !position.iter().all(|value| value.is_finite()) {
+                return Err(RenderError::VectorGlyphConversion);
+            }
+            vertices.push(LineVertex { position, color: AXIAL_GLYPH_COLOR });
+        }
+    }
+    Ok(vertices)
+}
+
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
     let pose = LookAtCamera::new(
         WorldPoint3::new(14.0, 12.0, 18.0),
@@ -899,6 +943,85 @@ mod tests {
         assert_eq!(vertices[0].position, [1.0, 2.0, 3.0]);
         assert_eq!(vertices[1].position, [3.0, 2.0, 3.0]);
         assert!(vertices.iter().all(|vertex| vertex.color == VECTOR_GLYPH_COLOR));
+    }
+
+    fn axial_glyph_set(tags: &[f64], request: &[i64], length: f64) -> BoundaryAxialGlyphSet3 {
+        use svf_core::{
+            boundary_axial_glyphs::{build_boundary_axial_glyphs, BoundaryAxialGlyphOptions3},
+            fields::ScalarField,
+            sampling::SampleValue,
+            unstructured::CellType3,
+        };
+        // Two tetrahedra sharing face (1, 2, 3).
+        let points = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]];
+        let cells = [[0u32, 1, 2, 3], [1, 2, 3, 4]];
+        let grid = svf_core::unstructured::UnstructuredGrid3::new(
+            points.iter().map(|p| WorldPoint3::new(p[0], p[1], p[2])).collect(),
+            vec![CellType3::Tetrahedron4; 2],
+            vec![0, 4, 8],
+            cells.iter().flatten().copied().collect(),
+        )
+        .unwrap();
+        let mut dataset = Dataset::new(grid);
+        dataset
+            .add_scalar_field(
+                ScalarField::new(
+                    FieldMetadata::new("ID", None).unwrap(),
+                    FieldAssociation::Cell,
+                    tags.iter().map(|&t| SampleValue::from_f64(t)).collect(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        dataset
+            .add_vector_field3(
+                VectorField3::new(
+                    FieldMetadata::new("fibres", None).unwrap(),
+                    FieldAssociation::Cell,
+                    VectorBasis3::World,
+                    vec![VectorValue3::from_f64(1.0, 0.0, 0.0), VectorValue3::from_f64(0.0, 1.0, 0.0)],
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let svf_core::dataset::DatasetGeometry::UnstructuredGrid3(grid) = dataset.geometry() else { unreachable!() };
+        let surface = grid.boundary_surface().unwrap().triangulate();
+        build_boundary_axial_glyphs(
+            &dataset,
+            &surface,
+            "fibres",
+            "ID",
+            request,
+            BoundaryAxialGlyphOptions3 { bin_edge: 0.25, length },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn axial_conversion_emits_one_segment_per_glyph_with_exact_f32_endpoints() {
+        let set = axial_glyph_set(&[1.0, 5.0], &[1], 0.5);
+        assert!(!set.glyphs().is_empty());
+        let vertices = convert_axial_glyphs(&set).unwrap();
+        assert_eq!(vertices.len(), 2 * set.glyphs().len());
+        for (glyph, pair) in set.glyphs().iter().zip(vertices.chunks_exact(2)) {
+            assert_eq!(pair[0].position, glyph.start().to_array().map(|v| v as f32));
+            assert_eq!(pair[1].position, glyph.end().to_array().map(|v| v as f32));
+        }
+        assert!(vertices.iter().all(|v| v.color == AXIAL_GLYPH_COLOR));
+    }
+
+    #[test]
+    fn axial_conversion_only_draws_requested_tags() {
+        let both = convert_axial_glyphs(&axial_glyph_set(&[1.0, 5.0], &[1, 5], 0.5)).unwrap();
+        let one = convert_axial_glyphs(&axial_glyph_set(&[1.0, 5.0], &[1], 0.5)).unwrap();
+        assert!(!one.is_empty());
+        assert!(one.len() < both.len());
+    }
+
+    #[test]
+    fn axial_conversion_rejects_positions_outside_f32_range() {
+        let set = axial_glyph_set(&[1.0, 1.0], &[1], 1.0e39);
+        assert!(matches!(convert_axial_glyphs(&set), Err(RenderError::VectorGlyphConversion)));
     }
 
     #[test]
