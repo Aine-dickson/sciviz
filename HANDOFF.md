@@ -1587,13 +1587,12 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stage 1 merged, stage 2 in review)
+## B1.2 — Ventricular fibre orientation (design approved; stages 1–2 merged, stage 3 next)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
   revisions from rounds 2–4 are in the document (§11–§13). Round 4 approved
-  the design. **Do not implement until
-  the user authorises it after reviewing the diff.**
+  the design. Implementation is authorised, one stage per PR.
 - Data hazard found in Rodero case 01: only tags 1 (LV) and 2 (RV) have real
   rule-based fibres and sheets. Tags 3–24 (628,774 cells) carry placeholders
   fibre=(1,0,0) and sheet=(0,1,0), which are unit length and orthogonal like
@@ -1628,11 +1627,10 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     through a required `--source`) must match. `input_sha256` (the file
     actually parsed) is kept but not compared. The baseline pins the hash.
     The README value is documentation only; no script reads it.
-  - Record the audit's runtime and peak memory (`tracemalloc`). No NumPy
-    unless those measurements show a need.
-- Scratch baseline (not yet reproduced by the audit): 171,473 ventricular
-  boundary triangles; 93.44% have θ > 84.26°; LV |α| median 75.8° (endo) and
-  62.5° (epi). The audit becomes the reference once it exists.
+  - Record the audit's runtime and peak memory (OS working set). No NumPy.
+- Reference numbers now come from the committed `baseline/case01.json`
+  (171,473 ventricular boundary triangles; 93.44% have θ > 84.26°; LV |α|
+  median 75.8° endo, 62.5° epi).
 - Stage 1 (branch `b1-2-vtk-inspect`): `crates/svf-core/examples/vtk_inspect.rs`
   replaces the deleted probes. Verified locally on 2026-11-11:
   - `01-svf-order.vtk`: 7 fields reported, with association, type and count.
@@ -1644,7 +1642,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     limitation).
   - Missing file: exits 1. No argument: exits 2.
   - `cargo test -p svf-core`: 269 passed.
-- Stage 2 (branch `b1-2-rodero-audit`): `tools/rodero-fibre-audit/`
+- Stage 2 (PR #51, squash-merged to main as `5a0ef74` on 2026-11-11): `tools/rodero-fibre-audit/`
   (`audit.py`, `test_audit.py`, `README.md`, `baseline/case01.json`).
   Verified locally on 2026-11-11:
   - 11 synthetic self-tests pass. The centroid test was mutation-checked:
@@ -1661,9 +1659,27 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   Case 01 has 8 near-face centroids, which are reported only. Thinning must
   match the audit exactly. Stage 3 must add an svf-core synthetic test of the
   same kind (the bin flips if the order or formula changes).
-- Next action: merge PR #51 (stage 2 accepted in review), then implement
-  stage 3. Keep the audit unchanged. The stages, one per reviewable PR (PR #49 merged
-  as 198e568; stage 1 merged):
+- Next action: implement stage 3 on branch `b1-2-core-glyphs` (created from
+  main at `5a0ef74`). The PR must contain only:
+  - the svf-core operation that selects eligible boundary triangles by cell
+    tag (never by value);
+  - the pinned f64 centroid, ((a + b) + c) / 3.0, in stored vertex order;
+  - geometric normals, axial tangency |f·n|, and centred segments
+    p_c ± (ℓ/2) f̂ along the exact source fibre;
+  - deterministic world-origin floor binning with lowest-surface-index
+    winners;
+  - provenance and the four applicable §4.6 exclusion counters;
+  - synthetic tests only, including the centroid-order regression (a face
+    whose bin flips under reversed summation or a/3 + b/3 + c/3).
+  Not in this PR: Rodero-specific expected counts in core tests, renderer or
+  Explorer integration, or any change to `tools/rodero-fibre-audit/`
+  (`audit.py` and `baseline/case01.json` stay unchanged).
+- Environment note (2026-11-11): the C: drive filled up and all cargo
+  `target/` dirs were deleted, including this repo's, so the first build is
+  a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed
+  at stage 1.
+- The stages, one per reviewable PR (PR #49 merged as 198e568; stages 1–2
+  merged):
   1. vtk_inspect;
   2. audit plus committed baseline;
   3. svf-core operation plus synthetic tests;
