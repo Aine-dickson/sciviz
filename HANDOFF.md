@@ -2002,7 +2002,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
     stage); endocardium, mid-teal, tail/RV-other locations and oblique
     occlusion not established. No blocking issue in README/capture.sh.
   - The user cannot do the hands-on rotate/zoom check. Agreed substitute:
-    scripted sweep `sweep.sh` -> `sweep/` (18 RHO PNGs + 1 plain: full yaw
+    scripted sweep `sweep.sh` -> `sweep/` (17 RHO PNGs + 1 plain: full yaw
     turn, pitch +55/-60/-110, oblique zoom-3.5 close-ups, zoom 0.5/8/20). Same
     orbit/zoom functions as mouse navigation; live input NOT tested.
   - Sweep findings: framing and placement hold at every pose. **Oblique
