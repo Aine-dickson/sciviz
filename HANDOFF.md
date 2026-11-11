@@ -1587,7 +1587,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   behavior as for NaN). The blended colors there carry no data value.
 
 
-## B1.2 — Ventricular fibre orientation (design approved; stages 1–2 merged, stage 3 next)
+## B1.2 — Ventricular fibre orientation (design approved; stages 1–2 merged, stage 3 implemented)
 
 - Design contract: `docs/heart-fibre-orientation.md`, PR #49 (branch
   `b1-2-ventricular-fibre-design`). Round 2 approved the direction. The
@@ -1659,21 +1659,33 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   Case 01 has 8 near-face centroids, which are reported only. Thinning must
   match the audit exactly. Stage 3 must add an svf-core synthetic test of the
   same kind (the bin flips if the order or formula changes).
-- Next action: implement stage 3 on branch `b1-2-core-glyphs` (created from
-  main at `5a0ef74`). The PR must contain only:
-  - the svf-core operation that selects eligible boundary triangles by cell
-    tag (never by value);
-  - the pinned f64 centroid, ((a + b) + c) / 3.0, in stored vertex order;
-  - geometric normals, axial tangency |f·n|, and centred segments
-    p_c ± (ℓ/2) f̂ along the exact source fibre;
-  - deterministic world-origin floor binning with lowest-surface-index
-    winners;
-  - provenance and the four applicable §4.6 exclusion counters;
-  - synthetic tests only, including the centroid-order regression (a face
-    whose bin flips under reversed summation or a/3 + b/3 + c/3).
-  Not in this PR: Rodero-specific expected counts in core tests, renderer or
-  Explorer integration, or any change to `tools/rodero-fibre-audit/`
-  (`audit.py` and `baseline/case01.json` stay unchanged).
+- Stage 3 (branch `b1-2-core-glyphs`, not yet committed or pushed on
+  2026-11-11): `crates/svf-core/src/boundary_axial_glyphs.rs`,
+  `build_boundary_axial_glyphs(dataset, surface, direction_field, tag_field,
+  tags: &[i64], BoundaryAxialGlyphOptions3 { bin_edge, length })`. The
+  result holds every eligible sample (triangle, cell, tag, unmodified
+  direction, centroid, unit normal, |cos|, bin), one glyph per occupied bin
+  in surface order, `boundary_by_tag`, `selected_by_tag`, `eligible_by_tag`,
+  `glyphs_by_tag`, `zero_area_count` and `invalid_direction_count`.
+  Implementation choices for review:
+  - The arithmetic mirrors `audit.py`: an explicit cross product, and
+    normalisation by multiplying with the reciprocal. Zero area is tested
+    before the direction, and counters cover selected triangles only.
+  - Every boundary triangle's tag must be a finite integer, otherwise it is
+    an error (like the audit's `tag_key`). Tags beyond 2^53 are rejected.
+  - The near-face count and the |α| and ρ statistics stay out of core. The
+    stage-4 diagnostic derives them from the exposed samples.
+  - There is no endpoint-overflow error: with a finite centroid sum,
+    |p_c| ≤ MAX/3 and (ℓ/2)|f̂ᵢ| ≤ MAX/2, so endpoints are always finite
+    (checked with `debug_assert`, and tested at MAX/4 with ℓ = MAX).
+  Verified locally on 2026-11-11: `cargo test -p svf-core` 281 passed
+  (269 + 12 new). The only warning is the known `VectorSource3::new`. A
+  mutation check fails the centroid test under reversed summation and under
+  a/3 + b/3 + c/3, and fails the tie-break test when the last triangle wins.
+  The workspace (svf-render, Explorer) was not rebuilt; nothing there changed.
+- Next action: open the stage-3 PR from `b1-2-core-glyphs` for review. Not
+  in it: Rodero counts in core tests, renderer or Explorer integration, and
+  any change to `tools/rodero-fibre-audit/`. Then stage 4.
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
   a full rebuild. Baseline before stage 3: `cargo test -p svf-core` 269 passed

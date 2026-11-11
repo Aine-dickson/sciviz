@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![doc = "Graphics-independent foundations for the Scientific Visualization Framework."]
 
+pub mod boundary_axial_glyphs;
 pub mod boundary_surface;
 pub mod camera;
 pub mod camera_navigation;
