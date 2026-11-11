@@ -1692,8 +1692,8 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   a/3 + b/3 + c/3, and fails the tie-break test when the last triangle wins.
   Removing the scale-safe fallback fails both large/small regression tests.
   The workspace (svf-render, Explorer) was not rebuilt; nothing there changed.
-- Stage 4 (branch `b1-2-diagnostic`, from main at `c832620`; PR not yet
-  opened on 2026-11-11). It is two commits, reviewed separately:
+- Stage 4 (PR #53, branch `b1-2-diagnostic`, from main at `c832620`;
+  opened 2026-11-11). It is two commits, reviewed separately:
   1. `feb0592`: the audit converts VTK input by declared type. The decision
      is design §15 (option A, approved by the reviewer). SVF reads `float`
      as binary32, while the stage-2 audit read the text as f64. All counts
@@ -1721,7 +1721,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   - The Rust SHA-256 matches `hashlib` on both files. SVF's parser rounds the
     double-rounding test strings exactly as the audit's `binary32()` does.
   - The audit now takes 64 s, up from 45–49 s.
-- Next action: open the stage-4 PR for review, then stage 5
+- Next action: address the review of PR #53 and merge it, then stage 5
   (renderer/Explorer and visual validation, design A4).
 - Environment note (2026-11-11): the C: drive filled up and all cargo
   `target/` dirs were deleted, including this repo's, so the first build is
