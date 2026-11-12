@@ -3,7 +3,7 @@
 //! (`docs/heart-structure.md`, sections 3, 6 to 8, 11 and 19).
 //!
 //! Usage:
-//! `cargo run -p svf-core --release --example heart_adapt -- <01-svf-order.vtk> --out-dir <dir> [--deviation 0.4] [--inspect]`
+//! `cargo run -p svf-core --release --example heart_adapt -- <01-svf-order.vtk> --out-dir <dir> [--deviation 0.4] [--thin-deviation <mm>] [--inspect]`
 //!
 //! `--inspect` prints the heart frame and the position of every tag group, then exits.
 
@@ -124,15 +124,19 @@ fn heart_frame(grid: &UnstructuredGrid3, tags: &[u32]) -> Frame {
 fn main() {
     let mut args = env::args().skip(1);
     let Some(path) = args.next() else {
-        eprintln!("Usage: heart_adapt <01-svf-order.vtk> --out-dir <dir> [--deviation 0.4] [--inspect]");
+        eprintln!("Usage: heart_adapt <01-svf-order.vtk> --out-dir <dir> [--deviation 0.4] [--thin-deviation <mm>] [--inspect]");
         process::exit(2);
     };
     let (mut out_dir, mut deviation, mut inspect) = (None::<PathBuf>, 0.4f64, false);
+    let mut thin = None::<f64>;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--out-dir" => out_dir = Some(PathBuf::from(args.next().unwrap_or_else(|| fail("--out-dir needs a path")))),
             "--deviation" => {
                 deviation = args.next().and_then(|v| v.parse().ok()).unwrap_or_else(|| fail("--deviation needs a number"));
+            }
+            "--thin-deviation" => {
+                thin = Some(args.next().and_then(|v| v.parse().ok()).unwrap_or_else(|| fail("--thin-deviation needs a number")));
             }
             "--inspect" => inspect = true,
             other => fail(format!("unknown argument {other}")),
@@ -172,7 +176,7 @@ fn main() {
         return;
     }
     let out_dir = out_dir.unwrap_or_else(|| fail("--out-dir is required"));
-    adapt(grid, &tags, &frame, deviation, &out_dir, &path);
+    adapt(grid, &tags, &frame, [deviation, thin.unwrap_or(deviation)], &out_dir, &path);
 }
 
 // ------------------------------------------------------------------- parts
@@ -316,7 +320,8 @@ fn part_triangles(faces: &[LabelledFace], labels: &[u32]) -> Vec<[u32; 3]> {
 
 // ------------------------------------------------------------------- adapt
 
-fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviation: f64, out_dir: &PathBuf, source_path: &str) {
+fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64; 2], out_dir: &PathBuf, source_path: &str) {
+    let [deviation, thin] = deviations;
     let clock = Instant::now();
     let surface = LabelledSurface::build(grid, tags).unwrap_or_else(|e| fail(e));
     let patches = surface.patches();
@@ -366,8 +371,11 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviation: f64, 
         let lt: Vec<[u32; 3]> =
             tris.iter().map(|t| t.map(|g| local.binary_search(&g).expect("vertex present") as u32)).collect();
         let pinned: Vec<bool> = local.iter().map(|&g| patch_count[g as usize] > 1).collect();
-        let options = SimplifyOptions { epsilon: deviation, ..Default::default() };
-        match simplify_within(&lp, &lt, &pinned, deviation, 6, &options) {
+        // Thin parts (vessel walls, valve planes, vein ends: tags 5 to 24) get the tighter limit.
+        let thin_patch = [patch.front, patch.back].iter().any(|l| (5..=24).contains(l));
+        let limit = if thin_patch { thin.min(deviation) } else { deviation };
+        let options = SimplifyOptions { epsilon: limit, ..Default::default() };
+        match simplify_within(&lp, &lt, &pinned, limit, 6, &options) {
             Ok(result) => {
                 let d = result.report.measured_deviation.unwrap_or(0.0);
                 if d > worst {
@@ -410,7 +418,10 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviation: f64, 
         let volume = signed_volume(&mesh.points, &mesh.triangles);
         let diff = (volume - spec.source_volume) / spec.source_volume;
         let closed = is_closed_manifold(&mesh.triangles);
-        if !closed || diff.abs() > 0.01 {
+        // Walls and cavities within 1 percent. Thin parts (vessel walls, valve planes, vein
+        // ends, tags 5 to 24) about 1 mm thick: a deviation of 0.4 mm is several percent of their volume.
+        let tolerance = if spec.labels.iter().all(|l| (5..=24).contains(l)) { 0.10 } else { 0.01 };
+        if !closed || diff.abs() > tolerance {
             ok = false;
         }
         total += mesh.triangles.len();
@@ -432,13 +443,13 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviation: f64, 
         });
     }
     println!("\nParts: {} | triangles in all {total}", specs.len());
-    println!("Every part closed with volume within 1 percent: {}", if ok { "PASS" } else { "FAIL" });
+    println!("Every part closed, volume within 1 percent (walls, cavities) or 10 percent (thin parts): {}", if ok { "PASS" } else { "FAIL" });
 
     let bytes = container.to_bytes().unwrap_or_else(|e| fail(e));
     println!("Container: {} bytes ({:.2} MB)", bytes.len(), bytes.len() as f64 / 1e6);
     fs::create_dir_all(out_dir).unwrap_or_else(|e| fail(e));
     fs::write(out_dir.join("heart-case01.svfmesh"), &bytes).unwrap_or_else(|e| fail(e));
-    let ron = structure_ron(&specs, &volumes, frame, deviation, source_path);
+    let ron = structure_ron(&specs, &volumes, frame, deviations, source_path);
     fs::write(out_dir.join("heart-case01.ron"), ron).unwrap_or_else(|e| fail(e));
     println!("Wrote heart-case01.svfmesh and heart-case01.ron to {}", out_dir.display());
 }
@@ -477,7 +488,8 @@ fn group(id: &str, name: &str, parent: &str, desc: &str, colour: (f64, f64, f64)
     format!("        Part(id: \"{id}\", name: \"{name}\", parent: {parent}, description: \"{desc}\", colour: {colour:?}),\n")
 }
 
-fn structure_ron(specs: &[Spec], volumes: &[(String, f64)], frame: &Frame, deviation: f64, source_path: &str) -> String {
+fn structure_ron(specs: &[Spec], volumes: &[(String, f64)], frame: &Frame, deviations: [f64; 2], source_path: &str) -> String {
+    let [deviation, thin] = deviations;
     let mut s = String::new();
     s.push_str("// Human heart, adapted from Rodero et al. (2021) case 01. CC BY 4.0, modified: see the provenance block.\n");
     s.push_str("// Heart frame: Y apex to base, X from the left toward the right ventricle, Z = X cross Y. Millimetres.\n");
@@ -535,7 +547,7 @@ fn structure_ron(specs: &[Spec], volumes: &[(String, f64)], frame: &Frame, devia
     let m = frame.matrix().map(|v| format!("{v:.9}")).join(", ");
     let sha = sha256_of_source(source_path);
     s.push_str(&format!(
-        "    provenance: Some(Provenance(\n        dataset: \"Rodero et al. 2021, healthy four-chamber heart meshes, case 01\",\n        doi: \"10.5281/zenodo.4590294\",\n        licence: \"CC BY 4.0\",\n        attribution: \"Rodero C. et al. (2021), PLoS Comput Biol 17(4): e1008851, data at https://doi.org/10.5281/zenodo.4590294, licensed CC BY 4.0. Modified: re-framed, small stray regions relabelled, surfaces simplified.\",\n        source_sha256: \"{sha}\",\n        tool: \"svf-core example heart_adapt\",\n        tool_commit: \"{}\",\n        parameters: [(\"deviation_mm\", \"{deviation}\"), (\"island_limit_cells\", \"8\"), (\"min_patch_faces_simplified\", \"10\")],\n        frame_transform: Some(({m})),\n        body_volumes_mm3: [{}],\n        modified: true,\n    )),\n)\n",
+        "    provenance: Some(Provenance(\n        dataset: \"Rodero et al. 2021, healthy four-chamber heart meshes, case 01\",\n        doi: \"10.5281/zenodo.4590294\",\n        licence: \"CC BY 4.0\",\n        attribution: \"Rodero C. et al. (2021), PLoS Comput Biol 17(4): e1008851, data at https://doi.org/10.5281/zenodo.4590294, licensed CC BY 4.0. Modified: re-framed, small stray regions relabelled, surfaces simplified.\",\n        source_sha256: \"{sha}\",\n        tool: \"svf-core example heart_adapt\",\n        tool_commit: \"{}\",\n        parameters: [(\"deviation_mm\", \"{deviation}\"), (\"thin_part_deviation_mm\", \"{thin}\"), (\"island_limit_cells\", \"8\"), (\"min_patch_faces_simplified\", \"10\")],\n        frame_transform: Some(({m})),\n        body_volumes_mm3: [{}],\n        modified: true,\n    )),\n)\n",
         git_commit(),
         vols.join(", ")
     ));
