@@ -493,12 +493,12 @@ fn inside(ring: &[(u32, P2)], q: P2) -> bool {
     result
 }
 
+/// Shoelace area measured from the ring's first vertex, so a small loop far
+/// from the plane origin does not lose its area to cancellation.
 fn signed_area(ring: &[(u32, P2)]) -> f64 {
-    (0..ring.len())
-        .map(|i| {
-            let (a, b) = (ring[i].1, ring[(i + 1) % ring.len()].1);
-            a[0] * b[1] - b[0] * a[1]
-        })
+    let origin = ring[0].1;
+    (1..ring.len() - 1)
+        .map(|i| cross2(origin, ring[i].1, ring[i + 1].1))
         .sum::<f64>()
         / 2.0
 }
@@ -561,6 +561,20 @@ mod tests {
              Part(id: \"p\", name: \"p\", parent: None, description: \"d\", colour: (0.5, 0.5, 0.5), geometry: {geometry})])"
         );
         Structure::from_ron_str(&text).unwrap().build_geometry().unwrap()
+    }
+
+    #[test]
+    fn a_tiny_cap_far_from_the_plane_origin_is_not_lost_to_cancellation() {
+        // Found in the cockroach fixture: a plane 1e-7 above an ellipsoid's pole
+        // at x = 37 leaves a loop of radius about 6e-4. The shoelace area taken
+        // about the plane origin lost it, so the cap failed at every nudge size
+        // that a dense scene allows. Call the first (smallest) nudge directly.
+        let g = one_part("Some(Ellipsoid(centre: (37.0, 1.0, 3.0), radii: (1.3, 1.7, 0.9)))");
+        for h in [1e-7, 1e-6, 1e-5] {
+            let cut = section_with(&g, &plane([0.0, -0.7 + h, 0.0], [0.0, 1.0, 0.0]), ON_PLANE_STEPS[0])
+                .unwrap_or_else(|e| panic!("h {h:e}: {e}"));
+            assert_closed(cut.mesh());
+        }
     }
 
     fn annulus() -> StructureGeometry {

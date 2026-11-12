@@ -150,12 +150,16 @@ catches misspelt fields. The stem fixture is a regression test for this.
 ## 8. Dissection layers (outermost first)
 
 1. Wings (tegmina and hind wings).
-2. Dorsal body wall (tergites, pronotum), with the heart.
-3. Fat body.
+2. Dorsal body wall (pronotum, mesonotum, metanotum, abdominal tergites).
+3. Heart and fat body.
 4. Digestive system, with salivary glands and Malpighian tubules.
 5. Reproductive organs.
-6. Tracheal trunks.
+6. Tracheal trunks and spiracles.
 7. Nervous system (brain, ventral nerve cord and ganglia).
+
+The heart is its own layer, with the fat body, and not part of the wall's: a
+layer that is peeled hides all its parts, so a heart in layer 2 could never be
+seen. (The first draft of this note put it there; corrected in 4b.)
 
 Parts in no layer are never peeled (existing `visible_parts` rule): ventral
 body wall, head capsule, eyes, antennae, legs, cerci, mouthparts. Peeling the

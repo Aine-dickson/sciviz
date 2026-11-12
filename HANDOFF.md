@@ -2307,3 +2307,39 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   overlap detection (design note: fixture test helper in 4b).
 - Next action: merge this PR (needs the user's OK), then 4b on `b2-4b-fixture`:
   `relations` and `views` in the format, then `fixtures/structures/cockroach.ron`.
+
+
+## B2 step 4b — relations, views and the cockroach fixture (implemented on `b2-4b-fixture`, PR open)
+
+- #67 (design) and #68 (4a blocks) merged to main (`fb772c4`, `f22fead`).
+- Format: optional `relations: [Relation(from, kind: Contains|ConnectsTo|OpensInto, to)]`
+  and `views: [View(id, name, camera: Some((yaw_deg, pitch_deg, zoom)), show, peel,
+  section: Some((axis: X|Y|Z, offset, flip)))]` in `svf-core::structure_lesson`;
+  `Structure::relations()`, `relations_of(part)`, `views()`. A grouping node in
+  `show` stands for its descendants; empty `show` means all. Version stays 1.
+- Fixture `fixtures/structures/cockroach.ron` (26 KB, 64 parts, 48 with
+  geometry, 7 layers, 18 relations, 9 views, 82k triangles, female). Layer order
+  (outermost first): wings, dorsal wall, heart and fat body, digestive,
+  reproductive, tracheal, nervous. **Design note corrected:** the heart is in
+  layer 3 with the fat body, not in the wall's layer (it could never be seen).
+  `reference` is still the user's to confirm; proportions schematic. View camera
+  values are placeholders (dorsal pitch 55, side yaw 90): tune in 4c.
+- New integration test `crates/svf-core/tests/cockroach_fixture.rs`: parses, layer
+  order and what each peel shows, relations and views, every body closed, a plane
+  sweep over all three axes, the sagittal cut, and an **overlap check** (ray
+  parity: a point just inside part A must not lie inside part B unless the pair is
+  in the `joined` allow-list of joints, ducts and attachments). Full sampling:
+  `COCKROACH_OVERLAP_SAMPLES=100000 cargo test --release -p svf-core --test cockroach_fixture`
+  (default 120 samples per part). Not checked: copies of one part against each other.
+- **Section bug found and fixed** (`structure_section.rs`): the cap area was a
+  shoelace sum about the plane origin, so a tiny loop far from the origin (plane
+  1e-7 above the eye's pole at x = 37) lost its area to cancellation, the cap
+  failed, and in a dense scene every larger nudge failed too (`DegeneratePlane`).
+  Now measured from the loop's first vertex; regression test fails without the fix.
+- Verified: `cargo test --workspace` passes (svf-core 329, cockroach fixture 7,
+  explorer 72, render 12; debug fixture tests take about 20 s). Screenshots in
+  `docs/evidence/b2-4b-cockroach/` (external dorsal, peels 2 to 6, sagittal cut)
+  show the cockroach, the dissection stages and the organs in section.
+- NOT done: Explorer support for views and relations (4c: `V`, `--view`, relations
+  on pick), camera pitch cap for a straight-down dorsal view, user's live check.
+- Next action: merge this PR (needs the user's OK), then 4c on `b2-4c-explorer`.
