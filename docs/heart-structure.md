@@ -305,3 +305,34 @@ s, face map 4 s, the whole run well under a minute).
   the same order as the inlet names, so 5e names the pulmonary vein parts by
   their position in the heart frame (left or right, superior or inferior), not
   from the tag number.
+
+## 17. 5c as built (`svf-core::mesh_simplify`)
+
+- **`simplify(points, triangles, pinned, options)`**: quadric edge collapse of a
+  consistently wound 2-manifold surface, open or closed. Open-boundary vertices
+  and any caller-pinned vertex keep their exact coordinates, and a collapse never
+  joins two pinned vertices, so patches simplified apart still share their
+  boundary exactly. `Simplified::vertex_map` gives each output vertex's source
+  vertex, which is how 5e merges patches into parts.
+- **Refused collapses**: link condition (the endpoints share exactly the two
+  apexes of the edge, so no topology change and no pinch; tested on a torus, genus
+  kept), flips (a surviving triangle's normal must keep cosine at least
+  `min_normal_cos`, default 0.1, and not degenerate), and the error limit. A closed
+  surface is never taken below four triangles.
+- **The error limit is a heuristic.** Each vertex sums squared distances to the
+  unit-normal planes of the source triangles it stands for; the limit is applied to
+  the **root mean square** of that. The plain sum would be a true bound on the
+  distance to those planes but grows with the number of planes and stalls
+  simplification early (a radius-10 sphere stopped at half its triangles for 0.3).
+  With the RMS rule the measured deviation on that sphere was 0.515 for
+  `epsilon` 0.3, so the limit is not a bound on the deviation.
+- **`sampled_deviation(a, b)`** measures it: the larger one-way distance between
+  sample points (vertices, edge midpoints, centroids) of one surface and the
+  triangles of the other, grid-accelerated.
+- **`simplify_within(points, triangles, pinned, max_deviation, rounds, options)`**
+  makes the limit real: it searches `epsilon` (doubling, then bisecting) for the
+  smallest result whose measured deviation is within `max_deviation`, recording
+  `measured_deviation` and `epsilon_used`; if nothing qualifies it returns the
+  source unchanged. 5e uses this per patch with 0.4 mm, as section 11 requires.
+- Deterministic (ties by vertex index). Not done: any use on the heart (5e), the
+  file format (5d). Budget is still decided on the real data in 5e.
