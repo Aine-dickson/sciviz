@@ -2250,8 +2250,8 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   reproductive, tracheal, nervous. Work split 4a core blocks, 4b relations,
   views and fixture, 4c Explorer.
 - User-confirmed lesson content: all five internal systems, segmented legs,
-  dorsal dissection. Still the user's to confirm: which sex for the
-  reproductive organs (proposed female) and the `reference` citation.
+  dorsal dissection. Still the user's to confirm: the
+  `reference` citation. Reproductive organs: female (confirmed 2026-11-12).
 - Not committed: the spike files below stay uncommitted on the working tree
   and are deleted in 4a. The design PR contains only the note and this entry.
 - Next action: user approves the note, then 4a on `b2-4a-blocks`.

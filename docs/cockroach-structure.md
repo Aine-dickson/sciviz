@@ -168,8 +168,8 @@ segment, abdomen by segment, wings, legs by pair and segment, cerci) and
 Internal (grouping: digestive, circulatory, reproductive, respiratory,
 nervous). Digestive: salivary glands, crop, gizzard, gastric caeca, midgut,
 Malpighian tubules, hindgut, rectum. Reproductive organs are of **one sex**.
-Proposed: female (ovaries, oviducts, spermatheca, colleterial glands); the user
-confirms before 4b. Proportions are schematic. As with the stem, the
+Female (ovaries, oviducts, spermatheca, colleterial glands), confirmed by the user
+(2026-11-12). Proportions are schematic. As with the stem, the
 `reference` citation is the user's to confirm, and the note records it as
 unconfirmed until then.
 
