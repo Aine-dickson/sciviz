@@ -57,6 +57,7 @@ enum StructureCommand {
     FlipSection,
     Peel,
     Restore,
+    NextView,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -306,6 +307,9 @@ impl Explorer {
                 if click {
                     eprintln!("{}", scene.part_path(part));
                     eprintln!("  {}", scene.part_description(part));
+                    for line in scene.relation_lines(part) {
+                        eprintln!("  - {line}");
+                    }
                     self.selected_part = Some(part);
                 }
             }
@@ -336,6 +340,7 @@ impl Explorer {
             StructureCommand::FlipSection => scene.flip_section(),
             StructureCommand::Peel => scene.peel(),
             StructureCommand::Restore => scene.restore(),
+            StructureCommand::NextView => scene.next_view(),
         };
         let message = match result {
             Ok(message) => message,
@@ -350,6 +355,12 @@ impl Explorer {
         if let Err(error) = renderer.replace_coloured_mesh(scene.mesh(), scene.colours()) {
             eprintln!("Cannot update the displayed structure: {error}");
             return;
+        }
+        if matches!(command, StructureCommand::NextView) {
+            if let Err(error) = renderer.set_camera(scene.camera) {
+                eprintln!("Cannot move the camera to the view: {error}");
+                return;
+            }
         }
         eprintln!("{message}");
         if let Some(window) = self.window.as_ref() {
@@ -792,6 +803,7 @@ impl ApplicationHandler for Explorer {
                         PhysicalKey::Code(KeyCode::KeyF) => self.structure_command(StructureCommand::FlipSection),
                         PhysicalKey::Code(KeyCode::KeyP) => self.structure_command(StructureCommand::Peel),
                         PhysicalKey::Code(KeyCode::KeyR) => self.structure_command(StructureCommand::Restore),
+                        PhysicalKey::Code(KeyCode::KeyV) => self.structure_command(StructureCommand::NextView),
                         PhysicalKey::Code(KeyCode::KeyL) => {
                             if let Some(renderer) = self.renderer.as_mut() {
                                 renderer.set_shaded(!renderer.shaded());
@@ -827,10 +839,11 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer --structure <file.ron> [--section <x|y|z>=<offset>] [--section-flip] [--peel <layers>] [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
+            eprintln!("Usage: svf-explorer --structure <file.ron> [--view <id>] [--section <x|y|z>=<offset>] [--section-flip] [--peel <layers>] [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
             eprintln!("  Click picks a part, I isolates it, A shows all parts (and restores peeled layers).");
             eprintln!("  S cycles the section (off, across the axis, along the axis), [ and ] move the plane, F flips the kept side.");
-            eprintln!("  P peels the outermost layer, R restores the last one, L toggles the light.");
+            eprintln!("  P peels the outermost layer, R restores the last one, V cycles the named views, L toggles the light.");
+            eprintln!("  --view <id> starts in a named view; --camera-*, --section and --peel override that view's own values.");
             std::process::exit(2);
         }
     };
@@ -845,7 +858,7 @@ fn main() {
             match structure_view::StructureScene::load(config) {
                 Ok(scene) => {
                     eprintln!("{}", scene.summary());
-                    eprintln!("Keys: click = pick a part, I = isolate it, A = show all and restore layers, S = section (across, along, off), [ ] = move the plane, F = flip the kept side, P = peel a layer, R = restore a layer, L = light on/off.");
+                    eprintln!("Keys: click = pick a part, I = isolate it, A = show all and restore layers, S = section (across, along, off), [ ] = move the plane, F = flip the kept side, P = peel a layer, R = restore a layer, V = next named view, L = light on/off.");
                     Some(scene)
                 }
                 Err(error) => {
