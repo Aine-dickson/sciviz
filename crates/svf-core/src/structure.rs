@@ -37,6 +37,19 @@ pub struct StructureDocument {
     pub reference: String,
     pub circle_segments: usize,
     pub parts: Vec<PartDocument>,
+    /// Ordered layers, outermost first. Optional; see `docs/sections-and-peeling.md`.
+    #[serde(default)]
+    pub layers: Vec<LayerDocument>,
+}
+
+/// File representation of one layer: a named group of parts for peeling.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(rename = "Layer")]
+pub struct LayerDocument {
+    pub id: String,
+    pub name: String,
+    pub parts: Vec<String>,
 }
 
 /// File representation of one part.
@@ -97,6 +110,11 @@ pub enum StructureError {
     InnerNotLessThanOuter(String),
     InvalidSector { part: String, reason: &'static str },
     UnknownPartIndex(usize),
+    EmptyLayerId { index: usize },
+    DuplicateLayerId(String),
+    EmptyLayer(String),
+    UnknownLayerPart { layer: String, part: String },
+    PartInTwoLayers { part: String },
     Geometry(GeometryError),
 }
 
@@ -126,6 +144,13 @@ impl fmt::Display for StructureError {
             Self::InnerNotLessThanOuter(id) => write!(f, "part '{id}': inner must be less than outer"),
             Self::InvalidSector { part, reason } => write!(f, "part '{part}': {reason}"),
             Self::UnknownPartIndex(i) => write!(f, "part index {i} is out of range"),
+            Self::EmptyLayerId { index } => write!(f, "layer {index} has an empty id"),
+            Self::DuplicateLayerId(id) => write!(f, "duplicate layer id '{id}'"),
+            Self::EmptyLayer(id) => write!(f, "layer '{id}' lists no parts"),
+            Self::UnknownLayerPart { layer, part } => {
+                write!(f, "layer '{layer}' names unknown part '{part}'")
+            }
+            Self::PartInTwoLayers { part } => write!(f, "part '{part}' is in more than one layer"),
             Self::Geometry(error) => write!(f, "generated geometry is invalid: {error}"),
         }
     }
@@ -179,6 +204,30 @@ impl Part {
     }
 }
 
+/// One validated layer. A grouping node in the file expands to itself and all
+/// its descendants, so `parts` holds every affected part index, ascending.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Layer {
+    id: String,
+    name: String,
+    parts: Vec<usize>,
+}
+
+impl Layer {
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    #[must_use]
+    pub fn parts(&self) -> &[usize] {
+        &self.parts
+    }
+}
+
 /// A validated structure.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Structure {
@@ -187,6 +236,7 @@ pub struct Structure {
     reference: String,
     circle_segments: usize,
     parts: Vec<Part>,
+    layers: Vec<Layer>,
 }
 
 /// The triangles of one part inside a [`StructureGeometry`] mesh.
@@ -297,12 +347,15 @@ impl Structure {
             }
         }
 
+        let layers = validate_layers(&document.layers, &parts, &by_id)?;
+
         Ok(Self {
             name: document.name,
             units: document.units,
             reference: document.reference,
             circle_segments: document.circle_segments,
             parts,
+            layers,
         })
     }
 
@@ -321,6 +374,28 @@ impl Structure {
     #[must_use]
     pub fn parts(&self) -> &[Part] {
         &self.parts
+    }
+
+    /// Layers, outermost first (the order of removal when peeling).
+    #[must_use]
+    pub fn layers(&self) -> &[Layer] {
+        &self.layers
+    }
+
+    /// Parts to show when the `peeled` outermost layers are removed (clamped
+    /// to the layer count) and, optionally, only `isolated` is wanted.
+    /// Parts in no layer are never peeled. Ascending part order.
+    #[must_use]
+    pub fn visible_parts(&self, isolated: Option<usize>, peeled: usize) -> Vec<usize> {
+        let mut hidden = vec![false; self.parts.len()];
+        for layer in self.layers.iter().take(peeled) {
+            for &part in &layer.parts {
+                hidden[part] = true;
+            }
+        }
+        (0..self.parts.len())
+            .filter(|&i| !hidden[i] && isolated.is_none_or(|only| only == i))
+            .collect()
     }
 
     /// Index of the part with this id.
@@ -375,6 +450,69 @@ impl Structure {
         }
 
         Ok(StructureGeometry { mesh: TriangleMesh3::new(points, indices)?, colours, ranges })
+    }
+}
+
+fn validate_layers(
+    documents: &[LayerDocument],
+    parts: &[Part],
+    by_id: &HashMap<&str, usize>,
+) -> Result<Vec<Layer>, StructureError> {
+    let mut seen: HashMap<&str, ()> = HashMap::new();
+    let mut owner: Vec<Option<usize>> = vec![None; parts.len()];
+    let mut layers = Vec::with_capacity(documents.len());
+    for (layer_index, layer) in documents.iter().enumerate() {
+        if layer.id.is_empty() {
+            return Err(StructureError::EmptyLayerId { index: layer_index });
+        }
+        if seen.insert(layer.id.as_str(), ()).is_some() {
+            return Err(StructureError::DuplicateLayerId(layer.id.clone()));
+        }
+        if layer.parts.is_empty() {
+            return Err(StructureError::EmptyLayer(layer.id.clone()));
+        }
+        let mut members = vec![false; parts.len()];
+        for part_id in &layer.parts {
+            let root = *by_id.get(part_id.as_str()).ok_or_else(|| StructureError::UnknownLayerPart {
+                layer: layer.id.clone(),
+                part: part_id.clone(),
+            })?;
+            // The part and every descendant (a parent chain reaches `root`).
+            for index in 0..parts.len() {
+                let mut current = Some(index);
+                while let Some(c) = current {
+                    if c == root {
+                        members[index] = true;
+                        break;
+                    }
+                    current = parts[c].parent;
+                }
+            }
+        }
+        let mut indices = Vec::new();
+        for (index, &member) in members.iter().enumerate() {
+            if !member {
+                continue;
+            }
+            if owner[index].is_some() {
+                return Err(StructureError::PartInTwoLayers { part: parts[index].id.clone() });
+            }
+            owner[index] = Some(layer_index);
+            indices.push(index);
+        }
+        layers.push(Layer { id: layer.id.clone(), name: layer.name.clone(), parts: indices });
+    }
+    Ok(layers)
+}
+
+impl StructureGeometry {
+    /// Assemble a geometry from parts built elsewhere in the crate.
+    pub(crate) fn from_parts(
+        mesh: TriangleMesh3,
+        colours: Vec<[f64; 3]>,
+        ranges: Vec<PartRange>,
+    ) -> Self {
+        Self { mesh, colours, ranges }
     }
 }
 
@@ -743,9 +881,80 @@ mod tests {
         );
         let few = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 4, parts: [])";
         assert_eq!(Structure::from_ron_str(few).unwrap_err(), StructureError::TooFewCircleSegments(4));
-        let unknown = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 48, parts: [], layers: [])";
+        let unknown = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 48, parts: [], views: [])";
         assert!(matches!(Structure::from_ron_str(unknown).unwrap_err(), StructureError::Parse(_)));
         assert!(matches!(Structure::from_ron_str("not ron").unwrap_err(), StructureError::Parse(_)));
+    }
+
+    fn layered(layers: &str) -> Result<Structure, StructureError> {
+        let parts = format!(
+            "{}{}{}",
+            part("root", "None", GREEN, "None"),
+            part("a", "Some(\"root\")", GREEN, &annulus(2.0, 3.0)),
+            part("b", "Some(\"root\")", GREEN, &annulus(1.0, 2.0)),
+        );
+        Structure::from_ron_str(&format!(
+            "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 48, parts: [{parts}], layers: [{layers}])"
+        ))
+    }
+
+    fn layer(id: &str, parts: &str) -> String {
+        format!("Layer(id: \"{id}\", name: \"{id}\", parts: [{parts}]),")
+    }
+
+    #[test]
+    fn layers_are_validated() {
+        assert!(layered("").unwrap().layers().is_empty());
+        let ok = layered(&format!("{}{}", layer("l1", "\"a\""), layer("l2", "\"b\""))).unwrap();
+        assert_eq!(ok.layers().len(), 2);
+        assert_eq!(ok.layers()[0].parts(), &[1]);
+        assert_eq!(
+            layered(&format!("{}{}", layer("x", "\"a\""), layer("x", "\"b\""))).unwrap_err(),
+            StructureError::DuplicateLayerId("x".into())
+        );
+        assert_eq!(layered(&layer("e", "")).unwrap_err(), StructureError::EmptyLayer("e".into()));
+        assert_eq!(
+            layered(&layer("", "\"a\"")).unwrap_err(),
+            StructureError::EmptyLayerId { index: 0 }
+        );
+        assert_eq!(
+            layered(&layer("u", "\"nope\"")).unwrap_err(),
+            StructureError::UnknownLayerPart { layer: "u".into(), part: "nope".into() }
+        );
+        assert_eq!(
+            layered(&format!("{}{}", layer("l1", "\"a\""), layer("l2", "\"a\", \"b\""))).unwrap_err(),
+            StructureError::PartInTwoLayers { part: "a".into() }
+        );
+        // A grouping node expands to itself and its descendants.
+        let group = layered(&layer("g", "\"root\"")).unwrap();
+        assert_eq!(group.layers()[0].parts(), &[0, 1, 2]);
+        // A part under a group already in another layer is a conflict.
+        assert!(layered(&format!("{}{}", layer("g", "\"root\""), layer("l", "\"a\""))).is_err());
+    }
+
+    #[test]
+    fn visible_parts_follows_peeling_and_isolation() {
+        let s = layered(&format!("{}{}", layer("l1", "\"a\""), layer("l2", "\"b\""))).unwrap();
+        assert_eq!(s.visible_parts(None, 0), vec![0, 1, 2]);
+        assert_eq!(s.visible_parts(None, 1), vec![0, 2]);
+        assert_eq!(s.visible_parts(None, 2), vec![0]);
+        assert_eq!(s.visible_parts(None, 9), vec![0]);
+        assert_eq!(s.visible_parts(Some(2), 0), vec![2]);
+        assert_eq!(s.visible_parts(Some(1), 1), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn shipped_dicot_stem_has_four_layers_outermost_first() {
+        let s = Structure::from_ron_str(EXAMPLE).unwrap();
+        let ids: Vec<_> = s.layers().iter().map(Layer::id).collect();
+        assert_eq!(ids, ["epidermis", "cortex", "vascular", "pith"]);
+        let vascular = s.layers()[2].parts();
+        for id in ["xylem", "phloem", "vascular-cambium", "medullary-rays"] {
+            assert!(vascular.contains(&s.part_index(id).unwrap()), "{id}");
+        }
+        let visible = s.visible_parts(None, 3);
+        assert!(visible.contains(&s.part_index("pith").unwrap()));
+        assert!(!visible.contains(&s.part_index("cortex").unwrap()));
     }
 
     #[test]
