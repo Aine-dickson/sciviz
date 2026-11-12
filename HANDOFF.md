@@ -2374,3 +2374,26 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   structure; needs a design note first, Opus-level: how adapted geometry is
   simplified, closed and given layers; ray-parity and cap cost on thousands-point
   loops are the known risks from the spike).
+
+
+## B2 step 5 — heart design note (branch `b2-5-heart-design`, PR open)
+
+- #70 (4c) merged to main `1a7eea7`; B2 step 4 (cockroach) is complete. The user
+  tried the window: peel, restore, section keys and click relations worked; `V`
+  was not pressed. Known, deferred: `S` starts the plane at the middle of the
+  whole bounding box (y = -5.57 for the cockroach, below the body, because of the
+  legs) and the cycle has only the stem's two axes (no sagittal z). A small fix
+  (start at the body's middle, offer all three axes) is not done.
+- Design: `docs/heart-structure.md`. User decisions: build chamber cavities;
+  re-orient to a heart frame (Y = LV long axis, X toward the RV, origin at the
+  valve-plane centroid); commit the derived mesh with attribution.
+- Decisions not to revisit: simplify **patches** (side-label pairs) with pinned
+  boundary curves and quadric edge collapse, so parts share triangles; orientation
+  by geometry, not file order; `Geometry::Mesh` plus a `.svfmesh` container and
+  `from_ron_with(text, resolver)` so core stays IO-free; `provenance` block; 21
+  parts (6 walls, 4 valve planes, 7 vessel ends, 4 cavities); layers vessels,
+  atria, RV, LV with valve planes and cavities never peeled.
+- Gates 5a must settle: four sealed inner cavity components, non-manifold counts
+  per tag, triangle budget (about 60k, under 2 MB).
+- Next action: user reviews the note, then 5a (audit example on case 01; the VTK
+  is `~/Downloads/rodero2021/01-svf-order.vtk`, original `01.vtk` untouched).
