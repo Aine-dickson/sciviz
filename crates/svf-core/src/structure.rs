@@ -11,7 +11,13 @@ use serde::Deserialize;
 use crate::{
     geometry::{GeometryError, TriangleMesh3},
     spatial::WorldPoint3,
+    structure_blocks::{
+        build_ellipsoid, build_tube, check_copies, check_ellipsoid, check_tube, expand_copies,
+        BlockError, EllipsoidParams, TubeParams,
+    },
 };
+
+pub use crate::structure_blocks::{MirrorAxis, Repeat};
 
 /// The only file version this reader accepts.
 pub const SUPPORTED_VERSION: u32 = 1;
@@ -19,6 +25,14 @@ const MIN_CIRCLE_SEGMENTS: usize = 8;
 
 fn default_one() -> usize {
     1
+}
+
+fn default_up() -> [f64; 3] {
+    [0.0, 1.0, 0.0]
+}
+
+fn default_steps_per_span() -> usize {
+    8
 }
 
 fn default_zero() -> f64 {
@@ -63,14 +77,44 @@ pub struct PartDocument {
     pub description: String,
     pub colour: (f64, f64, f64),
     pub geometry: Option<Geometry>,
+    /// Copies of the body, applied before `mirror`. See `docs/cockroach-structure.md`.
+    #[serde(default)]
+    pub repeat: Option<Repeat>,
+    /// Adds the reflection of every copy across the plane through the origin.
+    #[serde(default)]
+    pub mirror: Option<MirrorAxis>,
 }
 
 /// Recipe geometry for one part.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Geometry {
     /// A 2D profile swept along +Y from 0 to `axis_length`, about the Y axis.
     Extrusion { axis_length: f64, profile: Profile },
+    /// A tube along a Catmull-Rom curve through `path`, with an elliptical
+    /// section of semi-axes `(side, up)` at each point, flat end caps, an
+    /// optional hollow `wall` and an optional lengthwise `arc_deg` (a trough).
+    Tube {
+        path: Vec<[f64; 3]>,
+        half_widths: Vec<(f64, f64)>,
+        #[serde(default = "default_up")]
+        up: [f64; 3],
+        #[serde(default = "default_steps_per_span")]
+        steps_per_span: usize,
+        #[serde(default)]
+        wall: Option<f64>,
+        #[serde(default)]
+        arc_deg: Option<(f64, f64)>,
+    },
+    /// An ellipsoid, optionally rotated and hollow.
+    Ellipsoid {
+        centre: [f64; 3],
+        radii: [f64; 3],
+        #[serde(default)]
+        rotate_deg: [f64; 3],
+        #[serde(default)]
+        wall: Option<f64>,
+    },
 }
 
 /// The 2D cross-section of an extrusion, in the XZ plane about the Y axis.
@@ -109,6 +153,12 @@ pub enum StructureError {
     InvalidDimension { part: String, what: &'static str },
     InnerNotLessThanOuter(String),
     InvalidSector { part: String, reason: &'static str },
+    /// A `Tube` or `Ellipsoid` with unusable parameters.
+    InvalidBlock { part: String, reason: &'static str },
+    /// A `Tube` whose path bends more tightly than its width allows.
+    TubeTooTightlyBent(String),
+    /// A bad `repeat` or `mirror`.
+    InvalidCopy { part: String, reason: &'static str },
     UnknownPartIndex(usize),
     EmptyLayerId { index: usize },
     DuplicateLayerId(String),
@@ -142,7 +192,15 @@ impl fmt::Display for StructureError {
                 write!(f, "part '{part}': {what} must be finite and positive")
             }
             Self::InnerNotLessThanOuter(id) => write!(f, "part '{id}': inner must be less than outer"),
-            Self::InvalidSector { part, reason } => write!(f, "part '{part}': {reason}"),
+            Self::InvalidSector { part, reason } | Self::InvalidBlock { part, reason } => {
+                write!(f, "part '{part}': {reason}")
+            }
+            Self::TubeTooTightlyBent(id) => write!(
+                f,
+                "part '{id}': the tube bends more tightly than its width allows; \
+                 add path points, widen the bend or narrow the tube"
+            ),
+            Self::InvalidCopy { part, reason } => write!(f, "part '{part}': {reason}"),
             Self::UnknownPartIndex(i) => write!(f, "part index {i} is out of range"),
             Self::EmptyLayerId { index } => write!(f, "layer {index} has an empty id"),
             Self::DuplicateLayerId(id) => write!(f, "duplicate layer id '{id}'"),
@@ -173,9 +231,19 @@ pub struct Part {
     description: String,
     colour: [f64; 3],
     geometry: Option<Geometry>,
+    repeat: Option<Repeat>,
+    mirror: Option<MirrorAxis>,
 }
 
 impl Part {
+    #[must_use]
+    pub const fn repeat(&self) -> Option<&Repeat> {
+        self.repeat.as_ref()
+    }
+    #[must_use]
+    pub const fn mirror(&self) -> Option<MirrorAxis> {
+        self.mirror
+    }
     #[must_use]
     pub fn id(&self) -> &str {
         &self.id
@@ -324,14 +392,23 @@ impl Structure {
             }
             if let Some(geometry) = &part.geometry {
                 validate_geometry(&part.id, geometry)?;
+            } else if part.repeat.is_some() || part.mirror.is_some() {
+                return Err(StructureError::InvalidCopy {
+                    part: part.id.clone(),
+                    reason: "repeat and mirror need geometry",
+                });
             }
+            check_copies(part.repeat.as_ref())
+                .map_err(|reason| StructureError::InvalidCopy { part: part.id.clone(), reason })?;
             parts.push(Part {
                 id: part.id.clone(),
                 name: part.name.clone(),
                 parent,
                 description: part.description.clone(),
                 colour: [r, g, b],
-                geometry: part.geometry,
+                geometry: part.geometry.clone(),
+                repeat: part.repeat,
+                mirror: part.mirror,
             });
         }
 
@@ -427,25 +504,25 @@ impl Structure {
         let mut ranges = Vec::new();
 
         for (part_index, part) in self.parts.iter().enumerate() {
-            let (true, Some(Geometry::Extrusion { axis_length, profile })) =
-                (wanted[part_index], part.geometry)
-            else {
+            let (true, Some(geometry)) = (wanted[part_index], part.geometry.as_ref()) else {
                 continue;
             };
             let mut builder = MeshBuilder::default();
-            build_extrusion(&mut builder, profile, axis_length, self.circle_segments);
+            build_body(&mut builder, &part.id, geometry, self.circle_segments)?;
+            let (body_points, body_indices) =
+                expand_copies(builder.positions, builder.indices, part.repeat.as_ref(), part.mirror);
 
             let offset = u32::try_from(points.len()).map_err(|_| {
                 StructureError::InvalidSector { part: part.id.clone(), reason: "mesh too large" }
             })?;
             let first_triangle = indices.len() / 3;
-            colours.extend(std::iter::repeat_n(part.colour, builder.positions.len()));
-            points.extend(builder.positions.iter().map(|p| WorldPoint3::new(p[0], p[1], p[2])));
-            indices.extend(builder.indices.iter().map(|i| i + offset));
+            colours.extend(std::iter::repeat_n(part.colour, body_points.len()));
+            points.extend(body_points.iter().map(|p| WorldPoint3::new(p[0], p[1], p[2])));
+            indices.extend(body_indices.iter().map(|i| i + offset));
             ranges.push(PartRange {
                 part_index,
                 first_triangle,
-                triangle_count: builder.indices.len() / 3,
+                triangle_count: body_indices.len() / 3,
             });
         }
 
@@ -524,8 +601,69 @@ fn positive(part: &str, value: f64, what: &'static str) -> Result<(), StructureE
     }
 }
 
+fn block_error(part: &str, error: BlockError) -> StructureError {
+    match error {
+        BlockError::Invalid(reason) => StructureError::InvalidBlock { part: part.to_owned(), reason },
+        BlockError::TooTightlyBent => StructureError::TubeTooTightlyBent(part.to_owned()),
+    }
+}
+
+fn tube_params<'a>(
+    path: &'a [[f64; 3]],
+    half_widths: &'a [(f64, f64)],
+    up: [f64; 3],
+    steps_per_span: usize,
+    wall: Option<f64>,
+    arc_deg: Option<(f64, f64)>,
+) -> TubeParams<'a> {
+    TubeParams { path, half_widths, up, steps_per_span, wall, arc_deg }
+}
+
+/// Generates one body of a part (before copies).
+fn build_body(
+    builder: &mut MeshBuilder,
+    part: &str,
+    geometry: &Geometry,
+    circle_segments: usize,
+) -> Result<(), StructureError> {
+    match geometry {
+        Geometry::Extrusion { axis_length, profile } => {
+            build_extrusion(builder, *profile, *axis_length, circle_segments);
+            Ok(())
+        }
+        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg } => {
+            let params = tube_params(path, half_widths, *up, *steps_per_span, *wall, *arc_deg);
+            build_tube(builder, &params, circle_segments).map_err(|e| block_error(part, e))
+        }
+        Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {
+            let params = EllipsoidParams {
+                centre: *centre,
+                radii: *radii,
+                rotate_deg: *rotate_deg,
+                wall: *wall,
+            };
+            build_ellipsoid(builder, &params, circle_segments).map_err(|e| block_error(part, e))
+        }
+    }
+}
+
 fn validate_geometry(part: &str, geometry: &Geometry) -> Result<(), StructureError> {
-    let Geometry::Extrusion { axis_length, profile } = geometry;
+    let (axis_length, profile) = match geometry {
+        Geometry::Extrusion { axis_length, profile } => (axis_length, profile),
+        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg } => {
+            let params = tube_params(path, half_widths, *up, *steps_per_span, *wall, *arc_deg);
+            return check_tube(&params).map_err(|e| block_error(part, e));
+        }
+        Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {
+            let params = EllipsoidParams {
+                centre: *centre,
+                radii: *radii,
+                rotate_deg: *rotate_deg,
+                wall: *wall,
+            };
+            return check_ellipsoid(&params).map_err(|e| block_error(part, e));
+        }
+    };
     positive(part, *axis_length, "axis_length")?;
     match *profile {
         Profile::Disc { radius } => positive(part, radius, "radius"),
@@ -569,14 +707,14 @@ fn validate_geometry(part: &str, geometry: &Geometry) -> Result<(), StructureErr
 
 /// Indexed triangle builder that welds bit-identical points.
 #[derive(Default)]
-struct MeshBuilder {
-    positions: Vec<[f64; 3]>,
+pub(crate) struct MeshBuilder {
+    pub(crate) positions: Vec<[f64; 3]>,
     lookup: HashMap<[u64; 3], u32>,
-    indices: Vec<u32>,
+    pub(crate) indices: Vec<u32>,
 }
 
 impl MeshBuilder {
-    fn vertex(&mut self, p: [f64; 3]) -> u32 {
+    pub(crate) fn vertex(&mut self, p: [f64; 3]) -> u32 {
         // `+ 0.0` turns -0.0 into 0.0 so equal points have equal bits.
         let p = [p[0] + 0.0, p[1] + 0.0, p[2] + 0.0];
         let key = p.map(f64::to_bits);
@@ -589,12 +727,12 @@ impl MeshBuilder {
         index
     }
 
-    fn tri(&mut self, a: u32, b: u32, c: u32) {
+    pub(crate) fn tri(&mut self, a: u32, b: u32, c: u32) {
         self.indices.extend([a, b, c]);
     }
 
     /// Two triangles (a, b, c) and (a, c, d).
-    fn quad(&mut self, a: u32, b: u32, c: u32, d: u32) {
+    pub(crate) fn quad(&mut self, a: u32, b: u32, c: u32, d: u32) {
         self.tri(a, b, c);
         self.tri(a, c, d);
     }

@@ -2281,3 +2281,29 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Conclusion for the design note: curved tube, ellipsoid shell and mirror are
   feasible with the current section code unchanged. Still needs Opus for the
   block set and file format; ask the user for the organ/feature list first.
+
+
+## B2 step 4a — cockroach blocks in core (implemented on `b2-4a-blocks`, PR open)
+
+- Design: `docs/cockroach-structure.md` (#67, merged `fb772c4`). The spike is
+  deleted; its checks live on as real tests.
+- New `svf-core::structure_blocks`: `Geometry::Tube` (Catmull-Rom path, per-point
+  `(side, up)` semi-axes, `up` hint, `steps_per_span`, `wall`, `arc_deg` trough
+  with lips) and `Geometry::Ellipsoid` (`rotate_deg` about X then Y then Z,
+  `wall`). Part fields `repeat: Option<Repeat>` (`Linear`, `Radial`) and
+  `mirror: Option<MirrorAxis>`; copies are separate un-welded bodies in the same
+  part, mirror reverses winding. File version stays 1; `dicot-stem.ron` loads
+  unchanged. `Geometry` is no longer `Copy`.
+- Errors: `InvalidBlock`, `TubeTooTightlyBent` (curvature x widest semi-axis
+  >= 1 anywhere), `InvalidCopy`. All checked at load, not at build.
+- Verified: `cargo test --workspace` passes (svf-core 325, explorer 72, render
+  12). 17 new tests: closed + exact prism/shell/mirror/repeat volumes (so winding
+  is outward), ellipsoid within 2% of 4/3 pi abc, bent tube within 3% of the
+  swept volume, each validation class, plane sweeps (3 axes, -4 to 4, 0.1 steps)
+  over a 270 degree tube, a trough, a hollow body + organ + mirrored pair, and
+  the shell cap keeping its hole. Release run: slowest cut in the sweeps is
+  under 100 ms (asserted in release builds only).
+- NOT done: relations, views, the cockroach fixture (4b); Explorer changes (4c);
+  overlap detection (design note: fixture test helper in 4b).
+- Next action: merge this PR (needs the user's OK), then 4b on `b2-4b-fixture`:
+  `relations` and `views` in the format, then `fixtures/structures/cockroach.ron`.
