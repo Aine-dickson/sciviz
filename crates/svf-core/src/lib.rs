@@ -18,6 +18,7 @@ pub mod scalar_visualization;
 pub mod spatial;
 pub mod structure;
 pub mod structure_blocks;
+pub mod structure_lesson;
 pub mod structure_section;
 pub mod surface_inspection;
 pub mod surface_triangulation;

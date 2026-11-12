@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::{
     geometry::{GeometryError, TriangleMesh3},
     spatial::WorldPoint3,
+    structure_lesson::{validate_relations, validate_views},
     structure_blocks::{
         build_ellipsoid, build_tube, check_copies, check_ellipsoid, check_tube, expand_copies,
         BlockError, EllipsoidParams, TubeParams,
@@ -18,6 +19,9 @@ use crate::{
 };
 
 pub use crate::structure_blocks::{MirrorAxis, Repeat};
+pub use crate::structure_lesson::{
+    Relation, RelationDocument, RelationKind, SectionAxis, View, ViewCamera, ViewDocument, ViewSection,
+};
 
 /// The only file version this reader accepts.
 pub const SUPPORTED_VERSION: u32 = 1;
@@ -54,6 +58,12 @@ pub struct StructureDocument {
     /// Ordered layers, outermost first. Optional; see `docs/sections-and-peeling.md`.
     #[serde(default)]
     pub layers: Vec<LayerDocument>,
+    /// Typed links between parts. Optional.
+    #[serde(default)]
+    pub relations: Vec<RelationDocument>,
+    /// Named lesson views. Optional.
+    #[serde(default)]
+    pub views: Vec<ViewDocument>,
 }
 
 /// File representation of one layer: a named group of parts for peeling.
@@ -165,6 +175,12 @@ pub enum StructureError {
     EmptyLayer(String),
     UnknownLayerPart { layer: String, part: String },
     PartInTwoLayers { part: String },
+    UnknownRelationPart { part: String },
+    SelfRelation { part: String },
+    EmptyViewId { index: usize },
+    DuplicateViewId(String),
+    UnknownViewPart { view: String, part: String },
+    InvalidView { view: String, reason: &'static str },
     Geometry(GeometryError),
 }
 
@@ -209,6 +225,14 @@ impl fmt::Display for StructureError {
                 write!(f, "layer '{layer}' names unknown part '{part}'")
             }
             Self::PartInTwoLayers { part } => write!(f, "part '{part}' is in more than one layer"),
+            Self::UnknownRelationPart { part } => write!(f, "a relation names unknown part '{part}'"),
+            Self::SelfRelation { part } => write!(f, "a relation joins part '{part}' to itself"),
+            Self::EmptyViewId { index } => write!(f, "view {index} has an empty id"),
+            Self::DuplicateViewId(id) => write!(f, "duplicate view id '{id}'"),
+            Self::UnknownViewPart { view, part } => {
+                write!(f, "view '{view}' shows unknown part '{part}'")
+            }
+            Self::InvalidView { view, reason } => write!(f, "view '{view}': {reason}"),
             Self::Geometry(error) => write!(f, "generated geometry is invalid: {error}"),
         }
     }
@@ -305,6 +329,8 @@ pub struct Structure {
     circle_segments: usize,
     parts: Vec<Part>,
     layers: Vec<Layer>,
+    relations: Vec<Relation>,
+    views: Vec<View>,
 }
 
 /// The triangles of one part inside a [`StructureGeometry`] mesh.
@@ -425,6 +451,8 @@ impl Structure {
         }
 
         let layers = validate_layers(&document.layers, &parts, &by_id)?;
+        let relations = validate_relations(&document.relations, &by_id)?;
+        let views = validate_views(&document.views, &parts, &by_id, layers.len())?;
 
         Ok(Self {
             name: document.name,
@@ -433,6 +461,8 @@ impl Structure {
             circle_segments: document.circle_segments,
             parts,
             layers,
+            relations,
+            views,
         })
     }
 
@@ -457,6 +487,23 @@ impl Structure {
     #[must_use]
     pub fn layers(&self) -> &[Layer] {
         &self.layers
+    }
+
+    /// Typed links between parts, in file order.
+    #[must_use]
+    pub fn relations(&self) -> &[Relation] {
+        &self.relations
+    }
+
+    /// Relations that name `part` as either end.
+    pub fn relations_of(&self, part: usize) -> impl Iterator<Item = &Relation> {
+        self.relations.iter().filter(move |r| r.from() == part || r.to() == part)
+    }
+
+    /// Named lesson views, in file order.
+    #[must_use]
+    pub fn views(&self) -> &[View] {
+        &self.views
     }
 
     /// Parts to show when the `peeled` outermost layers are removed (clamped
@@ -1019,7 +1066,7 @@ mod tests {
         );
         let few = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 4, parts: [])";
         assert_eq!(Structure::from_ron_str(few).unwrap_err(), StructureError::TooFewCircleSegments(4));
-        let unknown = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 48, parts: [], views: [])";
+        let unknown = "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 48, parts: [], labels: [])";
         assert!(matches!(Structure::from_ron_str(unknown).unwrap_err(), StructureError::Parse(_)));
         assert!(matches!(Structure::from_ron_str("not ron").unwrap_err(), StructureError::Parse(_)));
     }
