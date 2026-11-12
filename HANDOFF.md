@@ -2221,5 +2221,20 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   user for the list of organs and external features the lesson must show; do
   not anchor to syllabus text. Then implement in 4a (core) and 4b (Explorer),
   with a sweep test over plane offsets for any cut feature.
+- **Start step 4 with a feasibility spike, before fixing the format.** What is
+  proven: format, tree, pick, isolate, layers, section/cap for extrusions
+  (holes, collinear points, any plane). What is NOT proven for new organisms:
+  (1) new blocks (curved tube, ellipsoid or lofted shell, mirror) must give
+  closed, outward-wound meshes or sections return NotClosed; (2) solid parts
+  inside solid parts: a solid body wall's cap hides organs inside, so body
+  walls likely must be hollow shells (the cap code supports holes, untested
+  for this); (3) nothing checks that parts do not overlap (the stem tiles by
+  authoring); (4) cap triangulation is O(n^2) and unmeasured on loops of
+  thousands of points (heart); (5) imported/adapted meshes are often not
+  closed. Spike: build three throwaway bodies (curved tube, hollow ellipsoid
+  with a small organ inside, mirrored pair), run the closed-surface checks and
+  the plane-offset sweep (see `planes_along_edges_of_the_stem_still_cap_and_close`),
+  and time a large loop. Let the failures decide which blocks and authoring
+  rules the design note commits to.
 - Gotchas: never leave a bare `python -` in a shell; write scripts to a file.
   Force-push is blocked by the harness; update a PR branch by merging main.
