@@ -268,3 +268,40 @@ s, face map 4 s, the whole run well under a minute).
   times the complex: 55,000 triangles at 3 mm, 123,000 at 2 mm. The target of
   about 60,000 is therefore realistic at roughly 3 mm; the final number is
   decided by `epsilon` in 5c and reported.
+
+## 16. 5b as built and its results on case 01
+
+`svf-core::region_surface` (checked on the real mesh by
+`crates/svf-core/examples/heart_regions.rs`; report in
+`docs/evidence/b2-5b-heart-regions/case01-regions.txt`).
+
+- **`relabel_islands(grid, tags, max_island_cells)`**: components of one tag joined
+  through shared faces; each tag keeps its largest; any other component under the
+  limit goes to the neighbouring tag with the most shared face area. With the
+  limit at 8, case 01 has **46** such strays (the audit's 9 counted only the
+  ones separate by edges): single cells, a few of 2 or 4. They are relabelled
+  before extraction.
+- **`LabelledSurface::build(grid, tags)`**: 369,806 faces, each wound from its
+  `front` label to its `back` label (`front < back`), void = 0. Enclosed voids
+  get the labels `CAVITY_BASE + k`. Cavities come out as in the audit (181.7,
+  120.1, 112.4 and 68.5 mL), now relabelled so a cavity is just another region.
+  `patches()` gives 197 patches after relabelling; `region_triangles(labels)` is
+  the closed outward-wound surface of any label set.
+- **`repair_pinches(points, triangles)`**: pairs the faces round a non-manifold
+  edge along the solid wedges, then duplicates vertices per connected fan.
+  One edge in tag 2 (the right ventricle) is a **handle through the pinch**:
+  the fans round both ends are connected anyway, so the wedge pairing leaves it
+  non-manifold, and the crossing pairing separates it. The repair tries the next
+  pairing for any edge left unresolved (up to four), and reports how many edges
+  needed it; a synthetic test builds the same shape.
+- **Result.** All 21 parts (10 wall and plane tags, 7 vessel ends as inlet tag
+  plus border tag, 4 cavities) come out as closed, consistently wound
+  2-manifolds whose volume equals the exact tetrahedron sum to better than 1e-13;
+  repair takes about a second. The parts add up to 572,362 triangles before
+  simplification (the estimate in section 15 was about 577,000).
+- **Vessel-end pairing is by adjacency, not by name.** The inlet and border
+  tags that touch are 11 and 18, 12 and 19, 13 and 20, 14 and 21, 15 and 22,
+  16 and 23, 17 and 24. The source's published list of border names is not in
+  the same order as the inlet names, so 5e names the pulmonary vein parts by
+  their position in the heart frame (left or right, superior or inferior), not
+  from the tag number.

@@ -13,6 +13,7 @@ pub mod geometry;
 pub mod isosurface;
 pub mod isosurface_field_transfer;
 pub mod ray;
+pub mod region_surface;
 pub mod sampling;
 pub mod scalar_visualization;
 pub mod spatial;
