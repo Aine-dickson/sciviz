@@ -2145,7 +2145,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   and layer peeling), starting with a design note.
 
 
-## B2 step 3a — section plane, capping and layers in core (on `b2-3a-section-core`, PR open)
+## B2 step 3a — section plane, capping and layers in core (merged, #63)
 
 - Design: `docs/sections-and-peeling.md` (#62, merged). #61 (2b) merged `062a98d`.
 - `svf-core::structure`: optional `layers` list (outermost first, grouping
@@ -2168,7 +2168,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   live check by the user.
 
 
-## B2 step 3b — section and peel in the Explorer (on `b2-3b-section-explorer`, stacked on #63)
+## B2 step 3b — section and peel in the Explorer (merged, #64)
 
 - Keys in `--structure` mode: `S` cycles section (off, across the axis = world
   y, along the axis = world x, off), `[` `]` move the plane by 1/50 of the
