@@ -103,7 +103,7 @@ impl ExplorerMode {
             }
             Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
             Self::Vsepr => "SVF VSEPR schematic — left CH4: tetrahedral | right H2O: bent".to_owned(),
-            Self::Structure => "Scientific Visualization Framework — structure (click pick, I isolate, A all, S section, [ ] move, F flip, P peel, R restore, L light)".to_owned(),
+            Self::Structure => "SVF structure".to_owned(),
         }
     }
 }
@@ -292,21 +292,17 @@ impl Explorer {
         if size.width == 0 || size.height == 0 {
             return;
         }
-        let base = self.mode.window_title(self.amplitude);
+        let state = scene.state_text();
         let ray = match renderer.camera().ray_from_viewport(x, y, size.width, size.height) {
             Ok(ray) => ray,
             Err(error) => {
-                window.set_title(&format!("{base} | pick ray error: {error}"));
+                window.set_title(&structure_title(&format!("pick ray error: {error}"), &state));
                 return;
             }
         };
-        let isolated = match scene.state_text() {
-            text if text.is_empty() => String::new(),
-            text => format!(" | {text}"),
-        };
         match scene.pick(&ray) {
             Some(part) => {
-                window.set_title(&format!("{base}{isolated} | {}", scene.part_title(part)));
+                window.set_title(&structure_title(&scene.part_title(part), &state));
                 if click {
                     eprintln!("{}", scene.part_path(part));
                     eprintln!("  {}", scene.part_description(part));
@@ -314,7 +310,7 @@ impl Explorer {
                 }
             }
             None => {
-                window.set_title(&format!("{base}{isolated} | no part under cursor"));
+                window.set_title(&structure_title("no part under cursor", &state));
                 if click {
                     eprintln!("No part under the cursor");
                     self.selected_part = None;
@@ -357,9 +353,7 @@ impl Explorer {
         }
         eprintln!("{message}");
         if let Some(window) = self.window.as_ref() {
-            let state = scene.state_text();
-            let base = self.mode.window_title(self.amplitude);
-            window.set_title(&if state.is_empty() { base } else { format!("{base} | {state}") });
+            window.set_title(&structure_title("", &scene.state_text()));
             window.request_redraw();
         }
     }
@@ -851,6 +845,7 @@ fn main() {
             match structure_view::StructureScene::load(config) {
                 Ok(scene) => {
                     eprintln!("{}", scene.summary());
+                    eprintln!("Keys: click = pick a part, I = isolate it, A = show all and restore layers, S = section (across, along, off), [ ] = move the plane, F = flip the kept side, P = peel a layer, R = restore a layer, L = light on/off.");
                     Some(scene)
                 }
                 Err(error) => {
@@ -930,6 +925,21 @@ fn main() {
     if app.exit_code != 0 {
         std::process::exit(app.exit_code);
     }
+}
+
+/// Window title for the structure view. What changes (the part under the
+/// cursor, the section and peel state) comes first because a long title is cut
+/// off at the end; the fixed name is last. The keys are printed at startup.
+fn structure_title(hover: &str, state: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    if !hover.is_empty() {
+        parts.push(hover);
+    }
+    if !state.is_empty() {
+        parts.push(state);
+    }
+    parts.push("SVF structure");
+    parts.join(" | ")
 }
 
 fn mode_from_args(args: impl IntoIterator<Item = String>) -> ExplorerMode {
@@ -1559,5 +1569,16 @@ mod tests {
         assert!(ExplorerMode::UnstructuredScalar
             .window_title(1.0)
             .contains("Unstructured cell scalar"));
+    }
+
+    #[test]
+    fn structure_title_puts_changing_text_first() {
+        assert_eq!(structure_title("", ""), "SVF structure");
+        assert_eq!(structure_title("Xylem", ""), "Xylem | SVF structure");
+        assert_eq!(
+            structure_title("Xylem", "section y=6.00"),
+            "Xylem | section y=6.00 | SVF structure"
+        );
+        assert!(structure_title("Medullary rays", "peeled 1/4 | section x=0.00").len() < 80);
     }
 }

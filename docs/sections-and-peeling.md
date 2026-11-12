@@ -53,6 +53,8 @@ get no range; parts wholly kept are unchanged.
 5. Cap vertices are the loop's own new vertices, so the cap meets the wall
    exactly.
 
+**Retry (found by live use).** A plane lying along an edge of a body (for the stem, x = +-1.8 or +-1.1) makes a cap sliver about 1e-7 wide, which the area tolerances read as zero. If a cap fails, the whole section is retried with the nudge raised from 1e-9 to 1e-6 and then 1e-4 of the extent (below anything visible). `NotClosed` is never retried.
+
 Everything is f64 and graphics-free.
 
 ## 2. Layers and peeling
