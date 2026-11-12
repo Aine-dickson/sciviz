@@ -9,7 +9,9 @@ use svf_core::{
     camera::Camera3,
     geometry::TriangleMesh3,
     ray::{intersect_mesh, Ray3},
+    spatial::{WorldPoint3, WorldVector3},
     structure::{Structure, StructureGeometry},
+    structure_section::{section_geometry, SectionPlane},
 };
 
 use crate::{
@@ -22,7 +24,21 @@ pub struct StructureConfig {
     pub path: PathBuf,
     pub camera: CameraSetup,
     pub screenshot: Option<PathBuf>,
+    pub view: ViewOptions,
 }
+
+/// Initial section and peel state from the command line.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ViewOptions {
+    /// World axis index (0 = x, 1 = y, 2 = z) and the plane offset along it.
+    pub section: Option<(usize, f64)>,
+    pub flip: bool,
+    pub peel: usize,
+}
+
+const AXIS_NAMES: [&str; 3] = ["x", "y", "z"];
+/// The section plane moves by this fraction of the extent per key press.
+const SECTION_STEPS: f64 = 50.0;
 
 /// `Ok(None)` when `--structure` is absent. The camera and screenshot flags
 /// are the ones `--vtk` accepts, with the same meaning.
@@ -36,6 +52,8 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
     let mut path = None;
     let mut camera = CameraSetup::default();
     let mut screenshot: Option<PathBuf> = None;
+    let mut view = ViewOptions::default();
+    let mut peel_given = false;
     let mut index = 1;
     while index < args.len() {
         let value = args.get(index + 1);
@@ -76,6 +94,40 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
                     .ok_or_else(|| "--screenshot requires an output PNG path".to_owned())?;
                 screenshot = Some(PathBuf::from(value));
             }
+            "--section" => {
+                if view.section.is_some() {
+                    return Err("--section may only be supplied once".to_owned());
+                }
+                let value = value.ok_or_else(|| "--section requires <x|y|z>=<offset>".to_owned())?;
+                let (axis, offset) = value
+                    .split_once('=')
+                    .ok_or_else(|| format!("invalid --section '{value}': expected <x|y|z>=<offset>"))?;
+                let axis = AXIS_NAMES
+                    .iter()
+                    .position(|name| *name == axis)
+                    .ok_or_else(|| format!("invalid --section axis '{axis}': use x, y or z"))?;
+                let offset = offset
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|o| o.is_finite())
+                    .ok_or_else(|| format!("invalid --section offset '{offset}': expected a finite number"))?;
+                view.section = Some((axis, offset));
+            }
+            "--section-flip" => {
+                view.flip = true;
+                index += 1;
+                continue;
+            }
+            "--peel" => {
+                if peel_given {
+                    return Err("--peel may only be supplied once".to_owned());
+                }
+                peel_given = true;
+                let value = value.ok_or_else(|| "--peel requires a layer count".to_owned())?;
+                view.peel = value
+                    .parse::<usize>()
+                    .map_err(|_| format!("invalid --peel '{value}': expected a whole number"))?;
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in structure mode"));
             }
@@ -85,19 +137,48 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
         }
         index += 2;
     }
+    if view.flip && view.section.is_none() {
+        return Err("--section-flip requires --section".to_owned());
+    }
     Ok(Some(StructureConfig {
         path: path.ok_or_else(|| "--structure requires a file path".to_owned())?,
         camera,
         screenshot,
+        view,
     }))
 }
 
-/// A loaded structure plus what is currently visible.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SectionState {
+    axis: usize,
+    offset: f64,
+    flipped: bool,
+}
+
+impl SectionState {
+    fn plane(&self) -> Result<SectionPlane, String> {
+        let mut point = [0.0; 3];
+        point[self.axis] = self.offset;
+        let mut normal = [0.0; 3];
+        normal[self.axis] = if self.flipped { -1.0 } else { 1.0 };
+        SectionPlane::new(
+            WorldPoint3::new(point[0], point[1], point[2]),
+            WorldVector3::new(normal[0], normal[1], normal[2]),
+        )
+        .map_err(|e| e.to_string())
+    }
+}
+
+/// A loaded structure plus what is currently visible: an optional isolated
+/// part, the number of peeled layers and an optional section plane.
 pub struct StructureScene {
     pub structure: Structure,
     pub camera: Camera3,
     geometry: StructureGeometry,
     isolated: Option<usize>,
+    peeled: usize,
+    section: Option<SectionState>,
+    bounds: ([f64; 3], [f64; 3]),
 }
 
 impl StructureScene {
@@ -106,19 +187,81 @@ impl StructureScene {
             .map_err(|e| format!("cannot read structure '{}': {e}", config.path.display()))?;
         let structure = Structure::from_ron_str(&text)
             .map_err(|e| format!("invalid structure '{}': {e}", config.path.display()))?;
-        Self::from_structure(structure, &config.camera)
+        Self::from_structure(structure, &config.camera, &config.view)
     }
 
-    pub fn from_structure(structure: Structure, setup: &CameraSetup) -> Result<Self, String> {
-        let geometry = structure
+    pub fn from_structure(
+        structure: Structure,
+        setup: &CameraSetup,
+        view: &ViewOptions,
+    ) -> Result<Self, String> {
+        let full = structure
             .build_geometry()
             .map_err(|e| format!("cannot build structure geometry: {e}"))?;
-        if geometry.mesh().indices().is_empty() {
+        if full.mesh().indices().is_empty() {
             return Err("the structure has no part with geometry".to_owned());
         }
-        let fitted = fit_camera(geometry.mesh(), 1280.0 / 800.0)?;
+        // The camera is fitted to the whole structure, so cuts and peels do
+        // not move it.
+        let fitted = fit_camera(full.mesh(), 1280.0 / 800.0)?;
         let camera = apply_camera_setup(&fitted, setup)?;
-        Ok(Self { structure, camera, geometry, isolated: None })
+        let mut low = [f64::INFINITY; 3];
+        let mut high = [f64::NEG_INFINITY; 3];
+        for point in full.mesh().vertices() {
+            let p = point.to_array();
+            for axis in 0..3 {
+                low[axis] = low[axis].min(p[axis]);
+                high[axis] = high[axis].max(p[axis]);
+            }
+        }
+        if view.peel > structure.layers().len() {
+            return Err(format!(
+                "--peel {} but the structure has {} layers",
+                view.peel,
+                structure.layers().len()
+            ));
+        }
+        let mut scene = Self {
+            structure,
+            camera,
+            geometry: full,
+            isolated: None,
+            peeled: 0,
+            section: None,
+            bounds: (low, high),
+        };
+        let section = view.section.map(|(axis, offset)| SectionState { axis, offset, flipped: view.flip });
+        scene.set(None, view.peel, section)?;
+        Ok(scene)
+    }
+
+    /// Rebuild the visible geometry for a new state; the scene is unchanged on error.
+    fn set(
+        &mut self,
+        isolated: Option<usize>,
+        peeled: usize,
+        section: Option<SectionState>,
+    ) -> Result<(), String> {
+        let visible = self.structure.visible_parts(isolated, peeled);
+        let mut geometry = self
+            .structure
+            .build_geometry_for(&visible)
+            .map_err(|e| format!("cannot build structure geometry: {e}"))?;
+        if geometry.mesh().indices().is_empty() {
+            return Err("no part with geometry would be visible".to_owned());
+        }
+        if let Some(state) = section {
+            geometry = section_geometry(&geometry, &state.plane()?)
+                .map_err(|e| format!("cannot cut the structure: {e}"))?;
+            if geometry.mesh().indices().is_empty() {
+                return Err("the section would remove everything; move or flip the plane".to_owned());
+            }
+        }
+        self.geometry = geometry;
+        self.isolated = isolated;
+        self.peeled = peeled;
+        self.section = section;
+        Ok(())
     }
 
     pub fn mesh(&self) -> &TriangleMesh3 {
@@ -133,14 +276,43 @@ impl StructureScene {
         self.isolated
     }
 
+    pub fn peeled(&self) -> usize {
+        self.peeled
+    }
+
+    pub fn section_axis(&self) -> Option<usize> {
+        self.section.map(|s| s.axis)
+    }
+
+    /// Short state text for the window title; empty when nothing is applied.
+    pub fn state_text(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(i) = self.isolated {
+            parts.push(format!("isolated: {}", self.part_title(i)));
+        }
+        if self.peeled > 0 {
+            parts.push(format!("peeled {}/{}", self.peeled, self.structure.layers().len()));
+        }
+        if let Some(s) = self.section {
+            parts.push(format!(
+                "section {}={:.2}{}",
+                AXIS_NAMES[s.axis],
+                s.offset,
+                if s.flipped { " (flipped)" } else { "" }
+            ));
+        }
+        parts.join(" | ")
+    }
+
     pub fn summary(&self) -> String {
         let with_geometry = self.structure.parts().iter().filter(|p| p.geometry().is_some()).count();
         format!(
-            "Structure '{}' ({}): {} parts ({} with geometry), {} triangles. Reference: {}",
+            "Structure '{}' ({}): {} parts ({} with geometry), {} layers, {} triangles. Reference: {}",
             self.structure.name(),
             self.structure.units(),
             self.structure.parts().len(),
             with_geometry,
+            self.structure.layers().len(),
             self.geometry.mesh().indices().len() / 3,
             self.structure.reference(),
         )
@@ -152,29 +324,92 @@ impl StructureScene {
         self.geometry.part_of_triangle(hit.triangle_index())
     }
 
-    /// Show only `part`. Errors if it has no geometry or is out of range;
+    /// Show only `part`. Errors if it has no geometry or is hidden by a peel;
     /// the current view is unchanged on error.
-    pub fn isolate(&mut self, part: usize) -> Result<(), String> {
+    pub fn isolate(&mut self, part: usize) -> Result<String, String> {
         let name = self.structure.parts().get(part).ok_or("unknown part")?.name().to_owned();
-        let geometry = self
-            .structure
-            .build_geometry_for(&[part])
-            .map_err(|e| format!("cannot isolate '{name}': {e}"))?;
-        if geometry.mesh().indices().is_empty() {
+        if self.structure.parts()[part].geometry().is_none() {
             return Err(format!("'{name}' has no geometry of its own to isolate"));
         }
-        self.geometry = geometry;
-        self.isolated = Some(part);
-        Ok(())
+        if !self.structure.visible_parts(None, self.peeled).contains(&part) {
+            return Err(format!("'{name}' is in a peeled layer; restore it first (R)"));
+        }
+        self.set(Some(part), self.peeled, self.section)?;
+        Ok(format!("Isolated: {}", self.part_path(part)))
     }
 
-    pub fn show_all(&mut self) -> Result<(), String> {
-        self.geometry = self
-            .structure
-            .build_geometry()
-            .map_err(|e| format!("cannot rebuild structure geometry: {e}"))?;
-        self.isolated = None;
-        Ok(())
+    /// `A`: clear isolation and peeling. The section plane stays (it has its own key).
+    pub fn show_all(&mut self) -> Result<String, String> {
+        self.set(None, 0, self.section)?;
+        Ok("Showing all parts".to_owned())
+    }
+
+    /// `S`: off, transverse (plane normal along the structure axis, world y),
+    /// longitudinal (world x), off. A plane set from the command line on
+    /// another axis goes to off.
+    pub fn cycle_section(&mut self) -> Result<String, String> {
+        let next = match self.section {
+            None => Some(1),
+            Some(s) if s.axis == 1 => Some(0),
+            Some(_) => None,
+        };
+        let section = next.map(|axis| SectionState {
+            axis,
+            offset: 0.5 * (self.bounds.0[axis] + self.bounds.1[axis]),
+            flipped: false,
+        });
+        self.set(self.isolated, self.peeled, section)?;
+        Ok(match section {
+            None => "Section off".to_owned(),
+            Some(s) => format!(
+                "Section {} at {}={:.2}",
+                if s.axis == 1 { "across the axis" } else { "along the axis" },
+                AXIS_NAMES[s.axis],
+                s.offset
+            ),
+        })
+    }
+
+    /// `[` and `]`: move the plane by `steps` of 1/50 of the extent, kept inside the bounds.
+    pub fn move_section(&mut self, steps: f64) -> Result<String, String> {
+        let state = self.section.ok_or("no section plane; press S first")?;
+        let (low, high) = (self.bounds.0[state.axis], self.bounds.1[state.axis]);
+        let offset = (state.offset + steps * (high - low) / SECTION_STEPS).clamp(low, high);
+        let moved = SectionState { offset, ..state };
+        self.set(self.isolated, self.peeled, Some(moved))?;
+        Ok(format!("Section {}={:.2}", AXIS_NAMES[state.axis], offset))
+    }
+
+    /// `F`: keep the other side of the cut.
+    pub fn flip_section(&mut self) -> Result<String, String> {
+        let state = self.section.ok_or("no section plane; press S first")?;
+        let flipped = SectionState { flipped: !state.flipped, ..state };
+        self.set(self.isolated, self.peeled, Some(flipped))?;
+        Ok(if flipped.flipped { "Section flipped" } else { "Section restored" }.to_owned())
+    }
+
+    /// `P`: remove the outermost layer still shown.
+    pub fn peel(&mut self) -> Result<String, String> {
+        let total = self.structure.layers().len();
+        if total == 0 {
+            return Err("this structure has no layers to peel".to_owned());
+        }
+        if self.peeled >= total {
+            return Err("every layer is already peeled".to_owned());
+        }
+        let layer = self.structure.layers()[self.peeled].name().to_owned();
+        self.set(self.isolated, self.peeled + 1, self.section)?;
+        Ok(format!("Peeled layer '{layer}' ({} of {total})", self.peeled))
+    }
+
+    /// `R`: put back the layer peeled last.
+    pub fn restore(&mut self) -> Result<String, String> {
+        if self.peeled == 0 {
+            return Err("no layer is peeled".to_owned());
+        }
+        let layer = self.structure.layers()[self.peeled - 1].name().to_owned();
+        self.set(self.isolated, self.peeled - 1, self.section)?;
+        Ok(format!("Restored layer '{layer}' ({} peeled)", self.peeled))
     }
 
     /// "Dicot stem > Vascular bundles > Phloem".
@@ -212,7 +447,7 @@ mod tests {
 
     fn scene() -> StructureScene {
         let structure = Structure::from_ron_str(STEM).unwrap();
-        StructureScene::from_structure(structure, &CameraSetup::default()).unwrap()
+        StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default()).unwrap()
     }
 
     #[test]
@@ -283,5 +518,114 @@ mod tests {
         let scene = scene();
         let phloem = scene.structure.part_index("phloem").unwrap();
         assert_eq!(scene.part_path(phloem), "Dicot stem > Vascular bundles > Phloem");
+    }
+
+    fn above(scene: &StructureScene, x: f64, y: f64) -> Option<String> {
+        let ray = Ray3::new(WorldPoint3::new(x, y, 0.0), WorldVector3::new(0.0, -1.0, 0.0)).unwrap();
+        scene.pick(&ray).map(|p| scene.structure.parts()[p].id().to_owned())
+    }
+
+    #[test]
+    fn parses_section_and_peel_flags() {
+        let c = parse_structure_args(&args(&[
+            "x", "--structure", "a.ron", "--section", "y=6.5", "--section-flip", "--peel", "2",
+        ]))
+        .unwrap()
+        .unwrap();
+        assert_eq!(c.view, ViewOptions { section: Some((1, 6.5)), flip: true, peel: 2 });
+        let bad = |extra: &[&str]| {
+            let mut a = vec!["x", "--structure", "a.ron"];
+            a.extend_from_slice(extra);
+            parse_structure_args(&args(&a)).is_err()
+        };
+        assert!(bad(&["--section", "w=1"]));
+        assert!(bad(&["--section", "y"]));
+        assert!(bad(&["--section", "y=nan"]));
+        assert!(bad(&["--section-flip"]));
+        assert!(bad(&["--peel", "-1"]));
+        assert!(bad(&["--peel", "1", "--peel", "2"]));
+    }
+
+    #[test]
+    fn section_across_the_stem_makes_the_cap_pickable_by_tissue() {
+        let mut scene = scene();
+        scene.cycle_section().unwrap();
+        assert_eq!(scene.section_axis(), Some(1));
+        // Plane at mid-length, cap faces up: a ray from above hits the cap.
+        assert_eq!(above(&scene, 4.85, 50.0).as_deref(), Some("epidermis"));
+        assert_eq!(above(&scene, 4.0, 50.0).as_deref(), Some("cortex"));
+        assert_eq!(above(&scene, 0.5, 50.0).as_deref(), Some("pith"));
+        // The cap is at y = 6, not at the top end y = 12.
+        let ray = Ray3::new(WorldPoint3::new(0.5, 50.0, 0.0), WorldVector3::new(0.0, -1.0, 0.0)).unwrap();
+        let hit = intersect_mesh(&ray, scene.mesh()).unwrap();
+        assert!((hit.position().to_array()[1] - 6.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn section_keys_cycle_move_flip_and_clamp() {
+        let mut scene = scene();
+        assert!(scene.move_section(1.0).is_err());
+        assert!(scene.flip_section().is_err());
+        scene.cycle_section().unwrap();
+        scene.move_section(5.0).unwrap();
+        assert!(scene.state_text().contains("section y=7.20"), "{}", scene.state_text());
+        scene.flip_section().unwrap();
+        assert!(scene.state_text().contains("flipped"));
+        // Far beyond the end the plane clamps to the structure's bounds.
+        scene.move_section(-1000.0).unwrap();
+        assert!(scene.state_text().contains("section y=0.00"), "{}", scene.state_text());
+        scene.cycle_section().unwrap(); // flipped y -> longitudinal x
+        assert_eq!(scene.section_axis(), Some(0));
+        scene.cycle_section().unwrap();
+        assert_eq!(scene.section_axis(), None);
+    }
+
+    #[test]
+    fn peeling_removes_layers_from_the_outside_and_restores_them() {
+        let mut scene = scene();
+        scene.peel().unwrap();
+        assert_eq!(above(&scene, 4.85, 50.0), None, "epidermis is gone");
+        assert_eq!(above(&scene, 4.0, 50.0).as_deref(), Some("cortex"));
+        scene.peel().unwrap();
+        scene.peel().unwrap();
+        assert_eq!(above(&scene, 0.5, 50.0).as_deref(), Some("pith"));
+        assert_eq!(above(&scene, 4.0, 50.0), None);
+        // Peeling the last layer would leave nothing, so it is refused.
+        assert!(scene.peel().unwrap_err().contains("no part"));
+        assert_eq!(scene.peeled(), 3);
+        scene.restore().unwrap();
+        assert_eq!(scene.peeled(), 2);
+        scene.show_all().unwrap();
+        assert_eq!(scene.peeled(), 0);
+        assert!(scene.restore().is_err());
+    }
+
+    #[test]
+    fn peel_and_section_compose_and_a_failed_command_changes_nothing() {
+        let mut scene = scene();
+        scene.peel().unwrap();
+        scene.cycle_section().unwrap();
+        let triangles = scene.mesh().indices().len();
+        assert_eq!(scene.state_text(), "peeled 1/4 | section y=6.00");
+        // Isolating a peeled part is refused and the view stays.
+        let skin = scene.structure.part_index("epidermis").unwrap();
+        assert!(scene.isolate(skin).is_err());
+        assert_eq!(scene.mesh().indices().len(), triangles);
+        // A plane that removes everything is refused and the view stays.
+        let cut = SectionState { axis: 1, offset: -5.0, flipped: false };
+        assert!(scene.set(None, 0, Some(cut)).is_err());
+        assert_eq!(scene.mesh().indices().len(), triangles);
+        assert_eq!(scene.peeled(), 1);
+    }
+
+    #[test]
+    fn initial_view_options_apply_and_bad_peel_is_rejected() {
+        let structure = Structure::from_ron_str(STEM).unwrap();
+        let view = ViewOptions { section: Some((0, 0.0)), flip: false, peel: 2 };
+        let scene = StructureScene::from_structure(structure.clone(), &CameraSetup::default(), &view).unwrap();
+        assert_eq!(scene.peeled(), 2);
+        assert_eq!(scene.section_axis(), Some(0));
+        let bad = ViewOptions { peel: 9, ..ViewOptions::default() };
+        assert!(StructureScene::from_structure(structure, &CameraSetup::default(), &bad).is_err());
     }
 }

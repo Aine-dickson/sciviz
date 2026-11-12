@@ -2145,7 +2145,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   and layer peeling), starting with a design note.
 
 
-## B2 step 3a — section plane, capping and layers in core (on `b2-3a-section-core`, PR open)
+## B2 step 3a — section plane, capping and layers in core (merged, #63)
 
 - Design: `docs/sections-and-peeling.md` (#62, merged). #61 (2b) merged `062a98d`.
 - `svf-core::structure`: optional `layers` list (outermost first, grouping
@@ -2166,3 +2166,25 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Next action: 3b on a new branch: `S` cycle, `[` `]`, `F`, `P`, `R`, the
   `--section`, `--section-flip`, `--peel` flags, picking on caps, screenshots,
   live check by the user.
+
+
+## B2 step 3b — section and peel in the Explorer (merged, #64)
+
+- Keys in `--structure` mode: `S` cycles section (off, across the axis = world
+  y, along the axis = world x, off), `[` `]` move the plane by 1/50 of the
+  extent, `F` flips the kept side, `P` peels the outermost layer, `R` restores
+  the last, `I` isolates the last click, `A` clears isolation and peels (the
+  plane stays). Flags: `--section <x|y|z>=<offset>`, `--section-flip`,
+  `--peel <n>`. Title shows the state. A command that would show nothing
+  (plane removes everything, last layer peeled) is refused and the view is
+  unchanged. Camera is fitted to the whole structure, so cuts do not move it.
+- Picking runs on the final mesh: a cap names its tissue (unit-tested).
+- Verified: `cargo test --workspace` passes (svf-core 307, explorer 71, render
+  12). Screenshots in `docs/evidence/b2-3b-sections/`: across, along, peels 1
+  to 3, across + peel 2. They show the cuts as filled tissue regions.
+- NOT verified: the keys in the live window (user to try); `--section z=` is
+  parsed and tested only as a flag.
+- Next action: user tries it live, then merge #63 then this PR. After that, B2
+  step 4 (cockroach recipe: needs new blocks, tube along a curve, ellipsoid,
+  repetition and mirror; start with a design note and an Opus-level check of
+  the block set).

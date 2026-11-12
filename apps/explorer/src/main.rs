@@ -47,6 +47,18 @@ const AMPLITUDE_STEP: f64 = 0.25;
 const MAX_AMPLITUDE: f64 = 3.0;
 const MIN_AMPLITUDE: f64 = 0.0;
 
+/// Keyboard commands of the structure view.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum StructureCommand {
+    Isolate,
+    ShowAll,
+    CycleSection,
+    MoveSection(f64),
+    FlipSection,
+    Peel,
+    Restore,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ExplorerMode {
     #[default]
@@ -91,7 +103,7 @@ impl ExplorerMode {
             }
             Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
             Self::Vsepr => "SVF VSEPR schematic — left CH4: tetrahedral | right H2O: bent".to_owned(),
-            Self::Structure => "Scientific Visualization Framework — structure (click: pick, I: isolate, A: all, L: light)".to_owned(),
+            Self::Structure => "Scientific Visualization Framework — structure (click pick, I isolate, A all, S section, [ ] move, F flip, P peel, R restore, L light)".to_owned(),
         }
     }
 }
@@ -288,10 +300,10 @@ impl Explorer {
                 return;
             }
         };
-        let isolated = scene
-            .isolated()
-            .map(|i| format!(" | isolated: {}", scene.part_title(i)))
-            .unwrap_or_default();
+        let isolated = match scene.state_text() {
+            text if text.is_empty() => String::new(),
+            text => format!(" | {text}"),
+        };
         match scene.pick(&ray) {
             Some(part) => {
                 window.set_title(&format!("{base}{isolated} | {}", scene.part_title(part)));
@@ -311,23 +323,31 @@ impl Explorer {
         }
     }
 
-    /// `I`: show only the selected part. `A`: show every part again.
-    fn change_structure_visibility(&mut self, isolate: bool) {
+    /// Run one structure command (`I`, `A`, `S`, `[`, `]`, `F`, `P`, `R`),
+    /// then push the new mesh to the renderer and refresh the title.
+    fn structure_command(&mut self, command: StructureCommand) {
         let Some(scene) = self.structure_scene.as_mut() else {
             return;
         };
-        let result = if isolate {
-            match self.selected_part {
+        let result = match command {
+            StructureCommand::Isolate => match self.selected_part {
                 Some(part) => scene.isolate(part),
                 None => Err("click a part first, then press I".to_owned()),
-            }
-        } else {
-            scene.show_all()
+            },
+            StructureCommand::ShowAll => scene.show_all(),
+            StructureCommand::CycleSection => scene.cycle_section(),
+            StructureCommand::MoveSection(steps) => scene.move_section(steps),
+            StructureCommand::FlipSection => scene.flip_section(),
+            StructureCommand::Peel => scene.peel(),
+            StructureCommand::Restore => scene.restore(),
         };
-        if let Err(error) = result {
-            eprintln!("{error}");
-            return;
-        }
+        let message = match result {
+            Ok(message) => message,
+            Err(error) => {
+                eprintln!("{error}");
+                return;
+            }
+        };
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -335,12 +355,11 @@ impl Explorer {
             eprintln!("Cannot update the displayed structure: {error}");
             return;
         }
-        if isolate {
-            eprintln!("Isolated: {}", scene.part_path(self.selected_part.unwrap_or_default()));
-        } else {
-            eprintln!("Showing all parts");
-        }
+        eprintln!("{message}");
         if let Some(window) = self.window.as_ref() {
+            let state = scene.state_text();
+            let base = self.mode.window_title(self.amplitude);
+            window.set_title(&if state.is_empty() { base } else { format!("{base} | {state}") });
             window.request_redraw();
         }
     }
@@ -767,12 +786,18 @@ impl ApplicationHandler for Explorer {
                                 eprintln!("Amplitude update failed: {error}");
                             }
                         }
-                        PhysicalKey::Code(KeyCode::KeyI) => {
-                            self.change_structure_visibility(true);
+                        PhysicalKey::Code(KeyCode::KeyI) => self.structure_command(StructureCommand::Isolate),
+                        PhysicalKey::Code(KeyCode::KeyA) => self.structure_command(StructureCommand::ShowAll),
+                        PhysicalKey::Code(KeyCode::KeyS) => self.structure_command(StructureCommand::CycleSection),
+                        PhysicalKey::Code(KeyCode::BracketLeft) => {
+                            self.structure_command(StructureCommand::MoveSection(-1.0));
                         }
-                        PhysicalKey::Code(KeyCode::KeyA) => {
-                            self.change_structure_visibility(false);
+                        PhysicalKey::Code(KeyCode::BracketRight) => {
+                            self.structure_command(StructureCommand::MoveSection(1.0));
                         }
+                        PhysicalKey::Code(KeyCode::KeyF) => self.structure_command(StructureCommand::FlipSection),
+                        PhysicalKey::Code(KeyCode::KeyP) => self.structure_command(StructureCommand::Peel),
+                        PhysicalKey::Code(KeyCode::KeyR) => self.structure_command(StructureCommand::Restore),
                         PhysicalKey::Code(KeyCode::KeyL) => {
                             if let Some(renderer) = self.renderer.as_mut() {
                                 renderer.set_shaded(!renderer.shaded());
@@ -808,8 +833,10 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer --structure <file.ron> [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
-            eprintln!("  Click picks a part, I isolates the picked part, A shows all, L toggles the light.");
+            eprintln!("Usage: svf-explorer --structure <file.ron> [--section <x|y|z>=<offset>] [--section-flip] [--peel <layers>] [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
+            eprintln!("  Click picks a part, I isolates it, A shows all parts (and restores peeled layers).");
+            eprintln!("  S cycles the section (off, across the axis, along the axis), [ and ] move the plane, F flips the kept side.");
+            eprintln!("  P peels the outermost layer, R restores the last one, L toggles the light.");
             std::process::exit(2);
         }
     };
