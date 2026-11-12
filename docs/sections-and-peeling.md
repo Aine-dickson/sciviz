@@ -55,6 +55,8 @@ get no range; parts wholly kept are unchanged.
 
 **Retry (found by live use).** A plane lying along an edge of a body (for the stem, x = +-1.8 or +-1.1) makes a cap sliver about 1e-7 wide, which the area tolerances read as zero. If a cap fails, the whole section is retried with the nudge raised from 1e-9 to 1e-6 and then 1e-4 of the extent (below anything visible). `NotClosed` is never retried.
 
+**Tiny caps far from the origin (found with the cockroach fixture).** A plane 1e-7 above an ellipsoid's pole at x = 37 leaves a cut loop about 6e-4 wide. The cap's area check summed the shoelace formula about the plane origin, so cancellation (terms near 100, area near 1e-6) made the total disagree with the triangulated area and the cap failed. In a dense scene every larger nudge then fails too (some vertex always lies within it), so the whole cut returned `DegeneratePlane`. The area is now measured from the loop's first vertex. A unit test calls the smallest nudge directly.
+
 Everything is f64 and graphics-free.
 
 ## 2. Layers and peeling
