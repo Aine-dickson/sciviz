@@ -123,8 +123,15 @@ opposite the face), never from file order, because the source does not certify
 orientation.
 
 Where two parts of a region touch along an edge or at a vertex the boundary is
-not a 2-manifold and cannot be capped. 5a counts these per tag. If there are
-any, the pinched vertices are split per face fan before simplification.
+not a 2-manifold and cannot be capped. 5a found 97 such edges and 18 such
+vertices in case 01 (section 15), so the repair is part of the design: at a
+non-manifold edge the faces are sorted by angle round the edge and paired along
+the solid wedges, so each pair becomes a manifold sheet; a non-manifold vertex
+is duplicated once per connected face fan. The repair runs per part when the
+part is assembled, on the part's own vertex list, so the shared patch triangles
+stay geometrically identical. Single-cell islands (a tag region of one
+tetrahedron touching its region only along an edge) are relabelled to the
+neighbouring tag with the largest shared face area before extraction.
 
 ## 8. Format additions
 
@@ -219,3 +226,45 @@ vessels and the valve planes; remove the walls in order to see the chambers as
 casts; and cut a four-chamber and a short-axis view in which walls and chambers
 read as filled regions. No heart-specific Explorer code is needed beyond the
 generic mesh loading and the attribution line.
+
+## 15. 5a results on case 01
+
+Run of `crates/svf-core/examples/heart_audit.rs` on `01-svf-order.vtk` (report in
+`docs/evidence/b2-5a-heart-audit/case01-audit.txt`; reading and parsing 6 to 7
+s, face map 4 s, the whole run well under a minute).
+
+- **Conforming, no degenerates.** 5,120,708 unique faces; none is used by more
+  than two tetrahedra; no zero-volume tetrahedron. The labelled complex has
+  369,926 faces: 329,952 exterior and 39,974 between tags.
+- **Orientation rule confirmed.** Orienting each face against the opposite
+  vertex of its tetrahedron makes every tag region's boundary consistently
+  wound, and its divergence-theorem volume equals the exact sum of tetrahedron
+  volumes to better than 1e-13 relative for all 24 tags. No face is ambiguous.
+- **Cavities: the gate passes.** The exterior surface has five components:
+  the outer surface (785 mL enclosed) and exactly four inner ones, each sealed
+  by valve planes and inlet slabs:
+
+  | Cavity | Volume | Bounded by tags |
+  |---|---|---|
+  | Right ventricle | 181.7 mL | 1, 2, 8 (tricuspid), 10 (pulmonary) |
+  | Left ventricle | 120.1 mL | 1, 7 (mitral), 9 (aortic) |
+  | Right atrium | 112.4 mL | 4, 8, 16 and 17 (venae cavae inlets) |
+  | Left atrium | 68.5 mL | 3, 7, 11 to 15 (appendage and pulmonary vein inlets) |
+
+  The volumes are plausible for end-diastole. No capping fallback is needed.
+- **Non-manifold: the gate fails as feared, and is repairable.** 97 edges and
+  18 vertices over all regions (tag 2 has 22 and 10, the most; 29 exterior
+  edges). Every non-manifold edge is balanced (as many forward as backward
+  uses), so pairing is always possible. Nine regions-of-one-tetrahedron islands
+  (tag 2 four, tag 8 five) account for the extra components; they are relabelled.
+- **Patches.** 65 side-tag pairs, 286 patches; 197 of those have fewer than ten
+  faces (496 faces together, pinches and islands), 28 hold 346,550 of the
+  369,926 faces. Pinned curves: 6,503 edges, 5,582 mm, 6,341 vertices (a floor of
+  about 12,700 triangles). Patches under ten faces are kept as they are.
+- **Budget.** Mean source edge 0.92 mm. An area-only estimate for the labelled
+  complex is 35,000 triangles at a 3 mm mean edge and 79,000 at 2 mm. Each
+  complex face belongs to one part (outer surface, 163,704 faces) or two (every
+  cavity surface and every tag interface), so the parts add up to about 1.56
+  times the complex: 55,000 triangles at 3 mm, 123,000 at 2 mm. The target of
+  about 60,000 is therefore realistic at roughly 3 mm; the final number is
+  decided by `epsilon` in 5c and reported.
