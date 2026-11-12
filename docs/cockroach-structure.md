@@ -70,10 +70,11 @@ silently breaks closure).
 Ellipsoid(centre: (x, y, z), radii: (a, b, c), rotate_deg: (0, 0, 0), wall: None)
 ```
 
-Latitude/longitude sphere scaled by the radii, then rotated (Z, Y, X order,
-documented). `wall: Some(t)` adds an inward-wound inner surface. Used for the
-head capsule, eyes, brain, ganglia, gizzard, ovaries and fat-body lobes.
-Poles are single vertices; the spike's version is the starting point.
+Latitude/longitude sphere (poles on local +Y) scaled by the radii, then rotated
+about its centre about world X, then Y, then Z. `wall: Some(t)` adds an
+inward-wound inner surface (every radius shrinks by `t`). Used for the head
+capsule, eyes, brain, ganglia, gizzard, ovaries and fat-body lobes. Poles are
+single vertices; `circle_segments / 2` (at least 4) latitude bands.
 
 Segment counts reuse `circle_segments` for the cross-section ring and
 `steps_per_span` for the length, so one file-level knob controls detail.
