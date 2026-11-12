@@ -216,6 +216,18 @@ impl SceneRenderer {
         Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
     }
 
+    /// Initialize the renderer with a mesh whose vertices carry authored
+    /// display colours (sRGB, 0 to 1), such as a structure's parts. The
+    /// headlight starts on: colour is categorical, not a measured value.
+    pub async fn new_with_coloured_mesh(
+        window: Arc<Window>,
+        mesh: &TriangleMesh3,
+        colours: &[[f64; 3]],
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_coloured_mesh(mesh, colours)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
+    }
+
     /// Initialize the renderer with a mesh and prepared vector glyphs from svf-core.
     pub async fn new_with_vector_glyphs(
         window: Arc<Window>,
@@ -542,6 +554,37 @@ impl SceneRenderer {
         Ok(())
     }
 
+    /// Replace the mesh with a coloured one of any size (for example a
+    /// different visible subset of a structure). Unlike [`Self::update_mesh`]
+    /// this reallocates the vertex and index buffers. The mesh must not be
+    /// empty. On error the previous mesh stays in place.
+    pub fn replace_coloured_mesh(
+        &mut self,
+        mesh: &TriangleMesh3,
+        colours: &[[f64; 3]],
+    ) -> Result<(), RenderError> {
+        let (vertices, indices) = convert_coloured_mesh(mesh, colours)?;
+        if vertices.is_empty() || indices.is_empty() {
+            return Err(RenderError::MeshConversion);
+        }
+        let vertex_count =
+            u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let index_count = u32::try_from(indices.len()).map_err(|_| RenderError::MeshConversion)?;
+        self.mesh_vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("svf-scientific-mesh-vertex-buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        self.mesh_index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("svf-scientific-mesh-index-buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+        });
+        self.mesh_vertex_count = vertex_count;
+        self.mesh_index_count = index_count;
+        Ok(())
+    }
+
     /// Reconfigure the surface and camera projection after a non-zero resize.
     ///
     /// Only the camera aspect ratio changes; world-space reference geometry
@@ -845,6 +888,36 @@ fn convert_mesh(mesh: &TriangleMesh3) -> Result<(Vec<MeshVertex>, Vec<u32>), Ren
     Ok((vertices, mesh.indices().to_vec()))
 }
 
+/// sRGB display value to linear light, as the sRGB surface re-encodes on write.
+fn srgb_to_linear(value: f64) -> f64 {
+    if value <= 0.04045 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn convert_coloured_mesh(
+    mesh: &TriangleMesh3,
+    colours: &[[f64; 3]],
+) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
+    if mesh.vertices().len() != colours.len()
+        || colours.iter().flatten().any(|c| !c.is_finite() || !(0.0..=1.0).contains(c))
+    {
+        return Err(RenderError::MeshConversion);
+    }
+    let (mut vertices, indices) = convert_mesh(mesh)?;
+    for (vertex, colour) in vertices.iter_mut().zip(colours) {
+        vertex.color = [
+            srgb_to_linear(colour[0]) as f32,
+            srgb_to_linear(colour[1]) as f32,
+            srgb_to_linear(colour[2]) as f32,
+            1.0,
+        ];
+    }
+    Ok((vertices, indices))
+}
+
 fn convert_mapped_surface(
     surface: &svf_core::scalar_visualization::MappedSurface3,
 ) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
@@ -1074,6 +1147,29 @@ mod tests {
         vector_glyphs::{build_vector_glyphs, VectorScalePolicy3},
         vector_visualization::{analyze_vector_sources, resolve_vector_sources},
     };
+
+    #[test]
+    fn coloured_mesh_conversion_applies_linear_colour_and_validates() {
+        let mesh = TriangleMesh3::new(
+            vec![
+                WorldPoint3::new(0.0, 0.0, 0.0),
+                WorldPoint3::new(1.0, 0.0, 0.0),
+                WorldPoint3::new(0.0, 1.0, 0.0),
+            ],
+            vec![0, 1, 2],
+        )
+        .unwrap();
+        let ok = [[1.0, 0.0, 0.5]; 3];
+        let (vertices, indices) = convert_coloured_mesh(&mesh, &ok).unwrap();
+        assert_eq!(indices, vec![0, 1, 2]);
+        assert_eq!(vertices[0].color[0], 1.0);
+        assert_eq!(vertices[0].color[1], 0.0);
+        assert!((vertices[0].color[2] - 0.2140).abs() < 1e-3);
+        assert_eq!(vertices[0].color[3], 1.0);
+        assert!(convert_coloured_mesh(&mesh, &ok[..2]).is_err());
+        assert!(convert_coloured_mesh(&mesh, &[[1.5, 0.0, 0.0]; 3]).is_err());
+        assert!(convert_coloured_mesh(&mesh, &[[f64::NAN, 0.0, 0.0]; 3]).is_err());
+    }
 
     fn vector_glyphs(points: Vec<WorldPoint3>, values: Vec<VectorValue3>) -> VectorGlyphSet3 {
         vector_glyphs_with_length(points, values, 2.0)

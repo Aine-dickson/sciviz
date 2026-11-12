@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 mod camera_setup;
 mod screenshot;
+mod structure_view;
 mod vtk_loading;
 mod vsepr_demo;
 
@@ -59,6 +60,7 @@ enum ExplorerMode {
     ColoredIsosurface,
     Imported,
     Vsepr,
+    Structure,
 }
 
 impl ExplorerMode {
@@ -89,6 +91,7 @@ impl ExplorerMode {
             }
             Self::Imported => "Scientific Visualization Framework — imported VTK dataset".to_owned(),
             Self::Vsepr => "SVF VSEPR schematic — left CH4: tetrahedral | right H2O: bent".to_owned(),
+            Self::Structure => "Scientific Visualization Framework — structure (click: pick, I: isolate, A: all, L: light)".to_owned(),
         }
     }
 }
@@ -109,6 +112,9 @@ struct Explorer {
     _isosurface: Option<Isosurface3>,
     _mapped_isosurface: Option<MappedIsosurface3>,
     imported_scene: Option<ImportedScene>,
+    structure_scene: Option<structure_view::StructureScene>,
+    /// Part index of the last click that hit a part (target of `I`).
+    selected_part: Option<usize>,
     navigation_config: Option<CameraNavigationConfig>,
     cursor_position: Option<[f64; 2]>,
     active_drag: Option<MouseButton>,
@@ -145,6 +151,8 @@ impl Explorer {
             _isosurface: None,
             _mapped_isosurface: None,
             imported_scene: None,
+            structure_scene: None,
+            selected_part: None,
             navigation_config: None,
             cursor_position: None,
             active_drag: None,
@@ -159,6 +167,10 @@ impl Explorer {
     fn inspect_cursor_position(&mut self, log_details: bool) {
         if self.mode == ExplorerMode::Imported {
             self.inspect_imported_cursor_position(log_details);
+            return;
+        }
+        if self.mode == ExplorerMode::Structure {
+            self.inspect_structure_cursor_position(log_details);
             return;
         }
 
@@ -250,6 +262,87 @@ impl Explorer {
                     eprintln!("Surface inspection MISS: ray did not intersect the sampled surface");
                 }
             }
+        }
+    }
+
+    /// Hover shows the part name in the title; a click also selects it and
+    /// prints its path and description.
+    fn inspect_structure_cursor_position(&mut self, click: bool) {
+        let (Some(window), Some(renderer), Some(scene), Some([x, y])) = (
+            self.window.as_ref(),
+            self.renderer.as_ref(),
+            self.structure_scene.as_ref(),
+            self.cursor_position,
+        ) else {
+            return;
+        };
+        let size = window.inner_size();
+        if size.width == 0 || size.height == 0 {
+            return;
+        }
+        let base = self.mode.window_title(self.amplitude);
+        let ray = match renderer.camera().ray_from_viewport(x, y, size.width, size.height) {
+            Ok(ray) => ray,
+            Err(error) => {
+                window.set_title(&format!("{base} | pick ray error: {error}"));
+                return;
+            }
+        };
+        let isolated = scene
+            .isolated()
+            .map(|i| format!(" | isolated: {}", scene.part_title(i)))
+            .unwrap_or_default();
+        match scene.pick(&ray) {
+            Some(part) => {
+                window.set_title(&format!("{base}{isolated} | {}", scene.part_title(part)));
+                if click {
+                    eprintln!("{}", scene.part_path(part));
+                    eprintln!("  {}", scene.part_description(part));
+                    self.selected_part = Some(part);
+                }
+            }
+            None => {
+                window.set_title(&format!("{base}{isolated} | no part under cursor"));
+                if click {
+                    eprintln!("No part under the cursor");
+                    self.selected_part = None;
+                }
+            }
+        }
+    }
+
+    /// `I`: show only the selected part. `A`: show every part again.
+    fn change_structure_visibility(&mut self, isolate: bool) {
+        let Some(scene) = self.structure_scene.as_mut() else {
+            return;
+        };
+        let result = if isolate {
+            match self.selected_part {
+                Some(part) => scene.isolate(part),
+                None => Err("click a part first, then press I".to_owned()),
+            }
+        } else {
+            scene.show_all()
+        };
+        if let Err(error) = result {
+            eprintln!("{error}");
+            return;
+        }
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        if let Err(error) = renderer.replace_coloured_mesh(scene.mesh(), scene.colours()) {
+            eprintln!("Cannot update the displayed structure: {error}");
+            return;
+        }
+        if isolate {
+            eprintln!("Isolated: {}", scene.part_path(self.selected_part.unwrap_or_default()));
+        } else {
+            eprintln!("Showing all parts");
+            self.selected_part = None;
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.request_redraw();
         }
     }
 
@@ -514,6 +607,15 @@ impl ApplicationHandler for Explorer {
                     )?;
                     Ok(renderer)
                 }
+                ExplorerMode::Structure => {
+                    let scene = self.structure_scene.as_ref()
+                        .ok_or("structure was not prepared before window creation")?;
+                    let mut renderer = pollster::block_on(SceneRenderer::new_with_coloured_mesh(
+                        window.clone(), scene.mesh(), scene.colours(),
+                    ))?;
+                    renderer.set_camera(scene.camera)?;
+                    Ok(renderer)
+                }
                 ExplorerMode::Imported => {
                     let scene = self.imported_scene.as_ref()
                         .ok_or("imported VTK scene was not prepared before window creation")?;
@@ -666,6 +768,12 @@ impl ApplicationHandler for Explorer {
                                 eprintln!("Amplitude update failed: {error}");
                             }
                         }
+                        PhysicalKey::Code(KeyCode::KeyI) => {
+                            self.change_structure_visibility(true);
+                        }
+                        PhysicalKey::Code(KeyCode::KeyA) => {
+                            self.change_structure_visibility(false);
+                        }
                         PhysicalKey::Code(KeyCode::KeyL) => {
                             if let Some(renderer) = self.renderer.as_mut() {
                                 renderer.set_shaded(!renderer.shaded());
@@ -697,7 +805,42 @@ impl ApplicationHandler for Explorer {
 
 fn main() {
     let arguments = std::env::args().collect::<Vec<_>>();
-    let vtk_config = match vtk_loading::parse_vtk_args(&arguments) {
+    let structure_config = match structure_view::parse_structure_args(&arguments) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Invalid Explorer arguments: {error}");
+            eprintln!("Usage: svf-explorer --structure <file.ron> [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
+            eprintln!("  Click picks a part, I isolates the picked part, A shows all, L toggles the light.");
+            std::process::exit(2);
+        }
+    };
+    let structure_scene = match structure_config.as_ref() {
+        Some(config) => {
+            if let Some(path) = config.screenshot.as_ref() {
+                if let Err(error) = screenshot::check_output_path(path) {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+            match structure_view::StructureScene::load(config) {
+                Ok(scene) => {
+                    eprintln!("{}", scene.summary());
+                    Some(scene)
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        None => None,
+    };
+
+    let vtk_config = match if structure_scene.is_some() {
+        Ok(None)
+    } else {
+        vtk_loading::parse_vtk_args(&arguments)
+    } {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
@@ -711,7 +854,10 @@ fn main() {
         }
     };
 
-    let screenshot_path = vtk_config.as_ref().and_then(|config| config.screenshot.clone());
+    let screenshot_path = vtk_config
+        .as_ref()
+        .and_then(|config| config.screenshot.clone())
+        .or_else(|| structure_config.as_ref().and_then(|config| config.screenshot.clone()));
     if let Some(path) = screenshot_path.as_ref() {
         if let Err(error) = screenshot::check_output_path(path) {
             eprintln!("{error}");
@@ -731,6 +877,8 @@ fn main() {
         };
         eprintln!("{}", scene.summary());
         (ExplorerMode::Imported, Some(scene))
+    } else if structure_scene.is_some() {
+        (ExplorerMode::Structure, None)
     } else {
         (mode_from_args(arguments), None)
     };
@@ -748,6 +896,7 @@ fn main() {
 
     let mut app = Explorer::new(mode);
     app.imported_scene = imported_scene;
+    app.structure_scene = structure_scene;
     app.screenshot_path = screenshot_path;
     if let Err(error) = event_loop.run_app(&mut app) {
         eprintln!("SVF Explorer terminated with an event-loop error: {error}");

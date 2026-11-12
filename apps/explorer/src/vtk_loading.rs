@@ -154,7 +154,7 @@ fn parse_cell_tags(value: &str) -> Result<(String, Vec<i64>), String> {
     Ok((field.to_owned(), tags))
 }
 
-fn parse_finite_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
+pub(crate) fn parse_finite_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
     let value = value.ok_or_else(|| format!("{flag} requires a finite f64 value"))?;
     let parsed = value.parse::<f64>()
         .map_err(|_| format!("invalid {flag} '{value}': expected a finite f64"))?;
@@ -164,7 +164,7 @@ fn parse_finite_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
     Ok(parsed)
 }
 
-fn parse_positive_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
+pub(crate) fn parse_positive_f64(flag: &str, value: Option<&String>) -> Result<f64, String> {
     let value = value.ok_or_else(|| format!("{flag} requires a finite positive f64 value"))?;
     let parsed = value.parse::<f64>()
         .map_err(|_| format!("invalid {flag} '{value}': expected a finite positive f64"))?;

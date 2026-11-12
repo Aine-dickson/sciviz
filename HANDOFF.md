@@ -2115,3 +2115,29 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
 - Next action: 2b on a new branch: renderer `new_with_coloured_mesh` /
   `replace_coloured_mesh`, Explorer `--structure`, pick, `I` isolate, `A` all,
   then capture the stem looking down the axis.
+
+
+## B2 step 2b — structure in the Explorer (implemented on `b2-2b-structure-explorer`, PR open)
+
+- #60 (2a) merged to main `7c92021`. 2b adds `--structure <file.ron>` (plus the
+  `--camera-*` and `--screenshot` flags, same meaning as with `--vtk`; not
+  combinable with `--vtk`). Click picks a part (title on hover; path and
+  description on stderr on click), `I` isolates the picked part, `A` shows all,
+  `L` toggles the headlight. Isolation rebuilds the mesh; picking then runs on
+  the visible mesh. Grouping nodes cannot be isolated (error, view unchanged).
+- Renderer: `new_with_coloured_mesh` and `replace_coloured_mesh` (reallocates
+  buffers, rejects an empty mesh). Authored colours are treated as sRGB and
+  converted to linear light at the GPU boundary.
+- Code: `apps/explorer/src/structure_view.rs` (args, scene state, pick, isolate).
+- Verified: `cargo test --workspace` passes (svf-core 292, explorer 65, render
+  12); screenshots of `fixtures/structures/dicot-stem.ron` in
+  `docs/evidence/b2-2b-structure/` (default view and pitch 58 / zoom 1.3, close
+  to a view down the axis; pitch is capped near 59 for this scene) show the
+  epidermis, cortex, eight bundles (phloem outside, cambium line, xylem inside),
+  medullary rays and pith tiling the cross-section. Error exits checked: missing
+  file (1), pitch out of range (1).
+- NOT verified: live window click, `I` and `A` keypresses (pick and isolate are
+  unit-tested on the core path; the window wiring is not exercised live).
+  The `reference` citation in the fixture is still the user's to confirm.
+- Next action: merge this PR (needs the user's OK), then B2 step 3 (sections
+  and layer peeling), starting with a design note.
