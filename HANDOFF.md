@@ -2397,3 +2397,27 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   per tag, triangle budget (about 60k, under 2 MB).
 - Next action: user reviews the note, then 5a (audit example on case 01; the VTK
   is `~/Downloads/rodero2021/01-svf-order.vtk`, original `01.vtk` untouched).
+
+
+## B2 step 5a — heart audit on case 01 (branch `b2-5a-heart-audit`, PR open)
+
+- #71 (design note) merged to main `1f249ad`. 5a adds the example
+  `crates/svf-core/examples/heart_audit.rs` (no production API) and its report
+  `docs/evidence/b2-5a-heart-audit/case01-audit.txt`. Run:
+  `cargo run -p svf-core --release --example heart_audit -- ~/Downloads/rodero2021/01-svf-order.vtk`.
+- Gates (details in `docs/heart-structure.md` section 15): orientation by the
+  opposite vertex is exact (all 24 tag volumes match the tet sums to 1e-13);
+  **exactly four sealed inner cavities** (RV 181.7, LV 120.1, RA 112.4, LA 68.5 mL);
+  **non-manifold** edges 97 and vertices 18, all edges balanced, so repairable by
+  angular edge pairing and vertex splitting; nine single-tet islands (tags 2 and 8)
+  to relabel; 286 patches (197 under ten faces); pinned curves 6,341 vertices;
+  the budget is realistic at about a 3 mm mean edge (parts total about 55k).
+- Design note changed: section 7 now states the repair rule, section 15 records
+  the results.
+- NOT done: any production code. Nothing was run in tests (the audit needs the
+  260 MB file); `cargo build -p svf-core --examples` compiles it.
+- Next action: merge this PR (needs the user's OK), then 5b on `b2-5b-region-surfaces`:
+  region surfaces, oriented by the opposite vertex, patches by side-tag pair,
+  cavity components, pinch repair and island relabelling, in `svf-core` with
+  synthetic tetrahedral tests (include a pinched edge, a pinched vertex, a
+  single-tet island and an enclosed cavity).
