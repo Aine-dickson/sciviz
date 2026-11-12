@@ -2343,3 +2343,34 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - NOT done: Explorer support for views and relations (4c: `V`, `--view`, relations
   on pick), camera pitch cap for a straight-down dorsal view, user's live check.
 - Next action: merge this PR (needs the user's OK), then 4c on `b2-4c-explorer`.
+
+
+## B2 step 4c — views in the Explorer (implemented on `b2-4c-explorer`, PR open)
+
+- #69 (4b) merged to main `3cea5c1`. 4c adds `V` (next named view, wraps), `--view
+  <id>` (unknown id lists the choices; `--camera-*`, `--section`, `--peel`
+  override the view field by field), a view's `show` list restricting the display,
+  relations printed on click, the view name in the title. `A` leaves the view. A
+  view that cannot be applied (pitch out of range) changes nothing. Design: section
+  14 of `docs/cockroach-structure.md`.
+- Fixture: view cameras tuned (yaw 40; pitch 58 is a straight-down dorsal view, so
+  no change to the pitch cap was needed; -18 lateral); new `gut-only` view uses
+  `show`. 10 views now.
+- Verified: `cargo test --workspace` passes (svf-core 329, cockroach fixture 7,
+  explorer 79, render 12). 7 new explorer tests (flag, view applies peel / camera /
+  parts, flag overrides, `V` wraps, view + peel + section, refused view, relation
+  sentences). Screenshots through `--view` in `docs/evidence/b2-4c-views/`: the
+  dorsal view is square to the screen, the dissection stages and the sagittal cut
+  read clearly (brain, oesophagus, crop, gizzard, heart, nerve cord with ganglia).
+- NOT verified: the `V` key and the click output in the live window (code path is
+  the same `structure_command` as `P`; screenshots use `--view`, not the key).
+  `side`, `wings-off`, `reproductive`, `tracheae`, `nerve-cord`, `gut-only` shots
+  were generated but only dorsal, dorsal-wall-off, gut and sagittal were inspected.
+- B2 step 4 is complete once this merges: cockroach with external features, dorsal
+  dissection and organs in section, from one RON file and the generic blocks.
+- Still the user's: confirm the `reference` citations (dicot stem and cockroach).
+- Next action: merge this PR (needs the user's OK); user tries `V`, `--view` and
+  clicks live. Then B2 step 5 (heart adapted from Rodero case 01 tags into a light
+  structure; needs a design note first, Opus-level: how adapted geometry is
+  simplified, closed and given layers; ray-parity and cap cost on thousands-point
+  loops are the known risks from the spike).

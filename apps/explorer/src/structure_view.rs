@@ -25,15 +25,18 @@ pub struct StructureConfig {
     pub camera: CameraSetup,
     pub screenshot: Option<PathBuf>,
     pub view: ViewOptions,
+    /// `--view <id>`: start in a named view of the structure file.
+    pub view_id: Option<String>,
 }
 
-/// Initial section and peel state from the command line.
+/// Initial section and peel state from the command line. A flag that is given
+/// overrides the same setting of a `--view`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ViewOptions {
     /// World axis index (0 = x, 1 = y, 2 = z) and the plane offset along it.
     pub section: Option<(usize, f64)>,
     pub flip: bool,
-    pub peel: usize,
+    pub peel: Option<usize>,
 }
 
 const AXIS_NAMES: [&str; 3] = ["x", "y", "z"];
@@ -53,7 +56,7 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
     let mut camera = CameraSetup::default();
     let mut screenshot: Option<PathBuf> = None;
     let mut view = ViewOptions::default();
-    let mut peel_given = false;
+    let mut view_id: Option<String> = None;
     let mut index = 1;
     while index < args.len() {
         let value = args.get(index + 1);
@@ -119,14 +122,24 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
                 continue;
             }
             "--peel" => {
-                if peel_given {
+                if view.peel.is_some() {
                     return Err("--peel may only be supplied once".to_owned());
                 }
-                peel_given = true;
                 let value = value.ok_or_else(|| "--peel requires a layer count".to_owned())?;
-                view.peel = value
-                    .parse::<usize>()
-                    .map_err(|_| format!("invalid --peel '{value}': expected a whole number"))?;
+                view.peel = Some(
+                    value
+                        .parse::<usize>()
+                        .map_err(|_| format!("invalid --peel '{value}': expected a whole number"))?,
+                );
+            }
+            "--view" => {
+                if view_id.is_some() {
+                    return Err("--view may only be supplied once".to_owned());
+                }
+                let value = value
+                    .filter(|v| !v.starts_with("--") && !v.is_empty())
+                    .ok_or_else(|| "--view requires a view id".to_owned())?;
+                view_id = Some(value.clone());
             }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in structure mode"));
@@ -145,6 +158,7 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
         camera,
         screenshot,
         view,
+        view_id,
     }))
 }
 
@@ -169,16 +183,49 @@ impl SectionState {
     }
 }
 
+/// The state a named view asks for. The view is already validated.
+fn view_state(structure: &Structure, index: usize) -> ViewState {
+    let view = &structure.views()[index];
+    ViewState {
+        setup: view.camera().map_or_else(CameraSetup::default, |c| CameraSetup {
+            yaw_degrees: Some(c.yaw_deg),
+            pitch_degrees: Some(c.pitch_deg),
+            zoom_factor: Some(c.zoom),
+        }),
+        shown: view.show().to_vec(),
+        peeled: view.peel(),
+        section: view.section().map(|s| SectionState {
+            axis: s.axis.index(),
+            offset: s.offset,
+            flipped: s.flip,
+        }),
+    }
+}
+
 /// A loaded structure plus what is currently visible: an optional isolated
 /// part, the number of peeled layers and an optional section plane.
 pub struct StructureScene {
     pub structure: Structure,
     pub camera: Camera3,
     geometry: StructureGeometry,
+    /// The camera fitted to the whole structure; views are relative to it.
+    fitted: Camera3,
     isolated: Option<usize>,
     peeled: usize,
     section: Option<SectionState>,
+    /// Parts a view restricts the display to (empty = no restriction).
+    shown: Vec<usize>,
+    /// Index of the current named view, if one is applied.
+    view: Option<usize>,
     bounds: ([f64; 3], [f64; 3]),
+}
+
+/// Everything a named view sets besides the camera.
+struct ViewState {
+    setup: CameraSetup,
+    shown: Vec<usize>,
+    peeled: usize,
+    section: Option<SectionState>,
 }
 
 impl StructureScene {
@@ -187,13 +234,14 @@ impl StructureScene {
             .map_err(|e| format!("cannot read structure '{}': {e}", config.path.display()))?;
         let structure = Structure::from_ron_str(&text)
             .map_err(|e| format!("invalid structure '{}': {e}", config.path.display()))?;
-        Self::from_structure(structure, &config.camera, &config.view)
+        Self::from_structure(structure, &config.camera, &config.view, config.view_id.as_deref())
     }
 
     pub fn from_structure(
         structure: Structure,
         setup: &CameraSetup,
         view: &ViewOptions,
+        view_id: Option<&str>,
     ) -> Result<Self, String> {
         let full = structure
             .build_geometry()
@@ -204,7 +252,24 @@ impl StructureScene {
         // The camera is fitted to the whole structure, so cuts and peels do
         // not move it.
         let fitted = fit_camera(full.mesh(), 1280.0 / 800.0)?;
-        let camera = apply_camera_setup(&fitted, setup)?;
+        let named = match view_id {
+            None => None,
+            Some(id) => Some(structure.views().iter().position(|v| v.id() == id).ok_or_else(|| {
+                let ids: Vec<&str> = structure.views().iter().map(|v| v.id()).collect();
+                format!("unknown view '{id}'; this structure has: {}", ids.join(", "))
+            })?),
+        };
+        let from_view = named.map(|i| view_state(&structure, i));
+        // Command-line flags override the view, field by field.
+        let wanted = match &from_view {
+            None => *setup,
+            Some(state) => CameraSetup {
+                yaw_degrees: setup.yaw_degrees.or(state.setup.yaw_degrees),
+                pitch_degrees: setup.pitch_degrees.or(state.setup.pitch_degrees),
+                zoom_factor: setup.zoom_factor.or(state.setup.zoom_factor),
+            },
+        };
+        let camera = apply_camera_setup(&fitted, &wanted)?;
         let mut low = [f64::INFINITY; 3];
         let mut high = [f64::NEG_INFINITY; 3];
         for point in full.mesh().vertices() {
@@ -214,35 +279,61 @@ impl StructureScene {
                 high[axis] = high[axis].max(p[axis]);
             }
         }
-        if view.peel > structure.layers().len() {
-            return Err(format!(
-                "--peel {} but the structure has {} layers",
-                view.peel,
-                structure.layers().len()
-            ));
+        if let Some(peel) = view.peel {
+            if peel > structure.layers().len() {
+                return Err(format!(
+                    "--peel {peel} but the structure has {} layers",
+                    structure.layers().len()
+                ));
+            }
         }
+        let (view_shown, view_peel, view_section) = match from_view {
+            None => (Vec::new(), 0, None),
+            Some(state) => (state.shown, state.peeled, state.section),
+        };
         let mut scene = Self {
             structure,
             camera,
             geometry: full,
+            fitted,
             isolated: None,
             peeled: 0,
             section: None,
+            shown: Vec::new(),
+            view: None,
             bounds: (low, high),
         };
-        let section = view.section.map(|(axis, offset)| SectionState { axis, offset, flipped: view.flip });
-        scene.set(None, view.peel, section)?;
+        let section = match view.section {
+            Some((axis, offset)) => Some(SectionState { axis, offset, flipped: view.flip }),
+            None => view_section,
+        };
+        scene.set_full(None, view.peel.unwrap_or(view_peel), section, view_shown, named)?;
         Ok(scene)
     }
 
-    /// Rebuild the visible geometry for a new state; the scene is unchanged on error.
+    /// Rebuild the visible geometry for a new state, keeping the current view
+    /// restriction; the scene is unchanged on error.
     fn set(
         &mut self,
         isolated: Option<usize>,
         peeled: usize,
         section: Option<SectionState>,
     ) -> Result<(), String> {
-        let visible = self.structure.visible_parts(isolated, peeled);
+        self.set_full(isolated, peeled, section, self.shown.clone(), self.view)
+    }
+
+    fn set_full(
+        &mut self,
+        isolated: Option<usize>,
+        peeled: usize,
+        section: Option<SectionState>,
+        shown: Vec<usize>,
+        view: Option<usize>,
+    ) -> Result<(), String> {
+        let mut visible = self.structure.visible_parts(isolated, peeled);
+        if !shown.is_empty() {
+            visible.retain(|part| shown.contains(part));
+        }
         let mut geometry = self
             .structure
             .build_geometry_for(&visible)
@@ -261,7 +352,42 @@ impl StructureScene {
         self.isolated = isolated;
         self.peeled = peeled;
         self.section = section;
+        self.shown = shown;
+        self.view = view;
         Ok(())
+    }
+
+    /// `V`: apply the next named view (camera, parts shown, peel, section).
+    /// Unchanged on error.
+    pub fn next_view(&mut self) -> Result<String, String> {
+        let count = self.structure.views().len();
+        if count == 0 {
+            return Err("this structure has no named views".to_owned());
+        }
+        let next = self.view.map_or(0, |i| (i + 1) % count);
+        self.apply_view(next)
+    }
+
+    fn apply_view(&mut self, index: usize) -> Result<String, String> {
+        let state = view_state(&self.structure, index);
+        let camera = apply_camera_setup(&self.fitted, &state.setup)?;
+        self.set_full(None, state.peeled, state.section, state.shown, Some(index))?;
+        self.camera = camera;
+        Ok(format!(
+            "View {}/{}: {}",
+            index + 1,
+            self.structure.views().len(),
+            self.structure.views()[index].name()
+        ))
+    }
+
+    /// Relations of `part`, as sentences ("Crop opens into Gizzard").
+    pub fn relation_lines(&self, part: usize) -> Vec<String> {
+        let name = |i: usize| self.part_title(i);
+        self.structure
+            .relations_of(part)
+            .map(|r| format!("{} {} {}", name(r.from()), r.kind().phrase(), name(r.to())))
+            .collect()
     }
 
     pub fn mesh(&self) -> &TriangleMesh3 {
@@ -287,6 +413,9 @@ impl StructureScene {
     /// Short state text for the window title; empty when nothing is applied.
     pub fn state_text(&self) -> String {
         let mut parts = Vec::new();
+        if let Some(i) = self.view {
+            parts.push(format!("view: {}", self.structure.views()[i].name()));
+        }
         if let Some(i) = self.isolated {
             parts.push(format!("isolated: {}", self.part_title(i)));
         }
@@ -340,7 +469,7 @@ impl StructureScene {
 
     /// `A`: clear isolation and peeling. The section plane stays (it has its own key).
     pub fn show_all(&mut self) -> Result<String, String> {
-        self.set(None, 0, self.section)?;
+        self.set_full(None, 0, self.section, Vec::new(), None)?;
         Ok("Showing all parts".to_owned())
     }
 
@@ -447,7 +576,7 @@ mod tests {
 
     fn scene() -> StructureScene {
         let structure = Structure::from_ron_str(STEM).unwrap();
-        StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default()).unwrap()
+        StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap()
     }
 
     #[test]
@@ -532,7 +661,7 @@ mod tests {
         ]))
         .unwrap()
         .unwrap();
-        assert_eq!(c.view, ViewOptions { section: Some((1, 6.5)), flip: true, peel: 2 });
+        assert_eq!(c.view, ViewOptions { section: Some((1, 6.5)), flip: true, peel: Some(2) });
         let bad = |extra: &[&str]| {
             let mut a = vec!["x", "--structure", "a.ron"];
             a.extend_from_slice(extra);
@@ -621,11 +750,117 @@ mod tests {
     #[test]
     fn initial_view_options_apply_and_bad_peel_is_rejected() {
         let structure = Structure::from_ron_str(STEM).unwrap();
-        let view = ViewOptions { section: Some((0, 0.0)), flip: false, peel: 2 };
-        let scene = StructureScene::from_structure(structure.clone(), &CameraSetup::default(), &view).unwrap();
+        let view = ViewOptions { section: Some((0, 0.0)), flip: false, peel: Some(2) };
+        let scene = StructureScene::from_structure(structure.clone(), &CameraSetup::default(), &view, None).unwrap();
         assert_eq!(scene.peeled(), 2);
         assert_eq!(scene.section_axis(), Some(0));
-        let bad = ViewOptions { peel: 9, ..ViewOptions::default() };
-        assert!(StructureScene::from_structure(structure, &CameraSetup::default(), &bad).is_err());
+        let bad = ViewOptions { peel: Some(9), ..ViewOptions::default() };
+        assert!(StructureScene::from_structure(structure, &CameraSetup::default(), &bad, None).is_err());
+    }
+
+    const COCKROACH: &str = include_str!("../../../fixtures/structures/cockroach.ron");
+
+    fn cockroach(view: Option<&str>, setup: &CameraSetup, options: &ViewOptions) -> Result<StructureScene, String> {
+        let structure = Structure::from_ron_str(COCKROACH).unwrap();
+        StructureScene::from_structure(structure, setup, options, view)
+    }
+
+    #[test]
+    fn parses_the_view_flag() {
+        let c = parse_structure_args(&args(&["x", "--structure", "a.ron", "--view", "gut"])).unwrap().unwrap();
+        assert_eq!(c.view_id.as_deref(), Some("gut"));
+        assert_eq!(parse_structure_args(&args(&["x", "--structure", "a.ron"])).unwrap().unwrap().view_id, None);
+        assert!(parse_structure_args(&args(&["x", "--structure", "a.ron", "--view"])).is_err());
+        assert!(parse_structure_args(&args(&["x", "--structure", "a.ron", "--view", "a", "--view", "b"])).is_err());
+    }
+
+    #[test]
+    fn a_named_view_sets_peel_camera_and_parts_and_unknown_ids_list_the_choices() {
+        let none = ViewOptions::default();
+        let plain = cockroach(None, &CameraSetup::default(), &none).unwrap();
+        let gut = cockroach(Some("gut"), &CameraSetup::default(), &none).unwrap();
+        assert_eq!(gut.peeled(), 3);
+        assert!(gut.state_text().contains("view: Heart and fat body removed: the gut"), "{}", gut.state_text());
+        assert_ne!(gut.camera.look_at().position(), plain.camera.look_at().position());
+        assert!(gut.mesh().indices().len() < plain.mesh().indices().len());
+
+        let only = cockroach(Some("gut-only"), &CameraSetup::default(), &none).unwrap();
+        let triangles = only.mesh().indices().len() / 3;
+        let ids: std::collections::HashSet<_> = (0..triangles)
+            .filter_map(|t| only.geometry.part_of_triangle(t))
+            .map(|p| only.structure.parts()[p].id().to_owned())
+            .collect();
+        assert!(ids.contains("crop") && ids.contains("abdominal-sternites"), "{ids:?}");
+        assert!(!ids.contains("heart") && !ids.contains("head-capsule") && !ids.contains("fore-femur"), "{ids:?}");
+
+        let error = cockroach(Some("nope"), &CameraSetup::default(), &none).err().unwrap();
+        assert!(error.contains("unknown view 'nope'") && error.contains("sagittal"), "{error}");
+    }
+
+    #[test]
+    fn flags_override_the_views_own_values() {
+        let by_view = cockroach(Some("gut"), &CameraSetup::default(), &ViewOptions::default()).unwrap();
+        let peel = ViewOptions { peel: Some(1), ..ViewOptions::default() };
+        assert_eq!(cockroach(Some("gut"), &CameraSetup::default(), &peel).unwrap().peeled(), 1);
+        let zoom = CameraSetup { zoom_factor: Some(2.0), ..CameraSetup::default() };
+        let zoomed = cockroach(Some("gut"), &zoom, &ViewOptions::default()).unwrap();
+        let distance = |s: &StructureScene| {
+            (s.camera.look_at().position().to_vector() - s.camera.look_at().target().to_vector()).length()
+        };
+        assert!((distance(&zoomed) * 2.0 - distance(&by_view)).abs() < 1e-6 * distance(&by_view));
+        assert_eq!(zoomed.camera.look_at().target(), by_view.camera.look_at().target());
+    }
+
+    #[test]
+    fn v_cycles_every_view_and_wraps() {
+        let mut scene = cockroach(None, &CameraSetup::default(), &ViewOptions::default()).unwrap();
+        let count = scene.structure.views().len();
+        assert!(count >= 9);
+        let mut seen = Vec::new();
+        for _ in 0..count {
+            scene.next_view().unwrap_or_else(|e| panic!("{e}"));
+            seen.push(scene.state_text());
+        }
+        assert!(seen[0].contains("Whole animal from above"), "{}", seen[0]);
+        assert_eq!(scene.view, Some(count - 1));
+        scene.next_view().unwrap();
+        assert_eq!(scene.view, Some(0), "wraps to the first view");
+        // `A` leaves the view: everything shown, nothing peeled, no view named.
+        scene.next_view().unwrap();
+        scene.show_all().unwrap();
+        assert_eq!((scene.view, scene.peeled()), (None, 0));
+        assert!(!scene.state_text().contains("view:"));
+    }
+
+    #[test]
+    fn peeling_works_inside_a_view_with_a_section() {
+        let mut scene = cockroach(Some("sagittal"), &CameraSetup::default(), &ViewOptions::default()).unwrap();
+        assert_eq!(scene.section_axis(), Some(2));
+        scene.peel().unwrap();
+        assert_eq!(scene.peeled(), 1);
+        assert!(scene.state_text().contains("view:") && scene.state_text().contains("peeled 1/7"));
+    }
+
+    #[test]
+    fn a_view_that_cannot_be_applied_changes_nothing() {
+        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+            + ", views: [View(id: \"up\", name: \"Straight up\", camera: Some((yaw_deg: 0.0, pitch_deg: 89.9, zoom: 1.0)))])";
+        let structure = Structure::from_ron_str(&text).unwrap();
+        let mut scene =
+            StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap();
+        let before = scene.camera;
+        let error = scene.next_view().unwrap_err();
+        assert!(error.contains("elevation"), "{error}");
+        assert_eq!(scene.view, None);
+        assert_eq!(scene.camera, before);
+    }
+
+    #[test]
+    fn relations_are_listed_as_sentences() {
+        let scene = cockroach(None, &CameraSetup::default(), &ViewOptions::default()).unwrap();
+        let crop = scene.structure.part_index("crop").unwrap();
+        assert_eq!(scene.relation_lines(crop), ["Oesophagus opens into Crop", "Crop opens into Gizzard"]);
+        let root = scene.structure.part_index("cockroach").unwrap();
+        assert!(scene.relation_lines(root).is_empty());
     }
 }

@@ -224,3 +224,22 @@ An O-level learner, from the Explorer alone, can name the cockroach's external
 features, remove layers in the dorsal order of section 8, and name each
 internal organ by picking it. No new project or Explorer code is needed for the
 cockroach beyond the fixture and the generic `V` view switching.
+
+## 14. Explorer, as built (4c)
+
+- `V` applies the next named view (camera, parts shown, peel, section) and wraps
+  after the last. `--view <id>` starts in one; an unknown id lists the choices.
+  `--camera-yaw`, `--camera-pitch`, `--camera-zoom`, `--section` and `--peel`
+  override the same setting of the view, field by field.
+- A view's `show` list restricts the display (grouping nodes expand); `P`, `R`,
+  `S` and `I` still work inside a view. `A` leaves the view: everything shown,
+  nothing peeled, no view named. A view that cannot be applied (for example a
+  pitch beyond the allowed elevation) is refused and the scene is unchanged.
+- Clicking a part prints its path, description and relations ("Crop opens into
+  Gizzard"). The title names the current view.
+- Camera values in a view are relative to the camera fitted to the whole file,
+  like the `--camera-*` flags, so they belong to the file they were tuned for.
+  For the cockroach, yaw 40 puts the animal square to the screen; pitch 58 is a
+  straight-down dorsal view (the limit is the fitted elevation plus pitch below
+  about 89 degrees, so no change to the pitch cap was needed), pitch -18 a
+  lateral view.
