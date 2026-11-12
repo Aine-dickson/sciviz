@@ -2238,3 +2238,46 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   rules the design note commits to.
 - Gotchas: never leave a bare `python -` in a shell; write scripts to a file.
   Force-push is blocked by the harness; update a PR branch by merging main.
+
+
+## B2 step 4 — design note written (2026-11-12, branch `b2-4-cockroach-design`)
+
+- Design: `docs/cockroach-structure.md`. Blocks `Tube` (path, per-point
+  elliptical semi-axes, optional `wall` and `arc_deg`) and `Ellipsoid`; part
+  `repeat`/`mirror` (mirror flips winding); optional `relations` and `views`;
+  version stays 1. Orientation: anterior +X, dorsal +Y, bilateral plane z = 0.
+  Dorsal layer order: wings, dorsal wall + heart, fat body, digestive,
+  reproductive, tracheal, nervous. Work split 4a core blocks, 4b relations,
+  views and fixture, 4c Explorer.
+- User-confirmed lesson content: all five internal systems, segmented legs,
+  dorsal dissection. Still the user's to confirm: which sex for the
+  reproductive organs (proposed female) and the `reference` citation.
+- Not committed: the spike files below stay uncommitted on the working tree
+  and are deleted in 4a. The design PR contains only the note and this entry.
+- Next action: user approves the note, then 4a on `b2-4a-blocks`.
+
+### Spike result (kept for the decisions above)
+
+Throwaway code: `crates/svf-core/src/structure_spike.rs` (test-only, plus a
+`#[cfg(test)] StructureGeometry::from_bodies` in `structure.rs`). Do not merge as is.
+Bodies were built by hand as indexed meshes and run through `section_geometry`
+with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
+
+- Curved tube (circle swept along a 270 degree arc, flat end caps), 32 x 96:
+  0/243 failures. Hollow ellipsoid shell (outer + inward-wound inner surface)
+  with a solid organ inside: 0/243. Mirrored pair: 0/243.
+- Shell cap at y = 0 is a ring (area 4.417 vs ring 4.43, disc 18.8): the cap
+  code keeps the hole, so hollow body walls with organs inside work.
+- Cap time (release): loop of 500 points 3 ms, 2000 points 30 ms, 8000 points
+  450 ms (O(n^2)). Fine for organism-scale loops; a heart-scale loop of
+  thousands would need a faster triangulator or a lower segment count.
+- Pitfalls found: the first tube failed with `not a closed surface` because its
+  two end-cap fans wound the same way; a mirror must reverse the winding
+  (`mirror_x` does). So the new blocks must come with a closed + outward-volume
+  check in tests, and mirror must flip the winding.
+- NOT covered: overlap between parts (organs poking through the wall are not
+  detected), lofted/tapered tubes with varying radius, imported meshes,
+  Explorer rendering of these bodies.
+- Conclusion for the design note: curved tube, ellipsoid shell and mirror are
+  feasible with the current section code unchanged. Still needs Opus for the
+  block set and file format; ask the user for the organ/feature list first.
