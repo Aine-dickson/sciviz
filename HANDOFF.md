@@ -2190,7 +2190,7 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   the block set).
 
 
-## B2 step 3c — section cap fix (branch `b2-3c-section-fix`, PR open)
+## B2 step 3c — section cap fix (merged, #65)
 
 - Live use of `[`/`]` (2026-11-12) found `cannot cut the structure: the cut of
   part 7 could not be capped` at x = +-1.8 and +-1.1 on the stem: the plane
@@ -2200,4 +2200,41 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   succeeds and is closed. Documented in `docs/sections-and-peeling.md`.
 - Lesson: sweep tests over plane offsets would have caught this in 3a; the
   live check found it first. Keep a sweep test for any new cut feature.
-- Next action: merge (user OK), then B2 step 4 design note (cockroach blocks).
+- Merged 2026-11-12 with a window-title fix (part name and state first; keys
+  printed at startup). User re-checked live: plane sweeps, picks and titles work.
+
+
+## Current state (2026-11-12, end of session) — read this first
+
+- B2 steps 1 to 3 are merged on main (#58 to #65): headlight, structure core
+  and recipes, Explorer `--structure` (pick, isolate), section plane with caps,
+  layer peeling. Workspace tests: svf-core 308, explorer 72, render 12. The user
+  has checked the stem live (pick, isolate, section across and along, flip,
+  peel, title). The dicot-stem `reference` citation is still the user's to
+  confirm.
+- Next action: B2 step 4, the cockroach (external features, then dissection
+  order, then internal organs). **Needs Opus**: write a design note first
+  (`docs/` , one PR) deciding the new recipe blocks (tube along a curve,
+  ellipsoid or lofted shell, repetition and mirror symmetry), how relations and
+  views enter the file format, and how sections work for non-extrusion bodies
+  (the section code already handles any closed, outward-wound part). Ask the
+  user for the list of organs and external features the lesson must show; do
+  not anchor to syllabus text. Then implement in 4a (core) and 4b (Explorer),
+  with a sweep test over plane offsets for any cut feature.
+- **Start step 4 with a feasibility spike, before fixing the format.** What is
+  proven: format, tree, pick, isolate, layers, section/cap for extrusions
+  (holes, collinear points, any plane). What is NOT proven for new organisms:
+  (1) new blocks (curved tube, ellipsoid or lofted shell, mirror) must give
+  closed, outward-wound meshes or sections return NotClosed; (2) solid parts
+  inside solid parts: a solid body wall's cap hides organs inside, so body
+  walls likely must be hollow shells (the cap code supports holes, untested
+  for this); (3) nothing checks that parts do not overlap (the stem tiles by
+  authoring); (4) cap triangulation is O(n^2) and unmeasured on loops of
+  thousands of points (heart); (5) imported/adapted meshes are often not
+  closed. Spike: build three throwaway bodies (curved tube, hollow ellipsoid
+  with a small organ inside, mirrored pair), run the closed-surface checks and
+  the plane-offset sweep (see `planes_along_edges_of_the_stem_still_cap_and_close`),
+  and time a large loop. Let the failures decide which blocks and authoring
+  rules the design note commits to.
+- Gotchas: never leave a bare `python -` in a shell; write scripts to a file.
+  Force-push is blocked by the harness; update a PR branch by merging main.
