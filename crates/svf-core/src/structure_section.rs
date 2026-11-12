@@ -17,8 +17,12 @@ use crate::{
 type V3 = [f64; 3];
 type P2 = [f64; 2];
 
-/// Relative distance from the plane inside which a vertex counts as on it.
-const ON_PLANE: f64 = 1e-9;
+/// Relative distances from the plane inside which a vertex counts as on it,
+/// tried in turn. A plane lying along an edge or face of a body gives a cap
+/// sliver too thin to triangulate; the next, larger value moves the plane
+/// further off it (at most 1e-4 of the structure's size, far below what is
+/// visible).
+const ON_PLANE_STEPS: [f64; 3] = [1e-9, 1e-6, 1e-4];
 
 /// A cutting plane. The side where `normal . (p - point) > 0` is removed; the
 /// cap faces along `normal`.
@@ -98,6 +102,21 @@ pub fn section_geometry(
     geometry: &StructureGeometry,
     plane: &SectionPlane,
 ) -> Result<StructureGeometry, SectionError> {
+    let mut result = section_with(geometry, plane, ON_PLANE_STEPS[0]);
+    for &step in &ON_PLANE_STEPS[1..] {
+        if !matches!(result, Err(SectionError::CapFailed { .. })) {
+            break;
+        }
+        result = section_with(geometry, plane, step);
+    }
+    result
+}
+
+fn section_with(
+    geometry: &StructureGeometry,
+    plane: &SectionPlane,
+    relative_eps: f64,
+) -> Result<StructureGeometry, SectionError> {
     let vertices: Vec<V3> = geometry.mesh().vertices().iter().map(|p| p.to_array()).collect();
     let indices = geometry.mesh().indices();
 
@@ -114,7 +133,7 @@ pub fn section_geometry(
     } else {
         dot(sub(maximum, minimum), sub(maximum, minimum)).sqrt().max(f64::MIN_POSITIVE)
     };
-    let eps = ON_PLANE * extent;
+    let eps = relative_eps * extent;
 
     // Move the plane a hair along its normal until no vertex lies on it.
     let base = dot(plane.normal, plane.point);
@@ -655,6 +674,25 @@ mod tests {
     }
 
     #[test]
+    fn planes_along_edges_of_the_stem_still_cap_and_close() {
+        // x = +-1.8 and +-1.1 contain vertical edges of the sectors (3.6 and
+        // 2.2 times cos 60), which gave an unusable sliver cap before the retry.
+        let (_, g) = stem();
+        for axis in 0..3 {
+            for k in -60..=60 {
+                let offset = f64::from(k) * 0.1;
+                let mut n = [0.0; 3];
+                n[axis] = 1.0;
+                let mut point = [0.0; 3];
+                point[axis] = offset;
+                let cut = section_geometry(&g, &plane(point, n))
+                    .unwrap_or_else(|e| panic!("axis {axis} offset {offset}: {e}"));
+                assert_closed(cut.mesh());
+            }
+        }
+    }
+
+    #[test]
     fn plane_outside_keeps_or_removes_everything() {
         let g = annulus();
         let all = section_geometry(&g, &plane([0.0, 50.0, 0.0], [0.0, 1.0, 0.0])).unwrap();
@@ -790,4 +828,5 @@ mod tests {
         assert!(t.iter().all(|t| cross2(coords[&t[0]], coords[&t[1]], coords[&t[2]]) >= -1e-12));
     }
 }
+
 

@@ -2188,3 +2188,16 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   step 4 (cockroach recipe: needs new blocks, tube along a curve, ellipsoid,
   repetition and mirror; start with a design note and an Opus-level check of
   the block set).
+
+
+## B2 step 3c — section cap fix (branch `b2-3c-section-fix`, PR open)
+
+- Live use of `[`/`]` (2026-11-12) found `cannot cut the structure: the cut of
+  part 7 could not be capped` at x = +-1.8 and +-1.1 on the stem: the plane
+  lay along a vertical sector edge and the cap was a ~1e-7 wide sliver.
+  Fix: `section_geometry` retries with a larger nudge (1e-6, then 1e-4 of the
+  extent). New test sweeps all three axes from -6 to 6 in 0.1 steps: every cut
+  succeeds and is closed. Documented in `docs/sections-and-peeling.md`.
+- Lesson: sweep tests over plane offsets would have caught this in 3a; the
+  live check found it first. Keep a sweep test for any new cut feature.
+- Next action: merge (user OK), then B2 step 4 design note (cockroach blocks).
