@@ -264,7 +264,21 @@ impl State {
         }
         let (na, nb) = (self.neighbours(a), self.neighbours(b));
         let common: Vec<u32> = na.iter().copied().filter(|v| nb.binary_search(v).is_ok()).collect();
-        common.len() == 2 && apexes.iter().all(|v| common.contains(v))
+        if !(common.len() == 2 && apexes.iter().all(|v| common.contains(v))) {
+            return false;
+        }
+        // Moving `b` onto `a` must not leave two triangles on the same three
+        // vertices (a collapsed tetrahedron passes the test above).
+        let key = |t: [u32; 3]| {
+            let mut k = t;
+            k.sort_unstable();
+            k
+        };
+        let existing: Vec<[u32; 3]> = self.vfaces[a as usize].iter().map(|&t| key(self.tris[t as usize])).collect();
+        self.vfaces[b as usize].iter().all(|&t| {
+            let tri = self.tris[t as usize];
+            tri.contains(&a) || !existing.contains(&key(tri.map(|v| if v == b { a } else { v })))
+        })
     }
 
     /// No surviving triangle around the edge turns too far or degenerates when
@@ -380,6 +394,40 @@ pub fn simplify(
         if !directed.contains_key(&(b, a)) {
             pin[a as usize] = true;
             pin[b as usize] = true;
+        }
+    }
+
+    // A vertex whose triangles do not form one fan (parts touching at a point)
+    // is not a manifold vertex; leave it where it is.
+    {
+        let mut round: Vec<Vec<u32>> = vec![Vec::new(); n];
+        for (i, t) in triangles.iter().enumerate() {
+            for &v in t {
+                round[v as usize].push(i as u32);
+            }
+        }
+        for (v, list) in round.iter().enumerate() {
+            if list.len() < 2 {
+                continue;
+            }
+            let joined = |x: u32, y: u32| {
+                let (a, b) = (triangles[x as usize], triangles[y as usize]);
+                a.iter().filter(|&&u| u as usize != v && b.contains(&u)).count() > 0
+            };
+            let mut seen = vec![false; list.len()];
+            let mut stack = vec![0usize];
+            seen[0] = true;
+            while let Some(i) = stack.pop() {
+                for j in 0..list.len() {
+                    if !seen[j] && joined(list[i], list[j]) {
+                        seen[j] = true;
+                        stack.push(j);
+                    }
+                }
+            }
+            if seen.iter().any(|&x| !x) {
+                pin[v] = true;
+            }
         }
     }
 
@@ -1044,6 +1092,25 @@ mod tests {
         assert!(is_closed_manifold(&s.triangles));
         assert_eq!(euler(s.points.len(), &s.triangles), 0);
         assert!(s.report.refused_link > 0, "the link condition was never exercised");
+    }
+
+    #[test]
+    fn a_pinch_vertex_and_a_bare_tetrahedron_are_left_alone() {
+        // Two tetrahedra sharing vertex 0: a closed surface that is not a manifold at 0.
+        let pts: Vec<P3> = vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, -1.0],
+        ];
+        let tris: Vec<[u32; 3]> =
+            vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3], [0, 4, 5], [0, 6, 4], [0, 5, 6], [4, 6, 5]];
+        let s = simplify(&pts, &tris, &[], &SimplifyOptions { epsilon: 100.0, ..Default::default() }).unwrap();
+        assert_eq!(s.triangles.len(), 8, "{:?}", s.report);
+        assert_eq!(s.report.collapses, 0);
     }
 
     #[test]
