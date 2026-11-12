@@ -42,4 +42,11 @@ Structure(
              colour: (0.95, 0.95, 0.80),
              geometry: Some(Extrusion(axis_length: 12.0, profile: Disc(radius: 2.2)))),
     ],
+    // Outermost first: the order of removal when peeling.
+    layers: [
+        Layer(id: "epidermis", name: "Epidermis", parts: ["epidermis"]),
+        Layer(id: "cortex", name: "Cortex", parts: ["cortex"]),
+        Layer(id: "vascular", name: "Vascular ring", parts: ["vascular-bundles", "medullary-rays"]),
+        Layer(id: "pith", name: "Pith", parts: ["pith"]),
+    ],
 )

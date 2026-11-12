@@ -2143,3 +2143,26 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   The `reference` citation in the fixture is still the user's to confirm.
 - Next action: merge this PR (needs the user's OK), then B2 step 3 (sections
   and layer peeling), starting with a design note.
+
+
+## B2 step 3a — section plane, capping and layers in core (on `b2-3a-section-core`, PR open)
+
+- Design: `docs/sections-and-peeling.md` (#62, merged). #61 (2b) merged `062a98d`.
+- `svf-core::structure`: optional `layers` list (outermost first, grouping
+  nodes expand to descendants, validated), `Structure::layers()` and
+  `visible_parts(isolated, peeled)`. Fixture now has four layers
+  (epidermis, cortex, vascular ring, pith). File version stays 1.
+- `svf-core::structure_section`: `SectionPlane`, `section_geometry`. CPU clip
+  of closed parts, cut loops chained and capped by ear clipping with hole
+  bridging (no new dependency), plane nudged ~1e-9 of the extent when a vertex
+  lies on it, collinear points close as zero-area triangles so the mesh stays
+  watertight. One contiguous range per part, cap included.
+- Verified: `cargo test --workspace` passes (svf-core 307, explorer 65, render
+  12). Tests: closed result, exact volumes, annulus cap with a hole, every stem
+  tissue's cap area across and along the axis, both sides tile the body, open
+  part reported, triangulation with holes and an island.
+- NOT done: any Explorer wiring (3b); the nudge changes cap areas by ~1e-8
+  relative when the plane passes through vertices.
+- Next action: 3b on a new branch: `S` cycle, `[` `]`, `F`, `P`, `R`, the
+  `--section`, `--section-flip`, `--peel` flags, picking on caps, screenshots,
+  live check by the user.
