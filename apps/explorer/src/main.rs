@@ -339,7 +339,6 @@ impl Explorer {
             eprintln!("Isolated: {}", scene.part_path(self.selected_part.unwrap_or_default()));
         } else {
             eprintln!("Showing all parts");
-            self.selected_part = None;
         }
         if let Some(window) = self.window.as_ref() {
             window.request_redraw();

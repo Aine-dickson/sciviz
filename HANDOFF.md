@@ -2138,8 +2138,8 @@ E3.2 implementation, user-reported automated validation, and merge are complete.
   file (1), pitch out of range (1).
 - Live check (2026-11-12, user ran the window, log read): hover/click picks for
   xylem, phloem, cortex, epidermis, pith and medullary rays reported the right
-  path and description; `I` isolated and `A` restored each time. `A` clears the
-  selection, so `I` needs a fresh click.
+  path and description; `I` isolated and `A` restored each time. `A` keeps the
+  selection (changed after this check, so `I` after `A` re-isolates the last pick; not re-run live).
   The `reference` citation in the fixture is still the user's to confirm.
 - Next action: merge this PR (needs the user's OK), then B2 step 3 (sections
   and layer peeling), starting with a design note.
