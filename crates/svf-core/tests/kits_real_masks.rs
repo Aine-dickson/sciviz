@@ -201,33 +201,34 @@ fn extracts_real_kits_mass_surface_and_checks_topology() {
     for (edge_id, edge) in &non_manifold_edges {
         let [a, b] = edge.vertices();
         let incident = topology.edge_faces(*edge_id).unwrap();
+        let world_a = mesh.vertices()[a as usize].to_vector().to_array();
+        let world_b = mesh.vertices()[b as usize].to_vector().to_array();
         println!(
-            "Non-manifold edge {edge_id}: vertices {a}-{b}, world endpoints {:?} -> {:?}, incident faces {:?}",
-            mesh.vertices()[a as usize].to_vector().to_array(),
-            mesh.vertices()[b as usize].to_vector().to_array(),
-            incident
+            "Non-manifold edge {edge_id}: vertices {a}-{b}, world endpoints {world_a:?} -> {world_b:?}, incident faces {incident:?}"
         );
-        for &face_id in incident {
-            let triangle = &mesh.indices()[face_id * 3..face_id * 3 + 3];
-            println!("  face {face_id}: {triangle:?}");
-        }
     }
 
-    // Stop after collecting topology diagnostics. The usual two-face winding
-    // and signed-volume checks only apply once every edge has valid incidence.
-    if non_manifold_edge_count != 0 {
-        return;
-    }
-
-    // A closed, consistently oriented triangle surface must have exactly two
-    // oppositely directed incident faces at every undirected edge.
+    // The exact cubical boundary may have self-contact edges when diagonal
+    // foreground voxels reconnect elsewhere. Preserve and report those edges
+    // rather than silently changing the source geometry to force manifoldness.
+    // A closed boundary must still have no boundary edges, and each edge's
+    // incident faces must have balanced opposing winding.
     let indices = mesh.indices();
     for edge_id in 0..topology.edge_count() {
         let edge = topology.edges()[edge_id].vertices();
         let incident_faces = topology.edge_faces(edge_id).unwrap();
-        assert_eq!(incident_faces.len(), 2, "edge {edge:?} incidence");
+        assert!(
+            incident_faces.len() >= 2,
+            "closed voxel boundary has an edge with insufficient incidence: {edge:?}"
+        );
+        assert_eq!(
+            incident_faces.len() % 2,
+            0,
+            "edge {edge:?} must have paired incident faces"
+        );
 
-        let mut directions = Vec::with_capacity(2);
+        let mut forward = 0_usize;
+        let mut backward = 0_usize;
         for &face_index in incident_faces {
             let face = &indices[face_index * 3..face_index * 3 + 3];
             let directed_edge = [
@@ -236,16 +237,18 @@ fn extracts_real_kits_mass_surface_and_checks_topology() {
                 (face[2], face[0]),
             ]
             .into_iter()
-            .find(|(from, to)| {
-                [(*from).min(*to), (*from).max(*to)] == edge
-            })
+            .find(|(from, to)| [(*from).min(*to), (*from).max(*to)] == edge)
             .expect("incident face must traverse its edge");
-            directions.push(if directed_edge.0 == edge[0] { 1_i8 } else { -1_i8 });
+            if directed_edge.0 == edge[0] {
+                forward += 1;
+            } else {
+                backward += 1;
+            }
         }
         assert_eq!(
-            directions[0],
-            -directions[1],
-            "incident faces must traverse edge {edge:?} in opposite directions"
+            forward,
+            backward,
+            "edge {edge:?} must have balanced opposing face winding"
         );
     }
 
