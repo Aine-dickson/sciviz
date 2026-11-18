@@ -393,11 +393,13 @@ impl SegmentationVolume3 {
     /// Extracts the exact exposed voxel-cell boundary as a triangle mesh.
     ///
     /// The voxel-cell geometry is preserved exactly. Surface vertices are
-    /// shared only within connected surface fans: when diagonal foreground
-    /// voxels meet along a grid edge or corner, their coincident boundary
-    /// points receive distinct mesh vertex indices. This avoids introducing
-    /// non-manifold edges or vertices without changing the source mask or
-    /// moving any point. The result is blocky, not a smoothed isosurface.
+    /// shared across locally paired face fans; isolated diagonal edge and
+    /// corner contacts are split into distinct vertex occurrences. If those
+    /// contacts reconnect elsewhere around a lattice vertex, the exact
+    /// cubical boundary can still contain non-manifold edges or vertices.
+    /// This method does not smooth or perturb the surface to hide such
+    /// contacts; callers can inspect the result with mesh topology queries.
+    /// The result is blocky, not a smoothed isosurface.
     pub fn extract_voxel_boundary_surface(
         &self,
         id: SegmentId3,
