@@ -457,8 +457,8 @@ impl SegmentationVolume3 {
                         } else {
                             voxel[axis] + 1
                         };
-                        corners[corner][u] = voxel[u] + usize::from(u_high);
-                        corners[corner][v] = voxel[v] + usize::from(v_high);
+                        corners[corner][u] = voxel[u] + if u_high { 1 } else { 0 };
+                        corners[corner][v] = voxel[v] + if v_high { 1 } else { 0 };
                     }
 
                     let mut face = [0_u32; 4];
@@ -478,7 +478,7 @@ impl SegmentationVolume3 {
                         face[corner_index] = vertex_index;
                     }
 
-                    let outward_sign = f64::from(side) * determinant_sign;
+                    let outward_sign = side as f64 * determinant_sign;
                     let triangles = if outward_sign > 0.0 {
                         [[face[0], face[1], face[2]], [face[0], face[2], face[3]]]
                     } else {
