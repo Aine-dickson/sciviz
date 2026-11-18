@@ -10,6 +10,7 @@ pub mod chemistry_view;
 pub mod dataset;
 pub mod fields;
 pub mod geometry;
+pub mod image_volume;
 pub mod isosurface;
 pub mod isosurface_field_transfer;
 pub mod mesh_simplify;
