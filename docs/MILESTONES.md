@@ -1160,6 +1160,10 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - Both real-mask surface tests now pass. This closes the current real-mask
   extraction/topology/volume validation milestone, with geometric comparison
   against an independent viewer/reference still outstanding.
+- Added an opt-in real-data export test that writes Kidney and Mass triangle
+  meshes as legacy VTK POLYDATA for independent inspection. Export coordinates
+  are converted from DICOM patient LPS to 3D Slicer's RAS convention. The
+  export test and visual comparison are pending local execution.
 - This is an important limitation, not a claim that the Kidney surface is a
   manifold. Exact voxel-boundary extraction cannot always remove such
   self-contacts through vertex splitting alone. A manifold reconstruction
