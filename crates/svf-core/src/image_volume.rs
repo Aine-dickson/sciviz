@@ -6,8 +6,8 @@
 //! along each axis. Spacing and orientation are therefore represented
 //! together, without assuming axis alignment or a particular world convention.
 //!
-//! Voxel storage and intensity calibration are separate concerns and are
-//! introduced by higher-level volume types.
+//! Voxel storage and intensity calibration remain separate from geometry.
+//! ImageVolume3 combines them while preserving the original stored samples.
 
 use std::{error::Error, fmt};
 
