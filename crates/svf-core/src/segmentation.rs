@@ -392,11 +392,12 @@ impl SegmentationVolume3 {
 
     /// Extracts the exact exposed voxel-cell boundary as a triangle mesh.
     ///
-    /// Every foreground voxel contributes a quad for each face adjacent to
-    /// background or the volume exterior. Shared corner vertices are reused.
-    /// The result is a blocky voxel boundary, not a smoothed or interpolated
-    /// isosurface. Triangle winding points outward, including for a
-    /// left-handed affine index-to-world basis.
+    /// The voxel-cell geometry is preserved exactly. Surface vertices are
+    /// shared only within connected surface fans: when diagonal foreground
+    /// voxels meet along a grid edge or corner, their coincident boundary
+    /// points receive distinct mesh vertex indices. This avoids introducing
+    /// non-manifold edges or vertices without changing the source mask or
+    /// moving any point. The result is blocky, not a smoothed isosurface.
     pub fn extract_voxel_boundary_surface(
         &self,
         id: SegmentId3,
@@ -411,13 +412,23 @@ impl SegmentationVolume3 {
                 .map_err(SegmentSurfaceError3::InvalidMesh);
         }
 
-        let dimensions = self.geometry.dimensions();
-        let basis_determinant = self.geometry.index_to_world_basis().determinant();
-        let determinant_sign = if basis_determinant < 0.0 { -1.0 } else { 1.0 };
-        let mut vertices = Vec::<WorldPoint3>::new();
-        let mut indices = Vec::<u32>::new();
-        let mut vertex_lookup = std::collections::BTreeMap::<[usize; 3], u32>::new();
+        #[derive(Clone)]
+        struct ExposedFace {
+            corners: [[usize; 3]; 4],
+            owner: usize,
+            reverse: bool,
+        }
 
+        let dimensions = self.geometry.dimensions();
+        let determinant_sign = if self.geometry.index_to_world_basis().determinant() < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        let mut faces = Vec::<ExposedFace>::new();
+
+        // First collect exposed quads in lattice coordinates. Keeping face
+        // provenance lets us separate diagonal voxel contacts deterministically.
         for linear_index in mask.foreground_indices() {
             let voxel = self.geometry.voxel_index(linear_index)
                 .expect("mask and geometry voxel counts were validated");
@@ -429,7 +440,6 @@ impl SegmentationVolume3 {
                         voxel[axis].checked_add(1)
                             .filter(|value| *value < dimensions[axis])
                     };
-
                     let exposed = match neighbor {
                         None => true,
                         Some(value) => {
@@ -452,42 +462,122 @@ impl SegmentationVolume3 {
                             .into_iter()
                             .enumerate()
                     {
-                        corners[corner][axis] = if side < 0 {
-                            voxel[axis]
-                        } else {
-                            voxel[axis] + 1
-                        };
-                        corners[corner][u] = voxel[u] + if u_high { 1 } else { 0 };
-                        corners[corner][v] = voxel[v] + if v_high { 1 } else { 0 };
+                        corners[corner][axis] = if side < 0 { voxel[axis] } else { voxel[axis] + 1 };
+                        corners[corner][u] = voxel[u] + usize::from(u_high);
+                        corners[corner][v] = voxel[v] + usize::from(v_high);
                     }
-
-                    let mut face = [0_u32; 4];
-                    for (corner_index, corner) in corners.into_iter().enumerate() {
-                        let vertex_index = if let Some(existing) = vertex_lookup.get(&corner) {
-                            *existing
-                        } else {
-                            let next = u32::try_from(vertices.len())
-                                .map_err(|_| SegmentSurfaceError3::VertexIndexOverflow)?;
-                            let continuous = corner.map(|value| value as f64 - 0.5);
-                            let point = self.geometry.index_to_world(continuous)
-                                .expect("validated finite affine geometry maps finite voxel corners");
-                            vertices.push(point);
-                            vertex_lookup.insert(corner, next);
-                            next
-                        };
-                        face[corner_index] = vertex_index;
-                    }
-
-                    let outward_sign = side as f64 * determinant_sign;
-                    let triangles = if outward_sign > 0.0 {
-                        [[face[0], face[1], face[2]], [face[0], face[2], face[3]]]
-                    } else {
-                        [[face[0], face[2], face[1]], [face[0], face[3], face[2]]]
-                    };
-                    for triangle in triangles {
-                        indices.extend_from_slice(&triangle);
-                    }
+                    faces.push(ExposedFace {
+                        corners,
+                        owner: linear_index,
+                        reverse: side as f64 * determinant_sign <= 0.0,
+                    });
                 }
+            }
+        }
+
+        // Each face corner starts as its own topological vertex occurrence.
+        // Join occurrences only across surface edges that belong to the same
+        // local surface fan. A regular edge has two incident faces; a
+        // checkerboard edge has four, paired by their foreground voxel owner.
+        let mut parent: Vec<usize> = (0..faces.len() * 4).collect();
+        fn root(parent: &mut [usize], mut value: usize) -> usize {
+            while parent[value] != value {
+                let grandparent = parent[parent[value]];
+                parent[value] = grandparent;
+                value = grandparent;
+            }
+            value
+        }
+        fn join(parent: &mut [usize], a: usize, b: usize) {
+            let ra = root(parent, a);
+            let rb = root(parent, b);
+            if ra != rb {
+                parent[rb] = ra;
+            }
+        }
+
+        let mut edge_faces = std::collections::BTreeMap::<
+            ([usize; 3], [usize; 3]),
+            Vec<(usize, [usize; 3], [usize; 3])>,
+        >::new();
+        for (face_index, face) in faces.iter().enumerate() {
+            for edge in 0..4 {
+                let a = face.corners[edge];
+                let b = face.corners[(edge + 1) % 4];
+                let key = if a <= b { (a, b) } else { (b, a) };
+                edge_faces.entry(key).or_default().push((face_index, a, b));
+            }
+        }
+
+        for incidents in edge_faces.values() {
+            let pairs: Vec<(usize, usize)> = if incidents.len() == 2 {
+                vec![(0, 1)]
+            } else if incidents.len() == 4 {
+                let mut by_owner = std::collections::BTreeMap::<usize, Vec<usize>>::new();
+                for (incident_index, (face_index, _, _)) in incidents.iter().enumerate() {
+                    by_owner.entry(faces[*face_index].owner).or_default().push(incident_index);
+                }
+                by_owner.values()
+                    .filter(|members| members.len() == 2)
+                    .map(|members| (members[0], members[1]))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            for (left, right) in pairs {
+                let (left_face, left_a, left_b) = incidents[left];
+                let (right_face, right_a, right_b) = incidents[right];
+                for endpoint in [left_a, left_b] {
+                    let matching = if right_a == endpoint { 0 } else { 1 };
+                    let right_corner = if matching == 0 { right_a } else { right_b };
+                    let left_corner_index = faces[left_face].corners.iter()
+                        .position(|corner| *corner == endpoint)
+                        .expect("edge endpoint belongs to its face");
+                    let right_corner_index = faces[right_face].corners.iter()
+                        .position(|corner| *corner == right_corner)
+                        .expect("matching edge endpoint belongs to its face");
+                    join(
+                        &mut parent,
+                        left_face * 4 + left_corner_index,
+                        right_face * 4 + right_corner_index,
+                    );
+                }
+            }
+        }
+
+        let mut vertices = Vec::<WorldPoint3>::new();
+        let mut root_vertices = std::collections::BTreeMap::<usize, u32>::new();
+        let mut face_vertex_indices = vec![[0_u32; 4]; faces.len()];
+        for (face_index, face) in faces.iter().enumerate() {
+            for corner_index in 0..4 {
+                let occurrence = face_index * 4 + corner_index;
+                let component = root(&mut parent, occurrence);
+                let vertex_index = if let Some(existing) = root_vertices.get(&component) {
+                    *existing
+                } else {
+                    let next = u32::try_from(vertices.len())
+                        .map_err(|_| SegmentSurfaceError3::VertexIndexOverflow)?;
+                    let continuous = face.corners[corner_index].map(|value| value as f64 - 0.5);
+                    let point = self.geometry.index_to_world(continuous)
+                        .expect("validated finite affine geometry maps finite voxel corners");
+                    vertices.push(point);
+                    root_vertices.insert(component, next);
+                    next
+                };
+                face_vertex_indices[face_index][corner_index] = vertex_index;
+            }
+        }
+
+        let mut indices = Vec::<u32>::with_capacity(faces.len() * 6);
+        for (face, vertices) in faces.iter().zip(face_vertex_indices) {
+            let triangles = if face.reverse {
+                [[vertices[0], vertices[2], vertices[1]], [vertices[0], vertices[3], vertices[2]]]
+            } else {
+                [[vertices[0], vertices[1], vertices[2]], [vertices[0], vertices[2], vertices[3]]]
+            };
+            for triangle in triangles {
+                indices.extend_from_slice(&triangle);
             }
         }
 
