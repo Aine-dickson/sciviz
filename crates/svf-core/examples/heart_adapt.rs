@@ -121,6 +121,21 @@ fn heart_frame(grid: &UnstructuredGrid3, tags: &[u32]) -> Frame {
     Frame { origin, axes: [x, y, z] }
 }
 
+/// Signed contribution of one labelled patch to the volume of label 4.
+/// Use a patch-local origin so the diagnostic avoids large origin-dependent terms.
+fn right_atrium_patch_volume(points: &[P3], triangles: &[[u32; 3]], front: u32, back: u32) -> f64 {
+    let Some(first) = triangles.first() else { return 0.0 };
+    let origin = points[first[0] as usize];
+    triangles.iter().map(|face| {
+        let mut triangle = *face;
+        if back == 4 { triangle.swap(1, 2); }
+        let a = sub(points[triangle[0] as usize], origin);
+        let b = sub(points[triangle[1] as usize], origin);
+        let c = sub(points[triangle[2] as usize], origin);
+        dot(a, cross(b, c)) / 6.0
+    }).sum()
+}
+
 fn report_duplicate_faces<I>(stage: &str, triangles: I)
 where
     I: IntoIterator<Item = [u32; 3]>,
@@ -433,6 +448,14 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             keep(&mut faces, &tris);
             kept += 1;
             after += tris.len();
+            if patch.front == 4 || patch.back == 4 {
+                let original = right_atrium_patch_volume(surface.points(), &tris, patch.front, patch.back);
+                let current = right_atrium_patch_volume(&points, &tris, patch.front, patch.back);
+                println!(
+                    "  right-atrium patch {}|{} volume: original {original:+.6}, adapted {current:+.6}, delta {:+.6} mm3 ({} faces)",
+                    patch.front, patch.back, current - original, tris.len()
+                );
+            }
             continue;
         }
         let mut local: Vec<u32> = tris.iter().flatten().copied().collect();
@@ -527,25 +550,15 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             refused += 1;
         }
 
-        // Signed-volume contribution of this patch to the right-atrium wall.
-        // Contributions are additive across the closed labelled boundary.
+        // Compare each patch's original and adapted contribution. The difference,
+        // unlike either absolute contribution, isolates the volume change caused here.
         if patch.front == 4 || patch.back == 4 {
-            let contribution: f64 = faces[patch_face_start..]
-                .iter()
-                .map(|face| {
-                    let mut triangle = face.triangle;
-                    if face.back == 4 {
-                        triangle.swap(1, 2);
-                    }
-                    let a = points[triangle[0] as usize];
-                    let b = points[triangle[1] as usize];
-                    let c = points[triangle[2] as usize];
-                    dot(a, cross(b, c)) / 6.0
-                })
-                .sum();
+            let original = right_atrium_patch_volume(surface.points(), &tris, patch.front, patch.back);
+            let adapted_tris: Vec<[u32; 3]> = faces[patch_face_start..].iter().map(|face| face.triangle).collect();
+            let adapted = right_atrium_patch_volume(&points, &adapted_tris, patch.front, patch.back);
             println!(
-                "  right-atrium volume contribution patch {}|{}: {contribution:+.3} mm3 ({} faces)",
-                patch.front, patch.back, faces.len() - patch_face_start
+                "  right-atrium patch {}|{} volume: original {original:+.6}, adapted {adapted:+.6}, delta {:+.6} mm3 ({} -> {} faces)",
+                patch.front, patch.back, adapted - original, tris.len(), adapted_tris.len()
             );
         }
     }
