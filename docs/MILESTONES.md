@@ -1084,8 +1084,10 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   point-scalar isosurfaces, but not voxel/image volumes, NIfTI/DICOM/VTK
   image-data readers, segmentation label maps, structured-volume extraction,
   or source-volume slice display.
-- Preliminary source preference: audit one KiTS19/TCIA CT+SEG case first,
-  subject to case-level and licence verification. KiTS23 has clearer
-  kidney/tumour/cyst labels but CC BY-NC-SA 4.0 restrictions.
+- Licence caution: original KiTS19 challenge terms state CC BY-NC-SA, while
+  the harmonized TCIA C4KC-KiTS record lists CC BY 3.0. These distribution
+  contexts must be reconciled for the exact files before lesson redistribution.
+  KiTS23 has explicit kidney/tumour/cyst labels and CC BY-NC-SA 4.0 terms.
+  No dataset is approved for distributable lesson assets yet.
 - No implementation approved. Next action is a single-case source audit and
   an explicit learning objective, followed by a reviewed design contract.
