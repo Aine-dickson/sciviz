@@ -539,7 +539,7 @@ impl SegmentationVolume3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spatial::{DMat3, WorldPoint3};
+    use crate::spatial::{DMat3, DVec3, WorldPoint3};
 
     fn geometry(dimensions: [usize; 3]) -> ImageVolumeGeometry3 {
         ImageVolumeGeometry3::new(dimensions, WorldPoint3::ORIGIN, DMat3::IDENTITY).unwrap()
@@ -729,6 +729,16 @@ mod tests {
             index.iter().all(|value| (*value + 0.5).abs() < 1.0e-12
                 || (*value - 0.5).abs() < 1.0e-12)
         }));
+
+        let center = volume.geometry().voxel_center([0, 0, 0]).unwrap().to_vector();
+        for [a, b, c] in mesh.triangles() {
+            let p0 = mesh.vertices()[a as usize].to_vector();
+            let p1 = mesh.vertices()[b as usize].to_vector();
+            let p2 = mesh.vertices()[c as usize].to_vector();
+            let normal = (p1 - p0).cross(p2 - p0);
+            let face_center = (p0 + p1 + p2) / 3.0;
+            assert!(normal.dot(face_center - center) > 0.0);
+        }
     }
 
     #[test]
