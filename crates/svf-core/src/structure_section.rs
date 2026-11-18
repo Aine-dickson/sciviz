@@ -135,19 +135,43 @@ fn section_with(
     };
     let eps = relative_eps * extent;
 
-    // Move the plane a hair along its normal until no vertex lies on it.
+    // Move the plane to the first clear gap in the sorted vertex projections.
+    // A fixed number of tiny nudges can fail on a dense mesh even though a nearby
+    // non-degenerate plane exists.
     let base = dot(plane.normal, plane.point);
-    let mut distances = Vec::new();
-    let mut found = false;
-    for attempt in 0..16 {
-        let shift = if attempt == 0 { 0.0 } else { 3.0 * eps * attempt as f64 };
-        distances = vertices.iter().map(|v| dot(plane.normal, *v) - (base + shift)).collect();
-        if distances.iter().all(|d| d.abs() > eps) {
-            found = true;
-            break;
+    let mut projections: Vec<f64> = vertices
+        .iter()
+        .map(|v| dot(plane.normal, *v) - base)
+        .collect();
+    projections.sort_by(f64::total_cmp);
+
+    let mut shift = 0.0;
+    let mut blocked_until: Option<f64> = None;
+    for projection in projections {
+        let low = projection - eps;
+        let high = projection + eps;
+        match blocked_until {
+            None if high < 0.0 => continue,
+            None if low > 0.0 => break,
+            None => blocked_until = Some(high),
+            Some(end) if low <= end => blocked_until = Some(end.max(high)),
+            Some(end) => {
+                shift = (end + low) * 0.5;
+                break;
+            }
         }
     }
-    if !found {
+    if let Some(end) = blocked_until {
+        if shift == 0.0 {
+            shift = end + eps * 1e-3;
+        }
+    }
+
+    let distances: Vec<f64> = vertices
+        .iter()
+        .map(|v| dot(plane.normal, *v) - (base + shift))
+        .collect();
+    if distances.iter().any(|d| d.abs() <= eps) {
         return Err(SectionError::DegeneratePlane);
     }
     let origin = plane.point;
