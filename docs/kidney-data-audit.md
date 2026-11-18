@@ -68,19 +68,24 @@ commercial, scientific and educational use subject to TCIA's data-use policy.
 
 Source: https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=64684840
 
-Important licence discrepancy:
-- The current TCIA C4KC-KiTS record lists the harmonized CT+SEG collection as
-  CC BY 3.0 and describes commercial, scientific and educational use under
-  TCIA's data-use policy.
-- The original KiTS19 challenge data page states CC BY-NC-SA terms. These
-  statements refer to different distribution/record contexts and must not be
-  silently treated as interchangeable. We must identify the exact files and
-  their applicable rights before redistribution or use in distributable
-  lessons. For planning purposes, treat the original challenge data as
-  non-commercial/share-alike unless the exact TCIA package's rights and
-  provenance are confirmed.
-- The original challenge describes image and ground-truth label volumes in
-  anonymized NIfTI format, with labels for background, kidney and tumour.
+Licence and distribution distinction:
+- The original KiTS19 challenge distribution states CC BY-NC-SA.
+- The harmonized C4KC-KiTS collection published by TCIA lists the CT and
+  segmentation DICOM data under CC BY 3.0 and says it may be used for
+  commercial, scientific and educational purposes subject to TCIA's data-use
+  policy.
+- These are different distributions/representations. Do not apply the TCIA
+  licence to files downloaded from the original challenge GitHub, or the
+  challenge licence to the harmonized TCIA package without checking the exact
+  package. For a distributable SVF lesson asset, prefer the TCIA package and
+  preserve its attribution and required citation.
+- TCIA's current harmonized record lists 210 participants, 210 studies, 621
+  series, 71,423 images and approximately 40.7 GB total. It provides CT and
+  DICOM SEG modalities. Its note says the segmentation corresponds to the
+  arterial phase in every case; do not pair it with a different CT phase.
+- The original challenge describes anonymized NIfTI image and label volumes,
+  with labels for background, kidney and tumour. That is a different
+  acquisition/conversion route from the TCIA DICOM representation.
 
 Advantages:
 - The original challenge provides paired CT and segmentation volumes.
@@ -108,10 +113,14 @@ organisers' linked imaging repository; segmentations are stored in the
 challenge GitHub repository.
 
 Sources:
+- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=133072129
+- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=64684840
+- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=80969923
+- https://kits19.grand-challenge.org/data/
 - https://kits-challenge.org/kits23/
 - https://github.com/neheller/kits23
-- https://kits19.grand-challenge.org/data/
-- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=80969923
+- https://github.com/TCIA/data-retriever
+- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=4555089
 
 Advantages:
 - Clear documented label semantics and paired image/segmentation data.
@@ -148,7 +157,20 @@ appropriate.
 
 ## Proposed audit sequence (no implementation yet)
 
-1. Select one case from KiTS19/TCIA and obtain only the necessary image and
+1. Open the [TCIA C4KC-KiTS collection record](https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=133072129)
+   and use its Search/Data Portal workflow. Select one participant and add
+   the arterial-phase CT series plus its corresponding DICOM SEG series to
+   the cart. Do not download all 210 cases.
+2. Download the selected-series manifest and use the official
+   [TCIA Data Retriever](https://github.com/TCIA/data-retriever) to fetch only
+   that case's selected series. Preserve the manifest and collection record
+   alongside the files.
+3. Check that the SEG references the selected arterial-phase CT series before
+   proceeding; do not assume that a similarly named CT series is the match.
+4. Record the exact patient/study/series identifiers and sizes in the local
+   audit notes. Avoid publishing any patient-level metadata beyond what the
+   anonymized dataset and its terms permit.
+5. Select one case from KiTS19/TCIA and obtain only the necessary image and
    segmentation objects.
 2. Record its source identifiers, citation, licence, file formats, file sizes,
    image dimensions, spacing, origin/orientation, scalar type, and segmentation
