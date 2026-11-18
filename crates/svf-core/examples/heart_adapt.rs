@@ -148,6 +148,34 @@ where
     }
 }
 
+fn report_duplicate_labelled_faces(stage: &str, faces: &[LabelledFace]) {
+    let mut groups: std::collections::BTreeMap<[u32; 3], Vec<(usize, LabelledFace)>> =
+        std::collections::BTreeMap::new();
+
+    for (index, face) in faces.iter().copied().enumerate() {
+        let mut key = face.triangle;
+        key.sort_unstable();
+        groups.entry(key).or_default().push((index, face));
+    }
+
+    let duplicates: Vec<_> = groups
+        .into_iter()
+        .filter(|(_, entries)| entries.len() > 1)
+        .collect();
+
+    println!("  {stage}: {} duplicate labelled face keys", duplicates.len());
+
+    for (key, entries) in duplicates.iter().take(20) {
+        println!("    {key:?}:");
+        for (index, face) in entries {
+            println!(
+                "      face {index}: labels {}|{}, winding {:?}",
+                face.front, face.back, face.triangle
+            );
+        }
+    }
+}
+
 fn main() {
     let mut args = env::args().skip(1);
     let Some(path) = args.next() else {
@@ -352,10 +380,7 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
     let clock = Instant::now();
     let surface = LabelledSurface::build(grid, tags).unwrap_or_else(|e| fail(e));
     let patches = surface.patches();
-    report_duplicate_faces(
-        "extracted surface",
-        surface.faces().iter().map(|f| f.triangle),
-    );
+    report_duplicate_labelled_faces("extracted surface", surface.faces());
     println!(
         "Labelled surface: {} faces, {} patches, {} cavities",
         surface.faces().len(),
@@ -437,10 +462,7 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             }
         }
     }
-    report_duplicate_faces(
-        "assembled surface",
-        faces.iter().map(|f| f.triangle),
-    );
+    report_duplicate_labelled_faces("assembled surface", &faces);
     println!(
         "Patches: {simplified} simplified, {kept} small and kept, {refused} refused | triangles {before} -> {after} | worst measured deviation {worst:.3} mm (patch {worst_patch}) | {:.1} s",
         clock.elapsed().as_secs_f64()
