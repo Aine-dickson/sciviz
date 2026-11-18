@@ -1091,3 +1091,31 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   No dataset is approved for distributable lesson assets yet.
 - No implementation approved. Next action is a single-case source audit and
   an explicit learning objective, followed by a reviewed design contract.
+
+
+## Kidney case-level source audit — KiTS-00005 (2026-11-18)
+
+- Completed a local audit of one TCIA C4KC-KiTS harmonized case: arterial CT
+  (834 DICOM instances) and its matching multi-frame binary DICOM SEG
+  (1,668 frames: 834 Kidney and 834 Mass).
+- CT dimensions are 512 × 512 × 834; in-plane spacing is 0.9765625 mm and
+  measured slice-centre spacing is 0.5 mm. CT/SEG references and spatial
+  alignment were verified: 0 missing references, 0 position mismatches,
+  0 orientation mismatches; maximum separately measured position difference
+  approximately 0.00001875 mm.
+- Kidney mask: 902,167 foreground voxels, 283 non-empty frames, one dominant
+  26-connected component (902,158 voxels) plus components of 5, 3 and 1 voxels.
+- Mass mask: 126,444 foreground voxels, 119 non-empty frames, one
+  26-connected component.
+- Masks have zero overlapping voxels. 3,652 Mass voxels have 6-neighbour
+  Kidney contact; 6,203 have 26-neighbour contact. An anisotropic voxel-centre
+  distance transform was recorded; it is not a mesh-surface distance.
+- Preserve Kidney and Mass as separate source segments. Their mask relationship
+  does not establish the tumour's full anatomical relationship to the kidney.
+- Full measured results, DICOM identifiers, paths, limitations and next steps:
+  docs/kidney-data-audit.md, section “Case-level audit — KiTS-00005”.
+- Local data remains outside the repository. Diagnostic scripts were created
+  and run locally but have not yet been versioned.
+- Status: source/geometry/voxel audit complete for the recorded checks;
+  no implementation authorized. Next: preserve scripts, inspect existing
+  core APIs, then propose a reviewed volume/segmentation design contract.
