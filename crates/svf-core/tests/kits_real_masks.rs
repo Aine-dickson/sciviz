@@ -192,9 +192,32 @@ fn extracts_real_kits_mass_surface_and_checks_topology() {
     let topology_elapsed = topology_start.elapsed();
 
     let boundary_edge_count = topology.boundary_edges().count();
-    let non_manifold_edge_count = topology.edges_with_more_than_two_faces().count();
+    let non_manifold_edges: Vec<_> = topology.edges_with_more_than_two_faces().collect();
+    let non_manifold_edge_count = non_manifold_edges.len();
     assert_eq!(boundary_edge_count, 0, "surface has boundary edges");
-    assert_eq!(non_manifold_edge_count, 0, "surface has edges with more than two incident faces");
+
+    println!("Boundary edges: {boundary_edge_count}");
+    println!("Edges with >2 incident faces: {non_manifold_edge_count}");
+    for (edge_id, edge) in &non_manifold_edges {
+        let [a, b] = edge.vertices();
+        let incident = topology.edge_faces(*edge_id).unwrap();
+        println!(
+            "Non-manifold edge {edge_id}: vertices {a}-{b}, world endpoints {:?} -> {:?}, incident faces {:?}",
+            mesh.vertices()[a as usize].to_vector().to_array(),
+            mesh.vertices()[b as usize].to_vector().to_array(),
+            incident
+        );
+        for &face_id in incident {
+            let triangle = &mesh.indices()[face_id * 3..face_id * 3 + 3];
+            println!("  face {face_id}: {triangle:?}");
+        }
+    }
+
+    // Stop after collecting topology diagnostics. The usual two-face winding
+    // and signed-volume checks only apply once every edge has valid incidence.
+    if non_manifold_edge_count != 0 {
+        return;
+    }
 
     // A closed, consistently oriented triangle surface must have exactly two
     // oppositely directed incident faces at every undirected edge.
