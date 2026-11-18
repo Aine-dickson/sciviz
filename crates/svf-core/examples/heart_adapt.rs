@@ -121,6 +121,33 @@ fn heart_frame(grid: &UnstructuredGrid3, tags: &[u32]) -> Frame {
     Frame { origin, axes: [x, y, z] }
 }
 
+fn report_duplicate_faces<I>(stage: &str, triangles: I)
+where
+    I: IntoIterator<Item = [u32; 3]>,
+{
+    let mut groups: std::collections::BTreeMap<[u32; 3], Vec<usize>> =
+        std::collections::BTreeMap::new();
+
+    for (index, mut triangle) in triangles.into_iter().enumerate() {
+        triangle.sort_unstable();
+        groups.entry(triangle).or_default().push(index);
+    }
+
+    let duplicates: Vec<_> = groups
+        .into_iter()
+        .filter(|(_, indices)| indices.len() > 1)
+        .collect();
+
+    println!(
+        "  {stage}: {} duplicate face keys",
+        duplicates.len()
+    );
+
+    for (key, indices) in duplicates.iter().take(20) {
+        println!("    {key:?}: {indices:?}");
+    }
+}
+
 fn main() {
     let mut args = env::args().skip(1);
     let Some(path) = args.next() else {
@@ -325,6 +352,10 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
     let clock = Instant::now();
     let surface = LabelledSurface::build(grid, tags).unwrap_or_else(|e| fail(e));
     let patches = surface.patches();
+    report_duplicate_faces(
+        "extracted surface",
+        surface.faces().iter().map(|f| f.triangle),
+    );
     println!(
         "Labelled surface: {} faces, {} patches, {} cavities",
         surface.faces().len(),
@@ -390,6 +421,10 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
                     .iter()
                     .map(|t| t.map(|i| local[result.vertex_map[i as usize] as usize]))
                     .collect();
+                report_duplicate_faces(
+                    &format!("patch {}|{} simplified", patch.front, patch.back),
+                    new_tris.iter().copied(),
+                );
                 after += new_tris.len();
                 keep(&mut faces, &new_tris);
                 simplified += 1;
@@ -402,6 +437,10 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             }
         }
     }
+    report_duplicate_faces(
+        "assembled surface",
+        faces.iter().map(|f| f.triangle),
+    );
     println!(
         "Patches: {simplified} simplified, {kept} small and kept, {refused} refused | triangles {before} -> {after} | worst measured deviation {worst:.3} mm (patch {worst_patch}) | {:.1} s",
         clock.elapsed().as_secs_f64()
@@ -414,6 +453,12 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
     let mut volumes: Vec<(String, f64)> = Vec::new();
     for spec in &specs {
         let tris = part_triangles(&faces, &spec.labels);
+
+        report_duplicate_faces(
+            &format!("{} before repair", spec.id),
+            tris.iter().copied(),
+        );
+
         let (mesh, report) = repair_pinches(&points, &tris).unwrap_or_else(|e| fail(format!("{}: {e}", spec.id)));
         let volume = signed_volume(&mesh.points, &mesh.triangles);
         let diff = (volume - spec.source_volume) / spec.source_volume;

@@ -317,8 +317,13 @@ fn section_part(
         let d = sub(out_points[id as usize], origin);
         (id, [dot(d, u), dot(d, v)])
     };
-    let rings: Vec<Vec<(u32, P2)>> =
-        loops.iter().map(|ring| ring.iter().map(|&id| project(id)).collect()).collect();
+    // A loop of two points is a doubled fin of zero area (a sheet folded onto itself
+    // at the cut, as where a repaired pinch touches); it has nothing to cap.
+    let rings: Vec<Vec<(u32, P2)>> = loops
+        .iter()
+        .filter(|ring| ring.len() >= 3)
+        .map(|ring| ring.iter().map(|&id| project(id)).collect())
+        .collect();
 
     let cap = cap_triangles(&rings).ok_or(SectionError::CapFailed { part })?;
     out_indices.extend(cap.into_iter().flatten());
