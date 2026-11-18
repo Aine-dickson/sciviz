@@ -2575,13 +2575,18 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - The current structure sectioner cuts reconstructed closed meshes; it does
   not display the corresponding source image slice. Do not confuse existing
   tetrahedral/unstructured data support with voxel-volume support.
-- Audit: `docs/kidney-data-audit.md`. Candidate A is KiTS19/TCIA (210 CT/SEG
-  studies; TCIA lists CC BY 3.0 and commercial/scientific/educational use).
-  Candidate B is KiTS23 (599 cases; labels kidney/tumour/cyst; CC BY-NC-SA 4.0).
-- Preliminary preference is to audit one manageable KiTS19/TCIA case first,
-  subject to confirming exact segmentation contents, label semantics, per-case
-  download and licence/attribution. KiTS23 is a good technical reference but
-  its non-commercial/share-alike licence needs care for distributable lessons.
+- Audit: `docs/kidney-data-audit.md`. Candidate A is KiTS19/TCIA (210 CT/SEG studies). Important correction:
+  the original KiTS19 challenge page states CC BY-NC-SA terms, while the
+  harmonized TCIA C4KC-KiTS record lists CC BY 3.0 and commercial/scientific/
+  educational use. These distribution contexts must not be conflated; verify
+  exact file provenance and applicable licence before lesson redistribution.
+  Original challenge volumes are NIfTI with background/kidney/tumour labels.
+  Candidate B is KiTS23 (599 cases; labels kidney/tumour/cyst;
+  CC BY-NC-SA 4.0).
+- No challenge dataset is yet approved for distributable lesson assets.
+  Select one case for a technical audit only after identifying the exact
+  distribution and licence; otherwise find a separately licensed source or
+  create a validated schematic.
 - Neither dataset provides detailed normal-kidney structures such as cortex,
   medulla, pyramids, calyces, pelvis, vessels and ureter as separate labels.
   The first CT/SEG learning objective must stay within the labels actually
