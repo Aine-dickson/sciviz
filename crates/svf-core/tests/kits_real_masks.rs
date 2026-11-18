@@ -557,16 +557,19 @@ fn exports_real_kits_surfaces_for_external_inspection() {
     let notes = output.join("README.txt");
     fs::write(
         &notes,
-        "KiTS-00005 SVF surface inspection exports\\n\\n\\
-         kidney.vtk and mass.vtk are legacy VTK POLYDATA triangle meshes.\\n\\
-         Coordinates are RAS millimetres for 3D Slicer. The source DICOM patient\\n\\
-         coordinates are LPS; export applies RAS=(-LPS.x, -LPS.y, LPS.z).\\n\\n\\
-         Load the original arterial CT series and matching DICOM SEG in 3D Slicer\\n\\
-         using its DICOM module/browser. Then load kidney.vtk and mass.vtk as\\n\\
-         model files. Compare each model against the SEG overlay and CT slices.\\n\\
-         These are exact voxel-cell boundary surfaces, not smoothed isosurfaces.\\n\\
-         The Kidney mesh has five documented non-manifold self-contact edges.\\n\\
-         These exports are local validation derivatives; do not commit them to Git.\\n",
+        r#"KiTS-00005 SVF surface inspection exports
+
+kidney.vtk and mass.vtk are legacy VTK POLYDATA triangle meshes.
+Coordinates are RAS millimetres for 3D Slicer. The source DICOM patient
+coordinates are LPS; export applies RAS=(-LPS.x, -LPS.y, LPS.z).
+
+Load the original arterial CT series and matching DICOM SEG in 3D Slicer
+using its DICOM module/browser. Then load kidney.vtk and mass.vtk as
+model files. Compare each model against the SEG overlay and CT slices.
+These are exact voxel-cell boundary surfaces, not smoothed isosurfaces.
+The Kidney mesh has five documented non-manifold self-contact edges.
+These exports are local validation derivatives; do not commit them to Git.
+"#,
     )
     .unwrap_or_else(|error| panic!("failed to write {}: {error}", notes.display()));
 
