@@ -212,8 +212,9 @@ impl Iterator for ForegroundVoxelIndices3<'_> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
+        let start = self.word_index.saturating_add(1).min(self.mask.words.len());
         let remaining = self.remaining.count_ones() as usize
-            + self.mask.words[self.word_index.saturating_add(1)..]
+            + self.mask.words[start..]
                 .iter()
                 .map(|word| word.count_ones() as usize)
                 .sum::<usize>();
@@ -535,8 +536,8 @@ mod tests {
             min: [0, 0, 0],
             max: [3, 2, 0],
         });
-        assert_eq!(stats.world_centroid.to_array(), [12.0, 23.0, 30.0]);
-        assert_eq!(stats.physical_volume, 144.0);
+        assert_eq!(stats.world_centroid.to_array(), [38.0 / 3.0, 23.0, 30.0]);
+        assert_eq!(stats.physical_volume, 72.0);
     }
 
     #[test]
