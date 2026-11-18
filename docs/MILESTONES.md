@@ -1149,10 +1149,17 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   signed mesh volume equal to mask volume (430,186.748505 mm³; zero reported
   relative error). Extraction took approximately 2.55 s and topology analysis
   approximately 3.05 s on the user's Windows environment.
-- The five non-manifold self-contact edges remain explicitly reported; this
-  is not a claim that the Kidney mesh is edge-manifold. The exact voxel-cell
-  boundary, source mask, and volume are preserved. The Mass strict-manifold
-  regression should be rerun after the Kidney test changes.
+- The Mass strict-manifold regression was rerun after the Kidney test changes
+  and passed locally: 22,028 vertices, 44,048 triangles, zero boundary edges,
+  zero non-manifold edges, balanced opposing winding, and signed volume equal
+  to mask volume (60,293.197632 mm³; zero reported relative error). Extraction
+  took approximately 363 ms and topology analysis approximately 415 ms.
+- The five Kidney non-manifold self-contact edges remain explicitly reported;
+  this is not a claim that the Kidney mesh is edge-manifold. The exact
+  voxel-cell boundary, source mask, and volume are preserved.
+- Both real-mask surface tests now pass. This closes the current real-mask
+  extraction/topology/volume validation milestone, with geometric comparison
+  against an independent viewer/reference still outstanding.
 - This is an important limitation, not a claim that the Kidney surface is a
   manifold. Exact voxel-boundary extraction cannot always remove such
   self-contacts through vertex splitting alone. A manifold reconstruction
