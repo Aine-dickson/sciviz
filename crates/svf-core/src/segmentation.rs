@@ -835,6 +835,48 @@ mod tests {
     }
 
     #[test]
+    fn diagonal_voxels_touching_along_an_edge_form_separate_closed_surface_fans() {
+        // In a 2x2x1 grid, voxels (0,0,0) and (1,1,0) meet only
+        // along the vertical grid edge. Their geometric coordinates touch,
+        // but their surface sheets must remain topologically separate.
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Diagonal pair",
+            BinaryMask3::from_indices(4, [0, 3]).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 2, 1]), vec![segment]).unwrap();
+        let mesh = volume
+            .extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(mesh.vertex_count(), 16);
+        assert_eq!(mesh.triangle_count(), 24);
+        assert_closed_oriented_surface(&mesh, 2.0);
+    }
+
+    #[test]
+    fn corner_only_touching_voxels_form_separate_closed_surface_fans() {
+        // Opposite corners of a 2x2x2 grid touch at one lattice point only.
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Corner pair",
+            BinaryMask3::from_indices(8, [0, 7]).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 2, 2]), vec![segment]).unwrap();
+        let mesh = volume
+            .extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(mesh.vertex_count(), 16);
+        assert_eq!(mesh.triangle_count(), 24);
+        assert_closed_oriented_surface(&mesh, 2.0);
+    }
+
+    #[test]
     fn boundary_surface_uses_affine_geometry_and_outward_winding() {
         let affine = ImageVolumeGeometry3::new(
             [1, 1, 1],
