@@ -444,70 +444,86 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
         // Thin parts (vessel walls, valve planes, vein ends: tags 5 to 24) get the tighter limit.
         let thin_patch = [patch.front, patch.back].iter().any(|l| (5..=24).contains(l));
         let limit = if thin_patch { thin.min(deviation) } else { deviation };
-        let options = SimplifyOptions { epsilon: limit, ..Default::default() };
-        match simplify_within(&lp, &lt, &pinned, limit, 6, &options) {
-            Ok(result) => {
-                let new_tris: Vec<[u32; 3]> = result
-                    .triangles
-                    .iter()
-                    .map(|t| t.map(|i| local[result.vertex_map[i as usize] as usize]))
-                    .collect();
-
-                let mut candidate_keys = BTreeMap::new();
-                let mut collision = None;
-                for (triangle_index, triangle) in new_tris.iter().enumerate() {
-                    let mut key = *triangle;
-                    key.sort_unstable();
-                    if candidate_keys.insert(key, triangle_index).is_some() {
-                        collision = Some(key);
-                        break;
-                    }
-                    if original_faces.get(&key).is_some_and(|&owner| owner != patch_index)
-                        || accepted_faces.contains_key(&key)
-                    {
-                        collision = Some(key);
-                        break;
-                    }
-                }
-
-                if let Some(key) = collision {
-                    println!(
-                        "  patch {}|{} kept as is: simplification would create cross-patch duplicate face {key:?}",
-                        patch.front, patch.back
-                    );
-                    keep(&mut faces, &tris);
-                    after += tris.len();
-                    refused += 1;
-                } else {
-                    let d = result.report.measured_deviation.unwrap_or(0.0);
-                    if d > worst {
-                        worst = d;
-                        worst_patch = format!("{}|{}", patch.front, patch.back);
-                    }
-                    for (i, &lv) in result.vertex_map.iter().enumerate() {
-                        points[local[lv as usize] as usize] = result.points[i];
-                    }
-                    // The accepted replacement takes the place of this patch's
-                    // original faces in the global collision registry.
-                    for &face_index in &patch.faces {
-                        let mut key = surface.faces()[face_index].triangle;
+        // Retry collisions with progressively smaller error budgets. Each retry
+        // starts from the original patch, so a rejected candidate cannot mutate
+        // shared point coordinates or the global face registry.
+        let mut accepted: Option<(Vec<[u32; 3]>, BTreeMap<[u32; 3], usize>, svf_core::mesh_simplify::Simplified)> = None;
+        let mut last_collision = None;
+        let mut last_error = None;
+        for retry in 0..5 {
+            let retry_limit = limit * 0.5f64.powi(retry);
+            let options = SimplifyOptions { epsilon: retry_limit, ..Default::default() };
+            match simplify_within(&lp, &lt, &pinned, retry_limit, 6, &options) {
+                Ok(result) => {
+                    let new_tris: Vec<[u32; 3]> = result
+                        .triangles
+                        .iter()
+                        .map(|t| t.map(|i| local[result.vertex_map[i as usize] as usize]))
+                        .collect();
+                    let mut candidate_keys = BTreeMap::new();
+                    let mut collision = None;
+                    for (triangle_index, triangle) in new_tris.iter().enumerate() {
+                        let mut key = *triangle;
                         key.sort_unstable();
-                        original_faces.remove(&key);
+                        if candidate_keys.insert(key, triangle_index).is_some()
+                            || original_faces.get(&key).is_some_and(|&owner| owner != patch_index)
+                            || accepted_faces.contains_key(&key)
+                        {
+                            collision = Some(key);
+                            break;
+                        }
                     }
-                    for key in candidate_keys.keys() {
-                        accepted_faces.insert(*key, patch_index);
+                    if let Some(key) = collision {
+                        last_collision = Some(key);
+                    } else {
+                        accepted = Some((new_tris, candidate_keys, result));
+                        if retry > 0 {
+                            println!(
+                                "  patch {}|{} accepted on retry {} (epsilon {:.5})",
+                                patch.front, patch.back, retry, retry_limit
+                            );
+                        }
+                        break;
                     }
-                    after += new_tris.len();
-                    keep(&mut faces, &new_tris);
-                    simplified += 1;
                 }
+                Err(error) => last_error = Some(error),
             }
-            Err(error) => {
+        }
+
+        if let Some((new_tris, candidate_keys, result)) = accepted {
+            let d = result.report.measured_deviation.unwrap_or(0.0);
+            if d > worst {
+                worst = d;
+                worst_patch = format!("{}|{}", patch.front, patch.back);
+            }
+            for (i, &lv) in result.vertex_map.iter().enumerate() {
+                points[local[lv as usize] as usize] = result.points[i];
+            }
+            // The accepted replacement takes the place of this patch's
+            // original faces in the global collision registry.
+            for &face_index in &patch.faces {
+                let mut key = surface.faces()[face_index].triangle;
+                key.sort_unstable();
+                original_faces.remove(&key);
+            }
+            for key in candidate_keys.keys() {
+                accepted_faces.insert(*key, patch_index);
+            }
+            after += new_tris.len();
+            keep(&mut faces, &new_tris);
+            simplified += 1;
+        } else {
+            if let Some(key) = last_collision {
+                println!(
+                    "  patch {}|{} kept as is after 5 attempts: duplicate face {key:?}",
+                    patch.front, patch.back
+                );
+            } else if let Some(error) = last_error {
                 println!("  patch {}|{} kept as is: {error}", patch.front, patch.back);
-                keep(&mut faces, &tris);
-                after += tris.len();
-                refused += 1;
             }
+            keep(&mut faces, &tris);
+            after += tris.len();
+            refused += 1;
         }
     }
     report_duplicate_labelled_faces("assembled surface", &faces);
