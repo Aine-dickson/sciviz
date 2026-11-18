@@ -73,6 +73,16 @@ same i-fastest linear order used by `ImageVolumeGeometry3`. The metadata
 records the affine origin and basis vectors. Use `--dataset-root` and
 `--output-dir` to override the defaults.
 
+After exporting, run the opt-in Rust integration test from the workspace root
+(Git Bash):
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks -- --ignored --nocapture
+
+The test loads both raw masks into `BinaryMask3` and `SegmentationVolume3`,
+then checks foreground counts and inclusive voxel-index bounds against the
+audited dataset. It is ignored during ordinary test runs because it requires
+the external local dataset export.
+
 The scripts print diagnostic results to the terminal. Run them individually
 when investigating a particular aspect of the dataset.
 
