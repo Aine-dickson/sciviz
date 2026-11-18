@@ -68,16 +68,31 @@ commercial, scientific and educational use subject to TCIA's data-use policy.
 
 Source: https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=64684840
 
+Important licence discrepancy:
+- The current TCIA C4KC-KiTS record lists the harmonized CT+SEG collection as
+  CC BY 3.0 and describes commercial, scientific and educational use under
+  TCIA's data-use policy.
+- The original KiTS19 challenge data page states CC BY-NC-SA terms. These
+  statements refer to different distribution/record contexts and must not be
+  silently treated as interchangeable. We must identify the exact files and
+  their applicable rights before redistribution or use in distributable
+  lessons. For planning purposes, treat the original challenge data as
+  non-commercial/share-alike unless the exact TCIA package's rights and
+  provenance are confirmed.
+- The original challenge describes image and ground-truth label volumes in
+  anonymized NIfTI format, with labels for background, kidney and tumour.
+
 Advantages:
-- The TCIA record lists CT and segmentation modalities.
-- CC BY 3.0 is more compatible with possible future commercial educational use
-  than a non-commercial licence, subject to preserving attribution and
-  checking all applicable terms.
+- The original challenge provides paired CT and segmentation volumes.
 - TCIA supports browsing/filtering and downloading subsets rather than
   requiring the full collection.
+- Its volume and segmentation representation is directly relevant to an
+  initial NIfTI/label-map ingestion experiment.
 
 Still to verify on one selected case:
-- Exact available segmentation objects and semantic label meanings.
+- Which exact distribution/version is being downloaded and which licence
+  applies to those exact files.
+- Exact segmentation objects and semantic label meanings in that package.
 - Whether the case contains all required image slices and spatial metadata.
 - Practical per-case download size and conversion workflow.
 - Whether the selected segmentation is suitable for the intended lesson.
@@ -95,6 +110,8 @@ challenge GitHub repository.
 Sources:
 - https://kits-challenge.org/kits23/
 - https://github.com/neheller/kits23
+- https://kits19.grand-challenge.org/data/
+- https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=80969923
 
 Advantages:
 - Clear documented label semantics and paired image/segmentation data.
