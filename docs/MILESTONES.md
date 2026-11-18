@@ -1143,10 +1143,16 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   foreground self-contact: the two foreground voxels around the edge reconnect
   elsewhere in the mask, so the exact cubical boundary is not edge-manifold
   there. The source mask and voxel-cell geometry are unchanged.
-- The Kidney integration test now preserves and reports those non-manifold
-  contacts, checks balanced opposing face winding at every edge, and proceeds
-  to signed-volume validation instead of stopping before that check. Local
-  rerun of this revised test is pending.
+- The revised real Kidney integration test passed locally:
+  126,482 vertices, 252,892 triangles, zero boundary edges, five edges with
+  four incident faces, balanced opposing face winding at every edge, and
+  signed mesh volume equal to mask volume (430,186.748505 mm³; zero reported
+  relative error). Extraction took approximately 2.55 s and topology analysis
+  approximately 3.05 s on the user's Windows environment.
+- The five non-manifold self-contact edges remain explicitly reported; this
+  is not a claim that the Kidney mesh is edge-manifold. The exact voxel-cell
+  boundary, source mask, and volume are preserved. The Mass strict-manifold
+  regression should be rerun after the Kidney test changes.
 - This is an important limitation, not a claim that the Kidney surface is a
   manifold. Exact voxel-boundary extraction cannot always remove such
   self-contacts through vertex splitting alone. A manifold reconstruction
