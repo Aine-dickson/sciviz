@@ -153,7 +153,6 @@ def main():
         for number in segments
     }
     seen = {number: set() for number in segments}
-    frame_positions = {}
 
     for frame_index, frame in enumerate(frames):
         identification = one_sequence_item(frame, "SegmentIdentificationSequence")
@@ -173,7 +172,6 @@ def main():
         ct_position = ct_by_uid[uid]["position"]
         if np.max(np.abs(frame_position - ct_position)) > POSITION_TOLERANCE_MM:
             raise ValueError(f"SEG frame position does not match referenced CT instance {uid}")
-        frame_positions[frame_index] = frame_position.tolist()
         masks[segment_number][k] = pixels[frame_index]
 
     expected_slices = set(range(len(projected)))
