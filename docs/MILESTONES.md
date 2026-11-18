@@ -1054,3 +1054,24 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - **Local audit pending.** No dataset has been downloaded; no fixture or production implementation has been created.
 - Next: accept revised source choice, then audit one case before fixture preparation or SVF changes.
 
+## Educational direction and January 2027 lesson target (2026-11-18)
+
+- Product direction clarified: SVF is primarily an anatomy and educational
+  visualization framework, handling arbitrary scientific datasets where they
+  serve teaching and learning. This is not a pivot to a general-purpose
+  visualization, CAD, medical diagnosis, or 3D editing product.
+- Immediate delivery target: begin building lessons in January 2027. Prioritize
+  a small number of scientifically sound, genuinely explorable models over
+  broad feature completeness.
+- SVF remains independently usable; no architectural dependency on Mava,
+  Prismal, or a particular lesson-authoring application.
+- Dataset strategy: audited public data, SVF-authored educational models when
+  needed, and synthetic fixtures with known ground truth for engineering tests.
+  Provenance, licensing, coordinate conventions, labels, assumptions and
+  limitations must be documented.
+- Next investigation: kidney anatomy, with emphasis on volumetric images,
+  segmentation semantics, reconstruction and source-volume-consistent
+  sectioning. This is a proposed investigation only; first audit repository
+  capabilities and a manageable dataset, then write and review a design
+  contract before implementation.
+- Full decision and acceptance guidance: `docs/EDUCATIONAL-DIRECTION.md`.
