@@ -350,15 +350,46 @@ fn extracts_real_kits_kidney_surface_and_checks_topology() {
     for (edge_id, edge) in &non_manifold_edges {
         let [a, b] = edge.vertices();
         let incident = topology.edge_faces(*edge_id).unwrap();
+        let world_a = mesh.vertices()[a as usize].to_vector().to_array();
+        let world_b = mesh.vertices()[b as usize].to_vector().to_array();
         println!(
-            "Non-manifold edge {edge_id}: vertices {a}-{b}, world endpoints {:?} -> {:?}, incident faces {:?}",
-            mesh.vertices()[a as usize].to_vector().to_array(),
-            mesh.vertices()[b as usize].to_vector().to_array(),
-            incident
+            "Non-manifold edge {edge_id}: vertices {a}-{b}, world endpoints {world_a:?} -> {world_b:?}, incident faces {incident:?}"
         );
         for &face_id in incident {
             let triangle = &mesh.indices()[face_id * 3..face_id * 3 + 3];
             println!("  face {face_id}: {triangle:?}");
+        }
+
+        // Report the four source voxels surrounding this lattice edge. This
+        // distinguishes a local checkerboard pairing case from fan merging
+        // that occurs transitively around a lattice corner.
+        let lattice = |point: [f64; 3]| {
+            [
+                ((point[0] + 249.51171875) / 0.9765625 + 0.5).round() as usize,
+                ((point[1] + 466.51171875) / 0.9765625 + 0.5).round() as usize,
+                ((point[2] + 737.4) / 0.5 + 0.5).round() as usize,
+            ]
+        };
+        let la = lattice(world_a);
+        let lb = lattice(world_b);
+        let axis = (0..3).find(|&axis| la[axis] != lb[axis])
+            .expect("mesh edge must span one lattice axis");
+        let mut other_axes = (0..3).filter(|&candidate| candidate != axis);
+        let u = other_axes.next().unwrap();
+        let v = other_axes.next().unwrap();
+        let base = la[axis].min(lb[axis]);
+        let mask = segmentation.segment(SegmentId3::new(1)).unwrap().mask();
+        for u_offset in [0_usize, 1] {
+            for v_offset in [0_usize, 1] {
+                let mut voxel = [0_usize; 3];
+                voxel[axis] = base;
+                voxel[u] = la[u].saturating_sub(1) + u_offset;
+                voxel[v] = la[v].saturating_sub(1) + v_offset;
+                println!(
+                    "  surrounding voxel {voxel:?}: {:?}",
+                    mask.get_voxel(segmentation.geometry(), voxel)
+                );
+            }
         }
     }
 
