@@ -1154,5 +1154,6 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   be validated separately against the source volume.
 - Commits on `b2-5e-heart-tool`: `314cea6` (extractor), `2980773`
   (regression tests), `97bc0b2` (initial milestone record),
-  `a196726` (clarify exact-boundary topology limits), and `d084919`
-  (validate Kidney boundary contacts and volume).
+  `a196726` (clarify exact-boundary topology limits), `fc6284d` (validate
+  Kidney self-contact edges and volume), and `c153b99` (retain the strict
+  manifold assertion for the Mass case).
