@@ -94,6 +94,37 @@ orientation, and compares signed mesh volume with the mask-derived physical
 volume. The topology checks are diagnostics for this extracted mesh; they are
 not a general certification of anatomical or clinical validity.
 
+## Exporting surfaces for independent inspection
+
+Generate legacy VTK PolyData files for both real segments:
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks exports_real_kits_surfaces_for_external_inspection -- --ignored --nocapture
+
+The test writes these local files:
+
+- `datasets/validation-exports/kits-00005/surface-inspection/kidney.vtk`
+- `datasets/validation-exports/kits-00005/surface-inspection/mass.vtk`
+- `datasets/validation-exports/kits-00005/surface-inspection/README.txt`
+
+The VTK files contain the exact extracted triangle meshes, without smoothing
+or coordinate perturbation. The audited DICOM geometry is patient LPS; the
+exporter converts it to 3D Slicer's RAS convention (negate X and Y, preserve Z)
+so the models can be overlaid with the source images.
+
+In 3D Slicer:
+
+1. Load the original arterial CT series and matching DICOM SEG through the
+   DICOM module/browser, preserving their source geometry.
+2. Load `kidney.vtk` and `mass.vtk` as model files.
+3. Show the models alongside the SEG and CT. Adjust model opacity and segment
+   visibility to compare boundaries on axial, coronal and sagittal slices.
+4. Inspect the five documented Kidney self-contact locations as well as the
+   overall renal contour and Mass boundary.
+
+The meshes are geometric derivatives for engineering inspection, not clinical
+models or validated anatomical surfaces. Keep the exports and original data
+outside Git.
+
 The scripts print diagnostic results to the terminal. Run them individually
 when investigating a particular aspect of the dataset.
 
