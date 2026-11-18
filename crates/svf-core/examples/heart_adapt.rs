@@ -401,6 +401,12 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
         patches.len(),
         surface.cavities().len()
     );
+    for cavity in surface.cavities() {
+        println!(
+            "  cavity label {}: bounding tags {:?}, volume {:.3} mm3, {} faces",
+            cavity.label, cavity.bounding_tags, cavity.volume, cavity.face_count
+        );
+    }
     let specs = specs(grid, tags, &surface);
 
     // Vertices shared by more than one patch are pinned in every patch.
