@@ -17,6 +17,7 @@ pub mod mesh_simplify;
 pub mod ray;
 pub mod region_surface;
 pub mod sampling;
+pub mod segmentation;
 pub mod scalar_visualization;
 pub mod spatial;
 pub mod structure;
