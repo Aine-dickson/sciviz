@@ -62,6 +62,17 @@ Run individual scripts from the repository root:
     python tools/dataset-audits/kits-00005/inspect_kidney_mask_adjacency.py
     python tools/dataset-audits/kits-00005/inspect_kidney_mass_distance.py
 
+Export the audited SEG masks into SVF-compatible local validation inputs:
+
+    python tools/dataset-audits/kits-00005/export_svf_masks.py
+
+The exporter writes `segment-1.raw`, `segment-2.raw`, and `metadata.json`
+under `datasets/validation-exports/kits-00005/` by default. Each raw file is
+one byte per voxel (0 or 1), stored in NumPy `(k, j, i)` C-order, which is the
+same i-fastest linear order used by `ImageVolumeGeometry3`. The metadata
+records the affine origin and basis vectors. Use `--dataset-root` and
+`--output-dir` to override the defaults.
+
 The scripts print diagnostic results to the terminal. Run them individually
 when investigating a particular aspect of the dataset.
 
