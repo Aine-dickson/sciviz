@@ -2,12 +2,20 @@
 
 ## Product definition
 
-Scientific Visualization Framework (SVF) is a reusable Rust library for
-converting mathematical models and scientific datasets into accurate,
-interactive 2D and 3D visual representations.
+Scientific Visualization Framework (SVF) is a reusable Rust framework for
+creating and exploring accurate, interactive 2D and 3D representations of
+anatomical structures and scientific phenomena for teaching and learning.
+Its immediate emphasis is interactive 3D anatomy. It can handle arbitrary
+scientific datasets where doing so serves educational use.
 
-It is not intended to be a general-purpose game engine, 3D modelling package,
-or scene-composition editor.
+SVF is not intended to be a general-purpose game engine, 3D modelling package,
+CAD system, medical diagnosis system, or scene-composition editor. Product
+scope is driven by concrete teaching and learning tasks, not feature parity or
+hypothetical general-purpose demand.
+
+See [Educational direction and near-term roadmap](EDUCATIONAL-DIRECTION.md)
+for product priorities, dataset strategy, the January 2027 lesson-building
+target, and the next kidney-data investigation.
 
 ## Architectural rules
 
