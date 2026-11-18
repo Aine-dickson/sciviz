@@ -420,6 +420,82 @@ impl VoxelValue3 {
     }
 }
 
+
+/// Affine calibration from stored voxel values to physical intensity values.
+///
+/// The calibrated value is computed as:
+/// stored_value * slope + intercept
+///
+/// The original voxel buffer is never modified. Units are intentionally not
+/// encoded here because they depend on the source modality and metadata.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IntensityCalibration3 {
+    slope: f64,
+    intercept: f64,
+}
+
+impl IntensityCalibration3 {
+    /// Identity calibration, which leaves stored numeric values unchanged.
+    pub const IDENTITY: Self = Self {
+        slope: 1.0,
+        intercept: 0.0,
+    };
+
+    /// Creates a calibration after checking that both parameters are finite.
+    pub fn new(slope: f64, intercept: f64) -> Result<Self, IntensityCalibrationError3> {
+        if !slope.is_finite() {
+            return Err(IntensityCalibrationError3::NonFiniteSlope);
+        }
+        if !intercept.is_finite() {
+            return Err(IntensityCalibrationError3::NonFiniteIntercept);
+        }
+        Ok(Self { slope, intercept })
+    }
+
+    /// Returns the multiplicative calibration factor.
+    #[must_use]
+    pub const fn slope(self) -> f64 {
+        self.slope
+    }
+
+    /// Returns the additive calibration offset.
+    #[must_use]
+    pub const fn intercept(self) -> f64 {
+        self.intercept
+    }
+
+    /// Converts one stored sample to its calibrated numeric value.
+    ///
+    /// Non-finite stored floating-point samples remain non-finite after this
+    /// operation. The returned value is f64 for numerical processing.
+    #[must_use]
+    pub fn apply(self, stored: VoxelValue3) -> f64 {
+        stored.as_f64() * self.slope + self.intercept
+    }
+}
+
+/// Validation errors for intensity calibration parameters.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntensityCalibrationError3 {
+    /// The multiplicative calibration factor is not finite.
+    NonFiniteSlope,
+    /// The additive calibration offset is not finite.
+    NonFiniteIntercept,
+}
+
+impl fmt::Display for IntensityCalibrationError3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonFiniteSlope => write!(f, "intensity calibration slope must be finite"),
+            Self::NonFiniteIntercept => {
+                write!(f, "intensity calibration intercept must be finite")
+            }
+        }
+    }
+}
+
+impl Error for IntensityCalibrationError3 {}
+
 /// Contiguous, homogeneous voxel storage.
 ///
 /// The vector order must match ImageVolumeGeometry3's linear order:
@@ -490,6 +566,7 @@ impl VoxelBuffer3 {
 pub struct ImageVolume3 {
     geometry: ImageVolumeGeometry3,
     voxels: VoxelBuffer3,
+    calibration: IntensityCalibration3,
 }
 
 /// Errors produced when constructing an image volume.
@@ -518,13 +595,28 @@ impl ImageVolume3 {
         geometry: ImageVolumeGeometry3,
         voxels: VoxelBuffer3,
     ) -> Result<Self, ImageVolumeError3> {
+        Self::new_with_calibration(geometry, voxels, IntensityCalibration3::IDENTITY)
+    }
+
+    /// Creates a volume with explicit stored-to-physical intensity calibration.
+    ///
+    /// Calibration is metadata: the native voxel buffer remains unchanged.
+    pub fn new_with_calibration(
+        geometry: ImageVolumeGeometry3,
+        voxels: VoxelBuffer3,
+        calibration: IntensityCalibration3,
+    ) -> Result<Self, ImageVolumeError3> {
         if voxels.len() != geometry.voxel_count() {
             return Err(ImageVolumeError3::VoxelCountMismatch {
                 expected: geometry.voxel_count(),
                 actual: voxels.len(),
             });
         }
-        Ok(Self { geometry, voxels })
+        Ok(Self {
+            geometry,
+            voxels,
+            calibration,
+        })
     }
 
     /// Returns the volume's immutable geometry.
@@ -537,6 +629,25 @@ impl ImageVolume3 {
     #[must_use]
     pub const fn voxels(&self) -> &VoxelBuffer3 {
         &self.voxels
+    }
+
+    /// Returns the volume's stored-to-physical intensity calibration.
+    #[must_use]
+    pub const fn calibration(&self) -> IntensityCalibration3 {
+        self.calibration
+    }
+
+    /// Returns the calibrated value at an in-bounds integer voxel index.
+    #[must_use]
+    pub fn calibrated_voxel(&self, index: [usize; 3]) -> Option<f64> {
+        self.voxel(index).map(|stored| self.calibration.apply(stored))
+    }
+
+    /// Returns the calibrated value at a linear storage index.
+    #[must_use]
+    pub fn calibrated_voxel_linear(&self, linear_index: usize) -> Option<f64> {
+        self.voxel_linear(linear_index)
+            .map(|stored| self.calibration.apply(stored))
     }
 
     /// Returns the stored sample at an in-bounds integer voxel index.
@@ -632,3 +743,78 @@ mod storage_tests {
         assert_eq!(volume.voxel_linear(8), None);
     }
 }
+
+
+#[cfg(test)]
+mod calibration_tests {
+    use super::*;
+
+    fn geometry(dimensions: [usize; 3]) -> ImageVolumeGeometry3 {
+        ImageVolumeGeometry3::new(dimensions, WorldPoint3::ORIGIN, DMat3::IDENTITY).unwrap()
+    }
+
+    #[test]
+    fn validates_finite_calibration_parameters() {
+        assert_eq!(
+            IntensityCalibration3::new(f64::NAN, 0.0).unwrap_err(),
+            IntensityCalibrationError3::NonFiniteSlope
+        );
+        assert_eq!(
+            IntensityCalibration3::new(1.0, f64::INFINITY).unwrap_err(),
+            IntensityCalibrationError3::NonFiniteIntercept
+        );
+    }
+
+    #[test]
+    fn identity_calibration_preserves_numeric_values() {
+        let calibration = IntensityCalibration3::IDENTITY;
+        assert_eq!(calibration.apply(VoxelValue3::UInt16(2957)), 2957.0);
+        assert_eq!(calibration.apply(VoxelValue3::Int16(-1024)), -1024.0);
+    }
+
+    #[test]
+    fn applies_slope_and_intercept_without_changing_stored_samples() {
+        let volume = ImageVolume3::new_with_calibration(
+            geometry([2, 1, 1]),
+            VoxelBuffer3::UInt16(vec![0, 2957]),
+            IntensityCalibration3::new(1.0, -1024.0).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(volume.calibrated_voxel([0, 0, 0]), Some(-1024.0));
+        assert_eq!(volume.calibrated_voxel([1, 0, 0]), Some(1933.0));
+        assert_eq!(volume.calibrated_voxel_linear(1), Some(1933.0));
+        assert_eq!(volume.voxel([1, 0, 0]), Some(VoxelValue3::UInt16(2957)));
+        assert_eq!(
+            volume.voxels(),
+            &VoxelBuffer3::UInt16(vec![0, 2957])
+        );
+        assert_eq!(volume.calibration().slope(), 1.0);
+        assert_eq!(volume.calibration().intercept(), -1024.0);
+    }
+
+    #[test]
+    fn default_volume_uses_identity_calibration() {
+        let volume = ImageVolume3::new(
+            geometry([1, 1, 1]),
+            VoxelBuffer3::Int16(vec![-12]),
+        )
+        .unwrap();
+
+        assert_eq!(volume.calibrated_voxel([0, 0, 0]), Some(-12.0));
+        assert_eq!(volume.calibration(), IntensityCalibration3::IDENTITY);
+    }
+
+    #[test]
+    fn calibrated_sampling_respects_volume_bounds() {
+        let volume = ImageVolume3::new(
+            geometry([1, 1, 1]),
+            VoxelBuffer3::UInt8(vec![12]),
+        )
+        .unwrap();
+
+        assert_eq!(volume.calibrated_voxel([1, 0, 0]), None);
+        assert_eq!(volume.calibrated_voxel_linear(1), None);
+    }
+}
+
