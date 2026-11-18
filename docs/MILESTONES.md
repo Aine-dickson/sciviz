@@ -1121,17 +1121,15 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   core APIs, then propose a reviewed volume/segmentation design contract.
 
 
-## KiTS-00005 real-mask surface topology follow-up (Mass passed; Kidney pending; 2026-11-18)
+## KiTS-00005 real-mask surface validation (2026-11-18)
 
 - The real Mass mask initially exposed 20 voxel-grid edges with four incident
   boundary faces each, while no boundary edges were present.
-- The extractor now retains exposed-face voxel provenance and splits
-  coincident vertex occurrences into separate surface fans. At a four-face
+- The extractor retains exposed-face voxel provenance and splits coincident
+  vertex occurrences into separate local surface fans. At a four-face
   checkerboard edge, faces are paired by their foreground voxel owner.
   Corner-only contacts remain disconnected because they share no surface edge.
-- This changes mesh topology only: the binary segmentation, voxel-cell
-  coordinates, and exposed face geometry remain unchanged.
-- Synthetic edge-contact and corner-contact regression tests both pass locally,
+- Synthetic edge-contact and corner-contact regression tests passed locally,
   requiring closed two-face edge incidence, opposite winding, and exact signed
   volume.
 - The real KiTS-00005 Mass surface integration test passed locally:
@@ -1140,8 +1138,21 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   signed mesh volume equal to mask volume (60,293.197632 mm³; zero reported
   relative error). Extraction took approximately 360 ms and topology analysis
   approximately 414 ms on the user's Windows environment.
+- The real Kidney surface extraction produced a closed boundary with zero
+  boundary edges, but five edges have four incident faces. Each is a diagonal
+  foreground self-contact: the two foreground voxels around the edge reconnect
+  elsewhere in the mask, so the exact cubical boundary is not edge-manifold
+  there. The source mask and voxel-cell geometry are unchanged.
+- The Kidney integration test now preserves and reports those non-manifold
+  contacts, checks balanced opposing face winding at every edge, and proceeds
+  to signed-volume validation instead of stopping before that check. Local
+  rerun of this revised test is pending.
+- This is an important limitation, not a claim that the Kidney surface is a
+  manifold. Exact voxel-boundary extraction cannot always remove such
+  self-contacts through vertex splitting alone. A manifold reconstruction
+  would require an explicit geometric/topological resolution policy and must
+  be validated separately against the source volume.
 - Commits on `b2-5e-heart-tool`: `314cea6` (extractor), `2980773`
-  (regression tests), and `97bc0b2` (initial milestone record).
-- Added an opt-in real Kidney surface integration test, using the same
-  topology, winding, and volume checks against all 902,167 Kidney voxels.
-  **Local execution is pending.**
+  (regression tests), `97bc0b2` (initial milestone record),
+  `a196726` (clarify exact-boundary topology limits), and `d084919`
+  (validate Kidney boundary contacts and volume).
