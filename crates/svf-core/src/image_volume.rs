@@ -377,3 +377,258 @@ mod tests {
         );
     }
 }
+
+
+/// A voxel sample in its original numeric representation.
+///
+/// Integer variants preserve exact source values. Conversion to f64 is
+/// available for numerical algorithms, but may lose precision for large
+/// 64-bit integers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum VoxelValue3 {
+    UInt8(u8),
+    Int8(i8),
+    UInt16(u16),
+    Int16(i16),
+    UInt32(u32),
+    Int32(i32),
+    UInt64(u64),
+    Int64(i64),
+    Float32(f32),
+    Float64(f64),
+}
+
+impl VoxelValue3 {
+    /// Converts this sample to f64 for numerical processing.
+    ///
+    /// This conversion is exact for 8-, 16-, and 32-bit integers, but not
+    /// necessarily for all 64-bit integers or all f64/f32 values.
+    #[must_use]
+    pub fn as_f64(self) -> f64 {
+        match self {
+            Self::UInt8(value) => f64::from(value),
+            Self::Int8(value) => f64::from(value),
+            Self::UInt16(value) => f64::from(value),
+            Self::Int16(value) => f64::from(value),
+            Self::UInt32(value) => f64::from(value),
+            Self::Int32(value) => f64::from(value),
+            Self::UInt64(value) => value as f64,
+            Self::Int64(value) => value as f64,
+            Self::Float32(value) => f64::from(value),
+            Self::Float64(value) => value,
+        }
+    }
+}
+
+/// Contiguous, homogeneous voxel storage.
+///
+/// The vector order must match ImageVolumeGeometry3's linear order:
+/// i-fastest, then j, then k. This enum stores native numeric values rather
+/// than expanding every sample to f64.
+#[derive(Clone, Debug, PartialEq)]
+pub enum VoxelBuffer3 {
+    UInt8(Vec<u8>),
+    Int8(Vec<i8>),
+    UInt16(Vec<u16>),
+    Int16(Vec<i16>),
+    UInt32(Vec<u32>),
+    Int32(Vec<i32>),
+    UInt64(Vec<u64>),
+    Int64(Vec<i64>),
+    Float32(Vec<f32>),
+    Float64(Vec<f64>),
+}
+
+impl VoxelBuffer3 {
+    /// Returns the number of stored voxel samples.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::UInt8(values) => values.len(),
+            Self::Int8(values) => values.len(),
+            Self::UInt16(values) => values.len(),
+            Self::Int16(values) => values.len(),
+            Self::UInt32(values) => values.len(),
+            Self::Int32(values) => values.len(),
+            Self::UInt64(values) => values.len(),
+            Self::Int64(values) => values.len(),
+            Self::Float32(values) => values.len(),
+            Self::Float64(values) => values.len(),
+        }
+    }
+
+    /// Returns whether the buffer contains no samples.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the sample at a linear index without changing its numeric type.
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<VoxelValue3> {
+        match self {
+            Self::UInt8(values) => values.get(index).copied().map(VoxelValue3::UInt8),
+            Self::Int8(values) => values.get(index).copied().map(VoxelValue3::Int8),
+            Self::UInt16(values) => values.get(index).copied().map(VoxelValue3::UInt16),
+            Self::Int16(values) => values.get(index).copied().map(VoxelValue3::Int16),
+            Self::UInt32(values) => values.get(index).copied().map(VoxelValue3::UInt32),
+            Self::Int32(values) => values.get(index).copied().map(VoxelValue3::Int32),
+            Self::UInt64(values) => values.get(index).copied().map(VoxelValue3::UInt64),
+            Self::Int64(values) => values.get(index).copied().map(VoxelValue3::Int64),
+            Self::Float32(values) => values.get(index).copied().map(VoxelValue3::Float32),
+            Self::Float64(values) => values.get(index).copied().map(VoxelValue3::Float64),
+        }
+    }
+}
+
+/// A regular 3D image volume with geometry and native typed voxel storage.
+///
+/// This type does not apply modality calibration, interpret segmentation
+/// labels, or perform interpolation. Those concerns remain explicit layers
+/// above the source samples.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageVolume3 {
+    geometry: ImageVolumeGeometry3,
+    voxels: VoxelBuffer3,
+}
+
+/// Errors produced when constructing an image volume.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ImageVolumeError3 {
+    /// The voxel buffer length does not match the geometry's voxel count.
+    VoxelCountMismatch { expected: usize, actual: usize },
+}
+
+impl fmt::Display for ImageVolumeError3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VoxelCountMismatch { expected, actual } => write!(
+                f,
+                "image volume requires {expected} voxel samples; received {actual}"
+            ),
+        }
+    }
+}
+
+impl Error for ImageVolumeError3 {}
+
+impl ImageVolume3 {
+    /// Creates a volume after checking that storage matches its geometry.
+    pub fn new(
+        geometry: ImageVolumeGeometry3,
+        voxels: VoxelBuffer3,
+    ) -> Result<Self, ImageVolumeError3> {
+        if voxels.len() != geometry.voxel_count() {
+            return Err(ImageVolumeError3::VoxelCountMismatch {
+                expected: geometry.voxel_count(),
+                actual: voxels.len(),
+            });
+        }
+        Ok(Self { geometry, voxels })
+    }
+
+    /// Returns the volume's immutable geometry.
+    #[must_use]
+    pub const fn geometry(&self) -> &ImageVolumeGeometry3 {
+        &self.geometry
+    }
+
+    /// Returns the original typed voxel buffer.
+    #[must_use]
+    pub const fn voxels(&self) -> &VoxelBuffer3 {
+        &self.voxels
+    }
+
+    /// Returns the stored sample at an in-bounds integer voxel index.
+    #[must_use]
+    pub fn voxel(&self, index: [usize; 3]) -> Option<VoxelValue3> {
+        let linear = self.geometry.linear_index(index)?;
+        self.voxels.get(linear)
+    }
+
+    /// Returns the stored sample at a linear storage index.
+    #[must_use]
+    pub fn voxel_linear(&self, linear_index: usize) -> Option<VoxelValue3> {
+        self.voxels.get(linear_index)
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+
+    fn geometry(dimensions: [usize; 3]) -> ImageVolumeGeometry3 {
+        ImageVolumeGeometry3::new(
+            dimensions,
+            WorldPoint3::ORIGIN,
+            DMat3::IDENTITY,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn preserves_native_sample_types_and_values() {
+        let cases = [
+            (VoxelBuffer3::UInt8(vec![255]), VoxelValue3::UInt8(255)),
+            (VoxelBuffer3::Int8(vec![-8]), VoxelValue3::Int8(-8)),
+            (VoxelBuffer3::UInt16(vec![4095]), VoxelValue3::UInt16(4095)),
+            (VoxelBuffer3::Int16(vec![-1024]), VoxelValue3::Int16(-1024)),
+            (VoxelBuffer3::UInt32(vec![70000]), VoxelValue3::UInt32(70000)),
+            (VoxelBuffer3::Int32(vec![-70000]), VoxelValue3::Int32(-70000)),
+            (VoxelBuffer3::UInt64(vec![u64::MAX]), VoxelValue3::UInt64(u64::MAX)),
+            (VoxelBuffer3::Int64(vec![i64::MIN]), VoxelValue3::Int64(i64::MIN)),
+            (VoxelBuffer3::Float32(vec![1.25]), VoxelValue3::Float32(1.25)),
+            (VoxelBuffer3::Float64(vec![1.25]), VoxelValue3::Float64(1.25)),
+        ];
+
+        for (buffer, expected) in cases {
+            assert_eq!(buffer.get(0), Some(expected));
+            assert_eq!(buffer.len(), 1);
+        }
+    }
+
+    #[test]
+    fn converts_common_integer_samples_to_f64() {
+        assert_eq!(VoxelValue3::UInt16(2957).as_f64(), 2957.0);
+        assert_eq!(VoxelValue3::Int16(-1024).as_f64(), -1024.0);
+        assert_eq!(VoxelValue3::Float32(0.5).as_f64(), 0.5);
+    }
+
+    #[test]
+    fn image_volume_requires_exactly_one_sample_per_voxel() {
+        assert_eq!(
+            ImageVolume3::new(
+                geometry([2, 2, 2]),
+                VoxelBuffer3::UInt16(vec![0; 7]),
+            )
+            .unwrap_err(),
+            ImageVolumeError3::VoxelCountMismatch {
+                expected: 8,
+                actual: 7,
+            }
+        );
+
+        let volume = ImageVolume3::new(
+            geometry([2, 2, 2]),
+            VoxelBuffer3::UInt16(vec![0; 8]),
+        )
+        .unwrap();
+        assert_eq!(volume.geometry().voxel_count(), 8);
+        assert_eq!(volume.voxels().len(), 8);
+    }
+
+    #[test]
+    fn samples_volume_by_voxel_and_linear_index() {
+        let volume = ImageVolume3::new(
+            geometry([2, 2, 2]),
+            VoxelBuffer3::UInt16(vec![10, 11, 12, 13, 14, 15, 16, 17]),
+        )
+        .unwrap();
+
+        assert_eq!(volume.voxel([1, 0, 0]), Some(VoxelValue3::UInt16(11)));
+        assert_eq!(volume.voxel([0, 1, 1]), Some(VoxelValue3::UInt16(16)));
+        assert_eq!(volume.voxel([2, 0, 0]), None);
+        assert_eq!(volume.voxel_linear(7), Some(VoxelValue3::UInt16(17)));
+        assert_eq!(volume.voxel_linear(8), None);
+    }
+}
