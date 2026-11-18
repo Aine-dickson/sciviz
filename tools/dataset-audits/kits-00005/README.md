@@ -84,6 +84,16 @@ then checks foreground counts and inclusive voxel-index bounds against the
 audited dataset. It is ignored during ordinary test runs because it requires
 the external local dataset export.
 
+Surface extraction is a separate opt-in test. Start with the smaller Mass
+segment before attempting the much larger Kidney segment:
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks extracts_real_kits_mass_surface_and_checks_topology -- --ignored --nocapture
+
+This reports mesh size and timings, checks edge incidence and consistent
+orientation, and compares signed mesh volume with the mask-derived physical
+volume. The topology checks are diagnostics for this extracted mesh; they are
+not a general certification of anatomical or clinical validity.
+
 The scripts print diagnostic results to the terminal. Run them individually
 when investigating a particular aspect of the dataset.
 
