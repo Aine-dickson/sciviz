@@ -59,6 +59,16 @@ fn loads_real_kits_masks_into_svf_segmentation_volume() {
     let directory = env::var_os("SVF_KITS_MASK_DIR")
         .map(PathBuf::from)
         .expect("set SVF_KITS_MASK_DIR to the local KiTS mask export directory");
+    // Cargo runs integration tests with the package directory as the working
+    // directory. Interpret relative user paths from the workspace root so the
+    // documented command works unchanged.
+    let directory = if directory.is_absolute() {
+        directory
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(directory)
+    };
 
     let metadata_path = directory.join("metadata.json");
     assert!(
