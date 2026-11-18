@@ -2564,3 +2564,29 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - January 2027 target: begin building lessons with a small number of accurate,
   validated and genuinely explorable models. December work should remove
   blockers to that target, not attempt to make SVF feature-complete.
+
+### Kidney data and volume capability audit (2026-11-18)
+
+- Repository inspection confirms SVF currently has unstructured-grid VTK
+  ASCII import, tetrahedral point-scalar isosurfaces, and semantic closed-mesh
+  structure operations. It does **not** have a 3D image/voxel-volume type,
+  NIfTI/DICOM/VTK image-data reader, segmentation label-map type, structured
+  volume isosurface extraction, or source-CT slice viewer.
+- The current structure sectioner cuts reconstructed closed meshes; it does
+  not display the corresponding source image slice. Do not confuse existing
+  tetrahedral/unstructured data support with voxel-volume support.
+- Audit: `docs/kidney-data-audit.md`. Candidate A is KiTS19/TCIA (210 CT/SEG
+  studies; TCIA lists CC BY 3.0 and commercial/scientific/educational use).
+  Candidate B is KiTS23 (599 cases; labels kidney/tumour/cyst; CC BY-NC-SA 4.0).
+- Preliminary preference is to audit one manageable KiTS19/TCIA case first,
+  subject to confirming exact segmentation contents, label semantics, per-case
+  download and licence/attribution. KiTS23 is a good technical reference but
+  its non-commercial/share-alike licence needs care for distributable lessons.
+- Neither dataset provides detailed normal-kidney structures such as cortex,
+  medulla, pyramids, calyces, pelvis, vessels and ureter as separate labels.
+  The first CT/SEG learning objective must stay within the labels actually
+  present; detailed anatomy may need a separately licensed model or a clearly
+  labelled SVF-authored schematic.
+- No volume API or kidney-specific implementation is authorized yet. Next:
+  audit one actual case and define the learning objective, then write/review a
+  design contract before implementation.
