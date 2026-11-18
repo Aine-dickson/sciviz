@@ -545,6 +545,48 @@ mod tests {
         ImageVolumeGeometry3::new(dimensions, WorldPoint3::ORIGIN, DMat3::IDENTITY).unwrap()
     }
 
+    fn assert_closed_oriented_surface(mesh: &TriangleMesh3, expected_volume: f64) {
+        let topology = mesh.topology();
+        assert_eq!(topology.boundary_edges().count(), 0);
+        assert_eq!(topology.edges_with_more_than_two_faces().count(), 0);
+
+        let triangles: Vec<_> = mesh.triangles().collect();
+        for edge_id in 0..topology.edge_count() {
+            let edge = topology.edges()[edge_id].vertices();
+            let incident = topology.edge_faces(edge_id).unwrap();
+            assert_eq!(incident.len(), 2, "edge {edge:?} incidence");
+
+            let directions: Vec<_> = incident
+                .iter()
+                .map(|&face_id| {
+                    let [a, b, c] = triangles[face_id];
+                    [(a, b), (b, c), (c, a)]
+                        .into_iter()
+                        .find_map(|(from, to)| {
+                            if [from.min(to), from.max(to)] == edge {
+                                Some(if from == edge[0] { 1_i8 } else { -1_i8 })
+                            } else {
+                                None
+                            }
+                        })
+                        .expect("incident face must traverse its edge")
+                })
+                .collect();
+            assert_eq!(directions[0], -directions[1], "edge {edge:?} winding");
+        }
+
+        let mut signed_volume = 0.0;
+        for [a, b, c] in triangles {
+            let p0 = mesh.vertices()[a as usize].to_vector();
+            let p1 = mesh.vertices()[b as usize].to_vector();
+            let p2 = mesh.vertices()[c as usize].to_vector();
+            let cross = (p1 - p0).cross(p2 - p0);
+            assert!(cross.length_squared() > 0.0, "degenerate triangle");
+            signed_volume += p0.dot(p1.cross(p2)) / 6.0;
+        }
+        assert!((signed_volume - expected_volume).abs() < 1.0e-10);
+    }
+
     #[test]
     fn packed_mask_tracks_membership_and_foreground_count() {
         let mask = BinaryMask3::from_indices(130, [0, 63, 64, 129, 129]).unwrap();
@@ -739,6 +781,67 @@ mod tests {
             let face_center = (p0 + p1 + p2) / 3.0;
             assert!(normal.dot(face_center - center) > 0.0);
         }
+    }
+
+    #[test]
+    fn extracted_solid_block_is_closed_oriented_and_has_expected_volume() {
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Solid block",
+            BinaryMask3::from_indices(8, 0..8).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 2, 2]), vec![segment]).unwrap();
+        let mesh = volume
+            .extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap()
+            .unwrap();
+
+        assert_closed_oriented_surface(&mesh, 8.0);
+    }
+
+    #[test]
+    fn extracted_concave_segment_is_closed_and_oriented() {
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "L shape",
+            BinaryMask3::from_indices(8, [0, 1, 3]).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 2, 2]), vec![segment]).unwrap();
+        let mesh = volume
+            .extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap()
+            .unwrap();
+
+        assert_closed_oriented_surface(&mesh, 3.0);
+    }
+
+    #[test]
+    fn reflected_affine_segment_surface_has_positive_world_volume() {
+        let affine = ImageVolumeGeometry3::new(
+            [1, 1, 1],
+            WorldPoint3::new(10.0, 20.0, 30.0),
+            DMat3::from_cols(
+                crate::spatial::DVec3::new(-2.0, 0.0, 0.0),
+                crate::spatial::DVec3::new(0.0, 3.0, 0.0),
+                crate::spatial::DVec3::new(0.0, 0.0, 4.0),
+            ),
+        )
+        .unwrap();
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Reflected voxel",
+            BinaryMask3::from_indices(1, [0]).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(affine, vec![segment]).unwrap();
+        let mesh = volume
+            .extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap()
+            .unwrap();
+
+        assert_closed_oriented_surface(&mesh, 24.0);
     }
 
     #[test]
