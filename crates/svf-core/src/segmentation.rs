@@ -539,7 +539,7 @@ impl SegmentationVolume3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spatial::{DMat3, DVec3, WorldPoint3};
+    use crate::spatial::{DMat3, WorldPoint3};
 
     fn geometry(dimensions: [usize; 3]) -> ImageVolumeGeometry3 {
         ImageVolumeGeometry3::new(dimensions, WorldPoint3::ORIGIN, DMat3::IDENTITY).unwrap()
