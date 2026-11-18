@@ -235,7 +235,7 @@ impl Error for SegmentationError3 {}
 ///
 /// Segment masks are intentionally independent: a voxel may belong to more
 /// than one segment. No implicit priority or labelmap conversion is applied.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SegmentationVolume3 {
     geometry: ImageVolumeGeometry3,
     segments: Vec<Segment3>,
