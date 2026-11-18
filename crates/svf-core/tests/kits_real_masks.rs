@@ -7,9 +7,16 @@
 //! The raw files are local validation artifacts and are intentionally not
 //! checked into the repository. Their layout is documented by the exporter.
 
-use std::{env, fs, path::PathBuf, time::Instant};
+use std::{
+    env,
+    fs::{self, File},
+    io::{BufWriter, Write},
+    path::PathBuf,
+    time::Instant,
+};
 
 use svf_core::{
+    geometry::TriangleMesh3,
     image_volume::ImageVolumeGeometry3,
     segmentation::{BinaryMask3, Segment3, SegmentId3, SegmentationVolume3},
     spatial::{DMat3, DVec3, WorldPoint3},
@@ -445,4 +452,123 @@ fn extracts_real_kits_kidney_surface_and_checks_topology() {
     println!("Relative volume error: {relative_volume_error:.3e}");
     println!("Surface extraction time: {extraction_elapsed:?}");
     println!("Topology analysis time: {topology_elapsed:?}");
+}
+
+
+/// Writes a legacy VTK POLYDATA file in Slicer's RAS world coordinates.
+/// SVF's KiTS geometry is DICOM patient LPS, so X and Y are negated.
+fn write_legacy_vtk_polydata(mesh: &TriangleMesh3, path: &std::path::Path) {
+    let file = File::create(path)
+        .unwrap_or_else(|error| panic!("failed to create {}: {error}", path.display()));
+    let mut writer = BufWriter::new(file);
+
+    writeln!(writer, "# vtk DataFile Version 3.0").unwrap();
+    writeln!(writer, "SVF KiTS-00005 exact voxel boundary; coordinates RAS mm").unwrap();
+    writeln!(writer, "ASCII").unwrap();
+    writeln!(writer, "DATASET POLYDATA").unwrap();
+    writeln!(writer, "POINTS {} double", mesh.vertex_count()).unwrap();
+    for point in mesh.vertices() {
+        let [x, y, z] = point.to_array();
+        writeln!(writer, "{:.17e} {:.17e} {:.17e}", -x, -y, z).unwrap();
+    }
+
+    writeln!(
+        writer,
+        "POLYGONS {} {}",
+        mesh.triangle_count(),
+        mesh.triangle_count() * 4
+    )
+    .unwrap();
+    for [a, b, c] in mesh.triangles() {
+        writeln!(writer, "3 {a} {b} {c}").unwrap();
+    }
+    writer.flush().unwrap();
+}
+
+#[test]
+#[ignore = "requires locally exported KiTS-00005 masks; writes meshes for external visual inspection"]
+fn exports_real_kits_surfaces_for_external_inspection() {
+    let directory = env::var_os("SVF_KITS_MASK_DIR")
+        .map(PathBuf::from)
+        .expect("set SVF_KITS_MASK_DIR to the local KiTS mask export directory");
+    let directory = if directory.is_absolute() {
+        directory
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(directory)
+    };
+
+    let geometry = ImageVolumeGeometry3::new(
+        DIMENSIONS,
+        WorldPoint3::new(-249.51171875, -466.51171875, -737.4),
+        DMat3::from_cols(
+            DVec3::new(0.9765625, 0.0, 0.0),
+            DVec3::new(0.0, 0.9765625, 0.0),
+            DVec3::new(0.0, 0.0, 0.5),
+        ),
+    )
+    .expect("audited KiTS geometry must be valid");
+
+    let kidney = Segment3::new(
+        SegmentId3::new(1),
+        "Kidney",
+        load_mask(&directory, "segment-1.raw", 902_167),
+    )
+    .expect("Kidney segment should be valid");
+    let mass = Segment3::new(
+        SegmentId3::new(2),
+        "Mass",
+        load_mask(&directory, "segment-2.raw", 126_444),
+    )
+    .expect("Mass segment should be valid");
+    let segmentation = SegmentationVolume3::new(geometry, vec![kidney, mass])
+        .expect("real masks must match the shared image geometry");
+
+    let output = directory.join("surface-inspection");
+    fs::create_dir_all(&output)
+        .unwrap_or_else(|error| panic!("failed to create {}: {error}", output.display()));
+
+    for (id, name, filename) in [
+        (SegmentId3::new(1), "Kidney", "kidney.vtk"),
+        (SegmentId3::new(2), "Mass", "mass.vtk"),
+    ] {
+        let start = Instant::now();
+        let mesh = segmentation
+            .extract_voxel_boundary_surface(id)
+            .unwrap_or_else(|error| panic!("{name} surface extraction failed: {error}"))
+            .unwrap_or_else(|| panic!("{name} segment is missing"));
+        let elapsed = start.elapsed();
+        let path = output.join(filename);
+        write_legacy_vtk_polydata(&mesh, &path);
+        let bytes = fs::metadata(&path).unwrap().len();
+
+        println!(
+            "{name}: {} vertices, {} triangles; wrote {} bytes to {}; extraction {:?}",
+            mesh.vertex_count(),
+            mesh.triangle_count(),
+            bytes,
+            path.display(),
+            elapsed
+        );
+        assert!(bytes > 0, "{name} VTK export must not be empty");
+    }
+
+    let notes = output.join("README.txt");
+    fs::write(
+        &notes,
+        "KiTS-00005 SVF surface inspection exports\\n\\n\\
+         kidney.vtk and mass.vtk are legacy VTK POLYDATA triangle meshes.\\n\\
+         Coordinates are RAS millimetres for 3D Slicer. The source DICOM patient\\n\\
+         coordinates are LPS; export applies RAS=(-LPS.x, -LPS.y, LPS.z).\\n\\n\\
+         Load the original arterial CT series and matching DICOM SEG in 3D Slicer\\n\\
+         using its DICOM module/browser. Then load kidney.vtk and mass.vtk as\\n\\
+         model files. Compare each model against the SEG overlay and CT slices.\\n\\
+         These are exact voxel-cell boundary surfaces, not smoothed isosurfaces.\\n\\
+         The Kidney mesh has five documented non-manifold self-contact edges.\\n\\
+         These exports are local validation derivatives; do not commit them to Git.\\n",
+    )
+    .unwrap_or_else(|error| panic!("failed to write {}: {error}", notes.display()));
+
+    println!("Surface inspection exports: {}", output.display());
 }
