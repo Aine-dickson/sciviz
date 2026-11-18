@@ -226,20 +226,25 @@ fn extracts_real_kits_mass_surface_and_checks_topology() {
         );
     }
 
-    // Compute signed volume relative to the image origin to reduce cancellation
-    // from the dataset's large absolute world coordinates.
-    let reference = segmentation.geometry().origin().to_vector();
+    // Compute signed volume relative to the segment centroid to reduce
+    // cancellation from large absolute world coordinates.
+    let mass_stats = segmentation.statistics(SegmentId3::new(2))
+        .expect("Mass statistics should exist");
+    let reference = mass_stats.world_centroid.to_vector();
     let mut signed_volume = 0.0_f64;
+    let mut compensation = 0.0_f64;
     for [a, b, c] in mesh.triangles() {
         let p0 = mesh.vertices()[a as usize].to_vector() - reference;
         let p1 = mesh.vertices()[b as usize].to_vector() - reference;
         let p2 = mesh.vertices()[c as usize].to_vector() - reference;
-        signed_volume += p0.dot(p1.cross(p2)) / 6.0;
+        let term = p0.dot(p1.cross(p2)) / 6.0;
+        let adjusted = term - compensation;
+        let next = signed_volume + adjusted;
+        compensation = (next - signed_volume) - adjusted;
+        signed_volume = next;
     }
 
-    let expected_volume = segmentation.statistics(SegmentId3::new(2))
-        .expect("Mass statistics should exist")
-        .physical_volume;
+    let expected_volume = mass_stats.physical_volume;
     let relative_volume_error = (signed_volume - expected_volume).abs() / expected_volume;
     assert!(
         signed_volume > 0.0,
