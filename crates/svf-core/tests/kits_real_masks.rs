@@ -7,7 +7,7 @@
 //! The raw files are local validation artifacts and are intentionally not
 //! checked into the repository. Their layout is documented by the exporter.
 
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, time::Instant};
 
 use svf_core::{
     image_volume::ImageVolumeGeometry3,
@@ -140,4 +140,125 @@ fn loads_real_kits_masks_into_svf_segmentation_volume() {
         mass_stats.world_centroid.to_array(),
         mass_stats.physical_volume
     );
+}
+
+
+#[test]
+#[ignore = "requires locally exported KiTS-00005 masks; surface extraction is a separate, heavier check"]
+fn extracts_real_kits_mass_surface_and_checks_topology() {
+    let directory = env::var_os("SVF_KITS_MASK_DIR")
+        .map(PathBuf::from)
+        .expect("set SVF_KITS_MASK_DIR to the local KiTS mask export directory");
+    let directory = if directory.is_absolute() {
+        directory
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(directory)
+    };
+
+    let geometry = ImageVolumeGeometry3::new(
+        DIMENSIONS,
+        WorldPoint3::new(-249.51171875, -466.51171875, -737.4),
+        DMat3::from_cols(
+            DVec3::new(0.9765625, 0.0, 0.0),
+            DVec3::new(0.0, 0.9765625, 0.0),
+            DVec3::new(0.0, 0.0, 0.5),
+        ),
+    )
+    .expect("audited KiTS geometry must be valid");
+
+    let mass = Segment3::new(
+        SegmentId3::new(2),
+        "Mass",
+        load_mask(&directory, "segment-2.raw", 126_444),
+    )
+    .expect("Mass segment should be valid");
+    let segmentation = SegmentationVolume3::new(geometry, vec![mass])
+        .expect("real Mass mask must match the shared image geometry");
+
+    let extraction_start = Instant::now();
+    let mesh = segmentation
+        .extract_voxel_boundary_surface(SegmentId3::new(2))
+        .expect("Mass surface extraction should succeed")
+        .expect("Mass segment should exist");
+    let extraction_elapsed = extraction_start.elapsed();
+
+    assert!(!mesh.is_empty());
+    assert!(mesh.triangle_count() > 0);
+
+    let topology_start = Instant::now();
+    let topology = mesh.topology();
+    let topology_elapsed = topology_start.elapsed();
+
+    let boundary_edge_count = topology.boundary_edges().count();
+    let non_manifold_edge_count = topology.edges_with_more_than_two_faces().count();
+    assert_eq!(boundary_edge_count, 0, "surface has boundary edges");
+    assert_eq!(non_manifold_edge_count, 0, "surface has edges with more than two incident faces");
+
+    // A closed, consistently oriented triangle surface must have exactly two
+    // oppositely directed incident faces at every undirected edge.
+    let indices = mesh.indices();
+    for edge_id in 0..topology.edge_count() {
+        let edge = topology.edges()[edge_id].vertices();
+        let incident_faces = topology.edge_faces(edge_id).unwrap();
+        assert_eq!(incident_faces.len(), 2, "edge {edge:?} incidence");
+
+        let mut directions = Vec::with_capacity(2);
+        for &face_index in incident_faces {
+            let face = &indices[face_index * 3..face_index * 3 + 3];
+            let directed_edge = [
+                (face[0], face[1]),
+                (face[1], face[2]),
+                (face[2], face[0]),
+            ]
+            .into_iter()
+            .find(|(from, to)| {
+                [(*from).min(*to), (*from).max(*to)] == edge
+            })
+            .expect("incident face must traverse its edge");
+            directions.push(if directed_edge.0 == edge[0] { 1_i8 } else { -1_i8 });
+        }
+        assert_eq!(
+            directions[0],
+            -directions[1],
+            "incident faces must traverse edge {edge:?} in opposite directions"
+        );
+    }
+
+    // Compute signed volume relative to the image origin to reduce cancellation
+    // from the dataset's large absolute world coordinates.
+    let reference = segmentation.geometry().origin().to_vector();
+    let mut signed_volume = 0.0_f64;
+    for [a, b, c] in mesh.triangles() {
+        let p0 = mesh.vertices()[a as usize].to_vector() - reference;
+        let p1 = mesh.vertices()[b as usize].to_vector() - reference;
+        let p2 = mesh.vertices()[c as usize].to_vector() - reference;
+        signed_volume += p0.dot(p1.cross(p2)) / 6.0;
+    }
+
+    let expected_volume = segmentation.statistics(SegmentId3::new(2))
+        .expect("Mass statistics should exist")
+        .physical_volume;
+    let relative_volume_error = (signed_volume - expected_volume).abs() / expected_volume;
+    assert!(
+        signed_volume > 0.0,
+        "surface winding should produce positive signed volume, got {signed_volume}"
+    );
+    assert!(
+        relative_volume_error < 1.0e-9,
+        "mesh volume {signed_volume} differs from mask volume {expected_volume}"
+    );
+
+    println!("KiTS-00005 Mass surface extraction passed");
+    println!("Vertices: {}", mesh.vertex_count());
+    println!("Triangles: {}", mesh.triangle_count());
+    println!("Unique edges: {}", topology.edge_count());
+    println!("Boundary edges: {boundary_edge_count}");
+    println!("Edges with >2 incident faces: {non_manifold_edge_count}");
+    println!("Signed mesh volume: {signed_volume:.6} mm^3");
+    println!("Mask voxel volume: {expected_volume:.6} mm^3");
+    println!("Relative volume error: {relative_volume_error:.3e}");
+    println!("Surface extraction time: {extraction_elapsed:?}");
+    println!("Topology analysis time: {topology_elapsed:?}");
 }
