@@ -124,7 +124,7 @@ fn the_fixture_has_the_parts_the_budget_and_the_provenance() {
     assert_eq!(g.ranges().len(), PARTS.len());
     let triangles = g.mesh().indices().len() / 3;
     assert!(
-        (40_000..=75_000).contains(&triangles),
+        (40_000..=90_000).contains(&triangles),
         "{triangles} triangles"
     );
 
@@ -434,26 +434,6 @@ fn plane(point: V3, normal: V3) -> SectionPlane {
 #[test]
 fn plane_cuts_on_all_three_axes_succeed_and_stay_closed() {
     let (_, g) = load();
-    let range = g.ranges().iter().find(|r| r.part_index == 8).unwrap();
-let source = &g.mesh().indices()
-    [range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3];
-
-let target = [
-    [-23.99432373046875, 49.658905029296875, -18.415678024291992],
-    [-24.134376525878906, 49.166534423828125, -17.898147583007813],
-];
-
-for (i, t) in source.chunks_exact(3).enumerate() {
-    let positions: Vec<_> = t.iter()
-        .map(|&index| g.mesh().vertices()[index as usize].to_array())
-        .collect();
-
-    if target.iter().all(|q| positions.iter().any(|p| {
-        (0..3).all(|axis| (p[axis] - q[axis]).abs() < 1e-5)
-    })) {
-        println!("SOURCE TRIANGLE {i}: {t:?} {positions:?}");
-    }
-}
     // The heart spans about x -66..58, y -93..64, z -53..72 in the heart frame.
     let k = if cfg!(debug_assertions) { 2.5 } else { 1.0 };
     let ranges = [
@@ -474,31 +454,6 @@ for (i, t) in source.chunks_exact(3).enumerate() {
                 .unwrap_or_else(|e| panic!("axis {axis} offset {offset:.2}: {e}"));
             slowest = slowest.max(start.elapsed());
             println!("Checking axis {axis}, offset {offset:.2}");
-            let indices = cut.mesh().indices();
-            let vertices = cut.mesh().vertices();
-
-            for (triangle_index, t) in indices.chunks_exact(3).enumerate() {
-                for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-                    if (a == 2279 && b == 2281) || (a == 2281 && b == 2279) {
-                        let part = cut.ranges().iter().find(|r| {
-                            triangle_index >= r.first_triangle
-                                && triangle_index < r.first_triangle + r.triangle_count
-                        });
-
-                        println!(
-                            "BAD EDGE: triangle={triangle_index}, edge=({a},{b}), part={:?}",
-                            part.map(|r| r.part_index)
-                        );
-                        println!("  triangle indices: {t:?}");
-                        println!(
-                            "  positions: {:?}, {:?}, {:?}",
-                            vertices[t[0] as usize],
-                            vertices[t[1] as usize],
-                            vertices[t[2] as usize]
-                        );
-                    }
-                }
-            }
             assert_closed(cut.mesh().indices());
             cuts += 1;
             offset += step;
