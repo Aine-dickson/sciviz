@@ -423,6 +423,7 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
     for (patch_index, patch) in patches.iter().enumerate() {
         let tris: Vec<[u32; 3]> = patch.faces.iter().map(|&f| surface.faces()[f].triangle).collect();
         before += tris.len();
+        let patch_face_start = faces.len();
         let keep = |faces: &mut Vec<LabelledFace>, tris: &[[u32; 3]]| {
             for &triangle in tris {
                 faces.push(LabelledFace { triangle, front: patch.front, back: patch.back });
@@ -524,6 +525,28 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             keep(&mut faces, &tris);
             after += tris.len();
             refused += 1;
+        }
+
+        // Signed-volume contribution of this patch to the right-atrium wall.
+        // Contributions are additive across the closed labelled boundary.
+        if patch.front == 4 || patch.back == 4 {
+            let contribution: f64 = faces[patch_face_start..]
+                .iter()
+                .map(|face| {
+                    let mut triangle = face.triangle;
+                    if face.back == 4 {
+                        triangle.swap(1, 2);
+                    }
+                    let a = points[triangle[0] as usize];
+                    let b = points[triangle[1] as usize];
+                    let c = points[triangle[2] as usize];
+                    dot(a, cross(b, c)) / 6.0
+                })
+                .sum();
+            println!(
+                "  right-atrium volume contribution patch {}|{}: {contribution:+.3} mm3 ({} faces)",
+                patch.front, patch.back, faces.len() - patch_face_start
+            );
         }
     }
     report_duplicate_labelled_faces("assembled surface", &faces);
