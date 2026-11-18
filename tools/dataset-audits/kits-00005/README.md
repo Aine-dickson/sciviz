@@ -74,7 +74,8 @@ records the affine origin and basis vectors. Use `--dataset-root` and
 `--output-dir` to override the defaults.
 
 After exporting, run the opt-in Rust integration test from the workspace root
-(Git Bash):
+(Git Bash). Relative `SVF_KITS_MASK_DIR` paths are resolved from the workspace
+root even though Cargo runs the integration test from the package directory:
 
     SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks -- --ignored --nocapture
 
