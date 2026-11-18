@@ -6,7 +6,11 @@
 
 use std::{error::Error, fmt};
 
-use crate::image_volume::ImageVolumeGeometry3;
+use crate::{
+    geometry::{GeometryError, TriangleMesh3},
+    image_volume::ImageVolumeGeometry3,
+    spatial::WorldPoint3,
+};
 
 /// Stable identifier for one segment within a segmentation volume.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -262,6 +266,28 @@ impl Segment3 {
     }
 }
 
+/// Why binary-mask surface extraction failed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SegmentSurfaceError3 {
+    /// The generated surface has more vertices than its u32 index format allows.
+    VertexIndexOverflow,
+    /// The generated triangle mesh failed its geometry validation.
+    InvalidMesh(GeometryError),
+}
+
+impl fmt::Display for SegmentSurfaceError3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VertexIndexOverflow => {
+                write!(f, "segment surface exceeds the u32 vertex-index range")
+            }
+            Self::InvalidMesh(error) => write!(f, "invalid segment surface mesh: {error}"),
+        }
+    }
+}
+
+impl Error for SegmentSurfaceError3 {}
+
 /// Errors produced when constructing a segmentation volume.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SegmentationError3 {
@@ -362,6 +388,112 @@ impl SegmentationVolume3 {
     pub fn contains_voxel(&self, id: SegmentId3, index: [usize; 3]) -> Option<bool> {
         let segment = self.segment(id)?;
         segment.mask.get_voxel(&self.geometry, index)
+    }
+
+    /// Extracts the exact exposed voxel-cell boundary as a triangle mesh.
+    ///
+    /// Every foreground voxel contributes a quad for each face adjacent to
+    /// background or the volume exterior. Shared corner vertices are reused.
+    /// The result is a blocky voxel boundary, not a smoothed or interpolated
+    /// isosurface. Triangle winding points outward, including for a
+    /// left-handed affine index-to-world basis.
+    pub fn extract_voxel_boundary_surface(
+        &self,
+        id: SegmentId3,
+    ) -> Result<Option<TriangleMesh3>, SegmentSurfaceError3> {
+        let Some(segment) = self.segment(id) else {
+            return Ok(None);
+        };
+        let mask = segment.mask();
+        if mask.is_empty() {
+            return TriangleMesh3::new(Vec::new(), Vec::new())
+                .map(Some)
+                .map_err(SegmentSurfaceError3::InvalidMesh);
+        }
+
+        let dimensions = self.geometry.dimensions();
+        let basis_determinant = self.geometry.index_to_world_basis().determinant();
+        let determinant_sign = if basis_determinant < 0.0 { -1.0 } else { 1.0 };
+        let mut vertices = Vec::<WorldPoint3>::new();
+        let mut indices = Vec::<u32>::new();
+        let mut vertex_lookup = std::collections::BTreeMap::<[usize; 3], u32>::new();
+
+        for linear_index in mask.foreground_indices() {
+            let voxel = self.geometry.voxel_index(linear_index)
+                .expect("mask and geometry voxel counts were validated");
+            for axis in 0..3 {
+                for side in [-1_i32, 1_i32] {
+                    let neighbor = if side < 0 {
+                        voxel[axis].checked_sub(1)
+                    } else {
+                        voxel[axis].checked_add(1)
+                            .filter(|value| *value < dimensions[axis])
+                    };
+
+                    let exposed = match neighbor {
+                        None => true,
+                        Some(value) => {
+                            let mut adjacent = voxel;
+                            adjacent[axis] = value;
+                            let adjacent_linear = self.geometry.linear_index(adjacent)
+                                .expect("neighbor was checked against dimensions");
+                            mask.get(adjacent_linear) == Some(false)
+                        }
+                    };
+                    if !exposed {
+                        continue;
+                    }
+
+                    let u = (axis + 1) % 3;
+                    let v = (axis + 2) % 3;
+                    let mut corners = [[0_usize; 3]; 4];
+                    for (corner, (u_high, v_high)) in
+                        [(false, false), (true, false), (true, true), (false, true)]
+                            .into_iter()
+                            .enumerate()
+                    {
+                        corners[corner][axis] = if side < 0 {
+                            voxel[axis]
+                        } else {
+                            voxel[axis] + 1
+                        };
+                        corners[corner][u] = voxel[u] + usize::from(u_high);
+                        corners[corner][v] = voxel[v] + usize::from(v_high);
+                    }
+
+                    let mut face = [0_u32; 4];
+                    for (corner_index, corner) in corners.into_iter().enumerate() {
+                        let vertex_index = if let Some(existing) = vertex_lookup.get(&corner) {
+                            *existing
+                        } else {
+                            let next = u32::try_from(vertices.len())
+                                .map_err(|_| SegmentSurfaceError3::VertexIndexOverflow)?;
+                            let continuous = corner.map(|value| value as f64 - 0.5);
+                            let point = self.geometry.index_to_world(continuous)
+                                .expect("validated finite affine geometry maps finite voxel corners");
+                            vertices.push(point);
+                            vertex_lookup.insert(corner, next);
+                            next
+                        };
+                        face[corner_index] = vertex_index;
+                    }
+
+                    let outward_sign = f64::from(side) * determinant_sign;
+                    let triangles = if outward_sign > 0.0 {
+                        [[face[0], face[1], face[2]], [face[0], face[2], face[3]]]
+                    } else {
+                        [[face[0], face[2], face[1]], [face[0], face[3], face[2]]]
+                    };
+                    for triangle in triangles {
+                        indices.extend_from_slice(&triangle);
+                    }
+                }
+            }
+        }
+
+        TriangleMesh3::new(vertices, indices)
+            .map(Some)
+            .map_err(SegmentSurfaceError3::InvalidMesh)
     }
 
     /// Computes voxel-count, inclusive index bounds, world centroid and
@@ -538,6 +670,81 @@ mod tests {
         });
         assert_eq!(stats.world_centroid.to_array(), [38.0 / 3.0, 23.0, 30.0]);
         assert_eq!(stats.physical_volume, 72.0);
+    }
+
+    #[test]
+    fn extracts_single_voxel_as_six_quads_twelve_triangles() {
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Voxel",
+            BinaryMask3::from_indices(1, [0]).unwrap(),
+        ).unwrap();
+        let volume = SegmentationVolume3::new(geometry([1, 1, 1]), vec![segment]).unwrap();
+        let mesh = volume.extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap().unwrap();
+
+        assert_eq!(mesh.vertex_count(), 8);
+        assert_eq!(mesh.triangle_count(), 12);
+    }
+
+    #[test]
+    fn adjacent_voxels_share_internal_faces_and_surface_vertices() {
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Pair",
+            BinaryMask3::from_indices(2, [0, 1]).unwrap(),
+        ).unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 1, 1]), vec![segment]).unwrap();
+        let mesh = volume.extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap().unwrap();
+
+        assert_eq!(mesh.vertex_count(), 12);
+        assert_eq!(mesh.triangle_count(), 20);
+    }
+
+    #[test]
+    fn boundary_surface_uses_affine_geometry_and_outward_winding() {
+        let affine = ImageVolumeGeometry3::new(
+            [1, 1, 1],
+            WorldPoint3::new(10.0, 20.0, 30.0),
+            DMat3::from_cols(
+                crate::spatial::DVec3::new(-2.0, 0.0, 0.0),
+                crate::spatial::DVec3::new(0.0, 3.0, 0.0),
+                crate::spatial::DVec3::new(0.0, 0.0, 4.0),
+            ),
+        ).unwrap();
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Voxel",
+            BinaryMask3::from_indices(1, [0]).unwrap(),
+        ).unwrap();
+        let volume = SegmentationVolume3::new(affine, vec![segment]).unwrap();
+        let mesh = volume.extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap().unwrap();
+
+        assert_eq!(mesh.vertex_count(), 8);
+        assert_eq!(mesh.triangle_count(), 12);
+        assert!(mesh.vertices().iter().all(|point| {
+            let index = volume.geometry().world_to_continuous_index(*point).unwrap();
+            index.iter().all(|value| (*value + 0.5).abs() < 1.0e-12
+                || (*value - 0.5).abs() < 1.0e-12)
+        }));
+    }
+
+    #[test]
+    fn unknown_and_empty_segments_have_distinct_surface_results() {
+        let empty = Segment3::new(
+            SegmentId3::new(1),
+            "Empty",
+            BinaryMask3::empty(1),
+        ).unwrap();
+        let volume = SegmentationVolume3::new(geometry([1, 1, 1]), vec![empty]).unwrap();
+
+        assert!(volume.extract_voxel_boundary_surface(SegmentId3::new(99))
+            .unwrap().is_none());
+        let mesh = volume.extract_voxel_boundary_surface(SegmentId3::new(1))
+            .unwrap().unwrap();
+        assert!(mesh.is_empty());
     }
 
     #[test]
