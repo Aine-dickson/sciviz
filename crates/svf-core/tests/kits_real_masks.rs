@@ -198,6 +198,7 @@ fn extracts_real_kits_mass_surface_and_checks_topology() {
 
     println!("Boundary edges: {boundary_edge_count}");
     println!("Edges with >2 incident faces: {non_manifold_edge_count}");
+    assert_eq!(non_manifold_edge_count, 0, "Mass surface has non-manifold edges");
     for (edge_id, edge) in &non_manifold_edges {
         let [a, b] = edge.vertices();
         let incident = topology.edge_faces(*edge_id).unwrap();
