@@ -161,7 +161,68 @@ impl BinaryMask3 {
     pub fn words(&self) -> &[u64] {
         &self.words
     }
+
+    /// Returns foreground membership at an integer (i, j, k) voxel index.
+    #[must_use]
+    pub fn get_voxel(
+        &self,
+        geometry: &ImageVolumeGeometry3,
+        index: [usize; 3],
+    ) -> Option<bool> {
+        let linear_index = geometry.linear_index(index)?;
+        self.get(linear_index)
+    }
+
+    /// Iterates foreground voxels in ascending linear storage order.
+    #[must_use]
+    pub fn foreground_indices(&self) -> ForegroundVoxelIndices3<'_> {
+        ForegroundVoxelIndices3 {
+            mask: self,
+            word_index: 0,
+            remaining: self.words.first().copied().unwrap_or(0),
+        }
+    }
 }
+
+/// Iterator over the set bits in a packed binary mask.
+pub struct ForegroundVoxelIndices3<'a> {
+    mask: &'a BinaryMask3,
+    word_index: usize,
+    remaining: u64,
+}
+
+impl Iterator for ForegroundVoxelIndices3<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.remaining != 0 {
+                let bit = self.remaining.trailing_zeros() as usize;
+                self.remaining &= self.remaining - 1;
+                let index = self.word_index * 64 + bit;
+                if index < self.mask.voxel_count {
+                    return Some(index);
+                }
+                return None;
+            }
+
+            self.word_index += 1;
+            self.remaining = *self.mask.words.get(self.word_index)?;
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining.count_ones() as usize
+            + self.mask.words[self.word_index.saturating_add(1)..]
+                .iter()
+                .map(|word| word.count_ones() as usize)
+                .sum::<usize>();
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for ForegroundVoxelIndices3<'_> {}
+
 
 /// One independently addressable binary segment.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -231,6 +292,24 @@ impl fmt::Display for SegmentationError3 {
 
 impl Error for SegmentationError3 {}
 
+/// Inclusive integer-index bounds of foreground voxel centres.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoxelBounds3 {
+    pub min: [usize; 3],
+    pub max: [usize; 3],
+}
+
+/// Basic geometric measurements for one segment.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SegmentStatistics3 {
+    pub foreground_voxel_count: usize,
+    pub index_bounds: VoxelBounds3,
+    /// Arithmetic mean of foreground voxel-centre positions in world space.
+    pub world_centroid: crate::spatial::WorldPoint3,
+    /// Physical volume from the affine voxel-cell volume, in world-units cubed.
+    pub physical_volume: f64,
+}
+
 /// A collection of independent binary segments sharing one regular 3D geometry.
 ///
 /// Segment masks are intentionally independent: a voxel may belong to more
@@ -276,6 +355,52 @@ impl SegmentationVolume3 {
     pub fn segment(&self, id: SegmentId3) -> Option<&Segment3> {
         self.segments.iter().find(|segment| segment.id == id)
     }
+
+    /// Returns the segment's membership at an integer voxel index.
+    #[must_use]
+    pub fn contains_voxel(&self, id: SegmentId3, index: [usize; 3]) -> Option<bool> {
+        let segment = self.segment(id)?;
+        segment.mask.get_voxel(&self.geometry, index)
+    }
+
+    /// Computes voxel-count, inclusive index bounds, world centroid and
+    /// affine physical volume for a segment. Empty segments have no statistics.
+    #[must_use]
+    pub fn statistics(&self, id: SegmentId3) -> Option<SegmentStatistics3> {
+        let segment = self.segment(id)?;
+        let mask = segment.mask();
+        if mask.is_empty() {
+            return None;
+        }
+
+        let mut min = [usize::MAX; 3];
+        let mut max = [0; 3];
+        let mut world_sum = crate::spatial::DVec3::ZERO;
+
+        for linear_index in mask.foreground_indices() {
+            let index = self.geometry.voxel_index(linear_index)?;
+            for axis in 0..3 {
+                min[axis] = min[axis].min(index[axis]);
+                max[axis] = max[axis].max(index[axis]);
+            }
+            let world = self.geometry.voxel_center(index)?;
+            world_sum += world.to_vector();
+        }
+
+        let count = mask.foreground_count();
+        let world_centroid = crate::spatial::WorldPoint3::from_vector(
+            world_sum / count as f64
+        );
+        let physical_voxel_volume = self.geometry.index_to_world_basis().determinant().abs();
+
+        Some(SegmentStatistics3 {
+            foreground_voxel_count: count,
+            index_bounds: VoxelBounds3 { min, max },
+            world_centroid,
+            physical_volume: count as f64 * physical_voxel_volume,
+        })
+    }
+
 }
 
 #[cfg(test)]
@@ -372,6 +497,58 @@ mod tests {
             Some(true)
         );
         assert_eq!(segmentation.segment(SegmentId3::new(99)), None);
+    }
+
+    #[test]
+    fn mask_queries_use_geometry_i_fastest_order() {
+        let geometry = geometry([3, 2, 2]);
+        let mask = BinaryMask3::from_indices(geometry.voxel_count(), [0, 5, 11]).unwrap();
+        assert_eq!(mask.get_voxel(&geometry, [0, 0, 0]), Some(true));
+        assert_eq!(mask.get_voxel(&geometry, [2, 1, 0]), Some(true));
+        assert_eq!(mask.get_voxel(&geometry, [2, 1, 1]), Some(true));
+        assert_eq!(mask.get_voxel(&geometry, [3, 0, 0]), None);
+        assert_eq!(
+            mask.foreground_indices().collect::<Vec<_>>(),
+            vec![0, 5, 11]
+        );
+    }
+
+    #[test]
+    fn computes_segment_bounds_centroid_and_affine_volume() {
+        let geometry = ImageVolumeGeometry3::new(
+            [4, 3, 2],
+            WorldPoint3::new(10.0, 20.0, 30.0),
+            DMat3::from_diagonal(crate::spatial::DVec3::new(2.0, 3.0, 4.0)),
+        )
+        .unwrap();
+        let segment = Segment3::new(
+            SegmentId3::new(3),
+            "Region",
+            BinaryMask3::from_indices(24, [0, 5, 11]).unwrap(),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry, vec![segment]).unwrap();
+        let stats = volume.statistics(SegmentId3::new(3)).unwrap();
+
+        assert_eq!(stats.foreground_voxel_count, 3);
+        assert_eq!(stats.index_bounds, VoxelBounds3 {
+            min: [0, 0, 0],
+            max: [3, 2, 0],
+        });
+        assert_eq!(stats.world_centroid.to_array(), [12.0, 23.0, 30.0]);
+        assert_eq!(stats.physical_volume, 144.0);
+    }
+
+    #[test]
+    fn empty_segment_has_no_geometric_statistics() {
+        let segment = Segment3::new(
+            SegmentId3::new(1),
+            "Empty",
+            BinaryMask3::empty(8),
+        )
+        .unwrap();
+        let volume = SegmentationVolume3::new(geometry([2, 2, 2]), vec![segment]).unwrap();
+        assert_eq!(volume.statistics(SegmentId3::new(1)), None);
     }
 
     #[test]
