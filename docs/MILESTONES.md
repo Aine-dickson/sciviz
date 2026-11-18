@@ -1075,3 +1075,17 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   capabilities and a manageable dataset, then write and review a design
   contract before implementation.
 - Full decision and acceptance guidance: `docs/EDUCATIONAL-DIRECTION.md`.
+
+## Kidney data and volume capability audit (2026-11-18)
+
+- Added `docs/kidney-data-audit.md` to record the current SVF capability gap
+  and compare KiTS19/TCIA with KiTS23.
+- Existing SVF supports ASCII legacy VTK unstructured grids and tetrahedral
+  point-scalar isosurfaces, but not voxel/image volumes, NIfTI/DICOM/VTK
+  image-data readers, segmentation label maps, structured-volume extraction,
+  or source-volume slice display.
+- Preliminary source preference: audit one KiTS19/TCIA CT+SEG case first,
+  subject to case-level and licence verification. KiTS23 has clearer
+  kidney/tumour/cyst labels but CC BY-NC-SA 4.0 restrictions.
+- No implementation approved. Next action is a single-case source audit and
+  an explicit learning objective, followed by a reviewed design contract.
