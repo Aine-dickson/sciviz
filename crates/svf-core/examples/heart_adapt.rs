@@ -480,7 +480,11 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
         let mut accepted: Option<(Vec<[u32; 3]>, BTreeMap<[u32; 3], usize>, svf_core::mesh_simplify::Simplified)> = None;
         let mut last_collision = None;
         let mut last_error = None;
-        for retry in 0..5 {
+        let mut last_volume_delta = None;
+        // The right-atrium/cavity interface dominates the remaining wall-volume
+        // error. Continue to smaller tolerances until its signed contribution
+        // change is at most 350 mm3, or retain the original patch.
+        for retry in 0..10 {
             let retry_limit = limit * 0.5f64.powi(retry);
             let options = SimplifyOptions { epsilon: retry_limit, ..Default::default() };
             match simplify_within(&lp, &lt, &pinned, retry_limit, 6, &options) {
@@ -506,14 +510,39 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
                     if let Some(key) = collision {
                         last_collision = Some(key);
                     } else {
-                        accepted = Some((new_tris, candidate_keys, result));
-                        if retry > 0 {
-                            println!(
-                                "  patch {}|{} accepted on retry {} (epsilon {:.5})",
-                                patch.front, patch.back, retry, retry_limit
+                        let mut volume_ok = true;
+                        if patch.front == 4 && patch.back == 1_048_578 {
+                            let origin = surface.points()[tris[0][0] as usize];
+                            let original = right_atrium_patch_volume(
+                                surface.points(), &tris, origin, patch.back,
                             );
+                            let mut candidate_points = points.clone();
+                            for (i, &lv) in result.vertex_map.iter().enumerate() {
+                                candidate_points[local[lv as usize] as usize] = result.points[i];
+                            }
+                            let adapted = right_atrium_patch_volume(
+                                &candidate_points, &new_tris, origin, patch.back,
+                            );
+                            let delta = adapted - original;
+                            if delta.abs() > 350.0 {
+                                last_volume_delta = Some(delta);
+                                volume_ok = false;
+                            } else {
+                                println!(
+                                    "  right-atrium interface accepted with volume delta {delta:+.3} mm3 on retry {retry} (epsilon {retry_limit:.5})"
+                                );
+                            }
                         }
-                        break;
+                        if volume_ok {
+                            accepted = Some((new_tris, candidate_keys, result));
+                            if retry > 0 && !(patch.front == 4 && patch.back == 1_048_578) {
+                                println!(
+                                    "  patch {}|{} accepted on retry {} (epsilon {:.5})",
+                                    patch.front, patch.back, retry, retry_limit
+                                );
+                            }
+                            break;
+                        }
                     }
                 }
                 Err(error) => last_error = Some(error),
@@ -543,9 +572,14 @@ fn adapt(grid: &UnstructuredGrid3, tags: &[u32], frame: &Frame, deviations: [f64
             keep(&mut faces, &new_tris);
             simplified += 1;
         } else {
-            if let Some(key) = last_collision {
+            if let Some(delta) = last_volume_delta {
                 println!(
-                    "  patch {}|{} kept as is after 5 attempts: duplicate face {key:?}",
+                    "  patch {}|{} kept as is: no collision-free candidate met the volume-delta budget (last {delta:+.3} mm3)",
+                    patch.front, patch.back
+                );
+            } else if let Some(key) = last_collision {
+                println!(
+                    "  patch {}|{} kept as is after 10 attempts: duplicate face {key:?}",
                     patch.front, patch.back
                 );
             } else if let Some(error) = last_error {
