@@ -1121,24 +1121,27 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   core APIs, then propose a reviewed volume/segmentation design contract.
 
 
-## KiTS-00005 real-mask surface topology follow-up (in progress; 2026-11-18)
+## KiTS-00005 real-mask surface topology follow-up (Mass passed; Kidney pending; 2026-11-18)
 
-- The real Mass mask exposed 20 voxel-grid edges with four incident boundary
-  faces each, while no boundary edges were present. The earlier diagnostic
-  test returned early on this condition; it did not validate winding or mesh
-  volume for that real surface.
+- The real Mass mask initially exposed 20 voxel-grid edges with four incident
+  boundary faces each, while no boundary edges were present.
 - The extractor now retains exposed-face voxel provenance and splits
   coincident vertex occurrences into separate surface fans. At a four-face
   checkerboard edge, faces are paired by their foreground voxel owner.
   Corner-only contacts remain disconnected because they share no surface edge.
 - This changes mesh topology only: the binary segmentation, voxel-cell
   coordinates, and exposed face geometry remain unchanged.
-- Added synthetic edge-contact and corner-contact regression tests. Both
-  require closed two-face edge incidence, opposite winding, and exact
-  signed volume.
-- Commits on `b2-5e-heart-tool`: `314cea6` (extractor) and `2980773`
-  (regression tests).
-- **Local verification pending.** Do not treat the real KiTS surface as
-  validated until the focused segmentation tests and the real Mass integration
-  test pass with zero boundary edges, zero edges with more than two faces,
-  opposite winding, and mesh volume matching mask volume.
+- Synthetic edge-contact and corner-contact regression tests both pass locally,
+  requiring closed two-face edge incidence, opposite winding, and exact signed
+  volume.
+- The real KiTS-00005 Mass surface integration test passed locally:
+  22,028 vertices, 44,048 triangles, zero boundary edges, zero edges with more
+  than two incident faces, opposite winding across every shared edge, and
+  signed mesh volume equal to mask volume (60,293.197632 mm³; zero reported
+  relative error). Extraction took approximately 360 ms and topology analysis
+  approximately 414 ms on the user's Windows environment.
+- Commits on `b2-5e-heart-tool`: `314cea6` (extractor), `2980773`
+  (regression tests), and `97bc0b2` (initial milestone record).
+- Added an opt-in real Kidney surface integration test, using the same
+  topology, winding, and volume checks against all 902,167 Kidney voxels.
+  **Local execution is pending.**
