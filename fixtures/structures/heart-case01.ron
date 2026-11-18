@@ -74,7 +74,7 @@ Structure(
         attribution: "Rodero C. et al. (2021), PLoS Comput Biol 17(4): e1008851, data at https://doi.org/10.5281/zenodo.4590294, licensed CC BY 4.0. Modified: re-framed, small stray regions relabelled, surfaces simplified.",
         source_sha256: "20bf29b8ec86454de4cfde2a0afc19992715107b6ef8a7dabe61f52e8f78f440",
         tool: "svf-core example heart_adapt",
-        tool_commit: "90537b5+uncommitted",
+        tool_commit: "c07d99c",
         parameters: [("deviation_mm", "0.4"), ("thin_part_deviation_mm", "0.4"), ("island_limit_cells", "8"), ("min_patch_faces_simplified", "10")],
         frame_transform: Some((-0.671568191, -0.737721341, 0.069017310, 81.712331357, -0.519082153, 0.534903789, 0.666657074, -46.380699839, -0.528724771, 0.411880031, -0.742162352, 64.683534378)),
         body_volumes_mm3: [("left-ventricle", 163306.152), ("right-ventricle", 61162.008), ("left-atrium", 23588.368), ("right-atrium", 26303.798), ("aorta", 10182.207), ("pulmonary-artery", 3556.681), ("mitral-valve-plane", 1973.370), ("tricuspid-valve-plane", 5587.030), ("aortic-valve-plane", 1638.545), ("pulmonary-valve-plane", 1038.639), ("left-atrial-appendage", 691.541), ("left-superior-pulmonary-vein", 657.316), ("left-inferior-pulmonary-vein", 419.811), ("right-inferior-pulmonary-vein", 432.752), ("right-superior-pulmonary-vein", 661.101), ("superior-vena-cava", 692.186), ("inferior-vena-cava", 600.112), ("left-ventricle-cavity", 120057.136), ("right-ventricle-cavity", 181690.541), ("left-atrium-cavity", 68536.917), ("right-atrium-cavity", 112376.722)],
