@@ -123,6 +123,7 @@ fn the_fixture_has_the_parts_the_budget_and_the_provenance() {
     }
     assert_eq!(g.ranges().len(), PARTS.len());
     let triangles = g.mesh().indices().len() / 3;
+    // The volume-constrained right-atrium interface needs a little more geometry.
     assert!(
         (40_000..=90_000).contains(&triangles),
         "{triangles} triangles"
