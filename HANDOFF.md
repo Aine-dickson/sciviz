@@ -2878,3 +2878,21 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 
 - `docs/authoring-convention.md`: the convention derived from the proof-of-concept items (five layers per item, rules, fidelity F0 to F3 per part on form, behaviour and appearance), the author surface (engine, kits, item document that compiles to structure files), ranked engine gaps, realism exemplars and slices C1 to C6.
 - **Waiting on the user:** decisions D1 to D5 in section 8. Do not start C2 or later before D1 and D2.
+
+### Start here in a fresh session (2026-11-23)
+
+- Branch `b2-5e-heart-tool`. Read first: `docs/authoring-convention.md` (agreed; decisions in section 9), `docs/labels.md` section 9, `docs/item-output-bar.md`.
+  Do not re-read the whole handoff.
+- **Exact next action: C1.** Add a fidelity column (form / behaviour / appearance, F0 to F3) to the register in `docs/item-output-bar.md`, and score every
+  item from what is recorded. Then **C2**, the engine gaps, one slice each with tests and screenshots, in this order:
+  1. smooth shading (vertex normals instead of the per-triangle normal in `mesh.wgsl`);
+  2. a hinge pivot for `Turn`;
+  3. lines-and-arcs paths and routing between named points;
+  4. group transforms;
+  5. direction markers (arrowheads).
+- Then C3: the circuit kit plus the item-document compiler, re-authoring the circuit and comparing its cost with `tools/structure-items/simple_circuit.py`.
+- Still owed by the user (not blocking): a live look at the ten timelines; splitting the branch into PRs (the user must be present); citations.
+- Optional routine work: label retrofit (L5) on the particle items and the salt.
+- Model: C1 and C2 are routine (Sonnet). The C3 kit and item-document design is Opus, and starts with a short design note.
+- Verify with `cargo test --workspace --release --no-fail-fast`. It had 0 failures at `1cd74ac`.
+

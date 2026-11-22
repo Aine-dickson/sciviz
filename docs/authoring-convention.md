@@ -1,6 +1,6 @@
 # Authoring convention and the high-level author surface
 
-Last updated: 2026-11-22. Status: **proposal by Claude, to be agreed by the user.** It is derived from the proof-of-concept items
+Last updated: 2026-11-22. Status: **agreed by the user on 2026-11-23** (decisions in section 9). It is derived from the proof-of-concept items
 (register in `docs/item-output-bar.md`; build notes in `docs/animation-design.md` sections 15 to 26, `docs/labels.md`).
 
 ## 1. Purpose
@@ -231,3 +231,15 @@ Decisions for the user:
   usable.
 - **D5:** the form of the item document. It could be RON like today, a YAML-like text, or later a form-based editor that
   writes it. Recommended: RON first, because it compiles with the code that exists; the editor comes after C6.
+
+## 9. Decisions (user, 2026-11-23)
+
+- **D1 agreed:** the five layers and the rules of section 3 stand.
+- **D2 agreed:** kits own the domain rules. Authors do not animate a consequence by hand.
+- **D3:** Claude chooses the order. It is the order of section 8: C1, C2, then the circuit kit (C3), chemistry (C4) and
+  biology realism (C5).
+- **D4:** any dataset may be used as long as its copyright and licence terms are honoured. This covers attribution, and for
+  share-alike sources, releasing derived geometry under the same terms. Find a way to blend sources in rather than rule a
+  source out. Each dataset is still audited before use, and the audit is recorded with the item.
+- **D5:** the item document is RON (already approved).
+
