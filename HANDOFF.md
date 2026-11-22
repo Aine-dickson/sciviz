@@ -2711,3 +2711,20 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   The heart's live Explorer behaviour was not re-checked by eye after this change.
 - Flower and cell screenshots were retaken after the fix (the cell cut looks unchanged).
 - Note for future sessions: run the full test suite before trusting a branch; two tests were red for days.
+
+### Start here in a fresh session (2026-11-22)
+
+- Branch `b2-5e-heart-tool`, last commit `c4fe766`. Read `docs/animation-design.md` (sections 11 to 13), `docs/item-output-bar.md`
+  and `docs/svf-prismal-boundary.md` first. Do not re-read the whole handoff.
+- **Exact next action: slice A2**, `apply_pose(&StructureGeometry, &Pose) -> StructureGeometry` in
+  `crates/svf-core/src/structure_animation.rs`: per `PartRange`, scale about the part's bounding-box centre, then turns in order
+  (each about that centre), then add `offset`; keep vertex and triangle counts; skip nothing else (visibility is handled by
+  choosing which parts to build, as `Structure::visible_parts` does). Tests: a move keeps signed volume, scale k multiplies it
+  by k cubed, turns keep volume, bodies stay closed, counts unchanged, pose at t=0 equals the unposed geometry.
+- Then A3 (Explorer clock, Space, step and scrub keys, caption in the window title, `--at <s>`, measure frame cost), A4 (flower
+  `pollination` timeline), B1 (particles), B2 (diffusion beaker, then water up the stem).
+- Open to-dos: fade and opacity in the renderer; user to review the flower and cell citations; split the branch into PRs
+  (it holds the open stacked PRs #73 to #75, the heart work, the kidney track, the items and animation); KiTS licence unresolved;
+  user to eyeball the heart in the Explorer after the section fix.
+- Run the full suite before trusting anything: `cargo test --workspace --release` (all green at `c4fe766`).
+- Model: A2 and A3 are routine (Sonnet); any change to the design in `animation-design.md` needs Opus.
