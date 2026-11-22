@@ -108,6 +108,17 @@ pub enum ActionDocument {
         #[serde(default)]
         ease: Ease,
     },
+    /// Change a part's (and its descendants') opacity to `to` (0 to 1) over `for_s`.
+    /// A part that has faded to 0 is not drawn at all.
+    Fade {
+        part: String,
+        to: f64,
+        for_s: f64,
+        #[serde(default)]
+        at_s: f64,
+        #[serde(default)]
+        ease: Ease,
+    },
     /// Change a part's (and its descendants') colour to `to`.
     Colour {
         part: String,
@@ -228,6 +239,10 @@ struct PartTrack {
     turns: Vec<(Span, [f64; 3], f64)>,
     /// `(span, from, to)`, non-overlapping, ascending.
     colours: Vec<(Span, [f64; 3], [f64; 3])>,
+    /// The part's authored opacity, used until the first fade starts.
+    base_opacity: f64,
+    /// `(span, from, to)`, non-overlapping, ascending.
+    fades: Vec<(Span, f64, f64)>,
     /// `[from, to)` ranges.
     highlights: Vec<(f64, f64)>,
 }
@@ -241,6 +256,8 @@ impl PartTrack {
             scales: Vec::new(),
             turns: Vec::new(),
             colours: Vec::new(),
+            base_opacity: 1.0,
+            fades: Vec::new(),
             highlights: Vec::new(),
         }
     }
@@ -282,6 +299,8 @@ pub struct PartPose {
     pub turns: Vec<([f64; 3], f64)>,
     /// `None` keeps the part's authored colour.
     pub colour: Option<[f64; 3]>,
+    /// Opacity, 0 to 1: the authored opacity, changed by any `Fade`.
+    pub opacity: f64,
     pub highlighted: bool,
 }
 
@@ -317,8 +336,9 @@ enum EmitterKind {
     Flow(Flow),
 }
 
+/// Exact at both ends (`p` 0 gives `a`, 1 gives `b`), so a finished change shows its target value.
 fn lerp(a: f64, b: f64, p: f64) -> f64 {
-    a + (b - a) * p
+    a * (1.0 - p) + b * p
 }
 
 impl Timeline {
@@ -511,8 +531,16 @@ fn part_pose(track: &PartTrack, t: f64) -> PartPose {
         colour = Some([lerp(from[0], to[0], p), lerp(from[1], to[1], p), lerp(from[2], to[2], p)]);
     }
 
+    let mut opacity = track.base_opacity;
+    for (span, from, to) in &track.fades {
+        if t < span.start {
+            break;
+        }
+        opacity = lerp(*from, *to, span.progress(t));
+    }
+
     let highlighted = track.highlights.iter().any(|&(from, to)| t >= from && t < to);
-    PartPose { shown, offset, scale, turns, colour, highlighted }
+    PartPose { shown, offset, scale, turns, colour, opacity, highlighted }
 }
 
 fn positive_finite(x: f64) -> bool {
@@ -693,6 +721,17 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         tracks[i].turns.push((span, [axis.0 / norm, axis.1 / norm, axis.2 / norm], *deg));
                         length = length.max(at_s + for_s);
                     }
+                    ActionDocument::Fade { part, to, for_s, at_s, ease } => {
+                        let mut span = timing(*at_s, *for_s)?;
+                        span.ease = *ease;
+                        if !(to.is_finite() && (0.0..=1.0).contains(to)) {
+                            return Err(bad(format!("beat '{}': an opacity must be in 0 to 1", beat.id)));
+                        }
+                        for i in with_descendants(root_of(part)?) {
+                            tracks[i].fades.push((span, parts[i].opacity(), *to));
+                        }
+                        length = length.max(at_s + for_s);
+                    }
                     ActionDocument::Colour { part, to, for_s, at_s, ease } => {
                         let mut span = timing(*at_s, *for_s)?;
                         span.ease = *ease;
@@ -799,6 +838,19 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
             if let Some((end, value)) = previous {
                 if span.start < end - EPS {
                     return Err(bad(format!("two Grow actions on '{part_id}' overlap in time")));
+                }
+                *from = value;
+            }
+            previous = Some((span.end, *to));
+        }
+
+        track.base_opacity = parts[index].opacity();
+        track.fades.sort_by(|a, b| a.0.start.total_cmp(&b.0.start));
+        let mut previous: Option<(f64, f64)> = None;
+        for (span, from, to) in &mut track.fades {
+            if let Some((end, value)) = previous {
+                if span.start < end - EPS {
+                    return Err(bad(format!("two Fade actions on '{part_id}' overlap in time")));
                 }
                 *from = value;
             }
@@ -1076,6 +1128,39 @@ mod tests {
              particle_radius: 0.05, colour: (0.0, 0.0, 1.0), for_s: 1.0)"
         )
         .contains("path"));
+    }
+
+    #[test]
+    fn a_fade_runs_from_the_authored_opacity_and_chains() {
+        let t = timeline(
+            "Fade(part: \"b\", to: 0.2, for_s: 2.0), Fade(part: \"b\", to: 1.0, for_s: 2.0, at_s: 3.0)",
+        );
+        let b = 2;
+        assert_eq!(t.pose_at(0.0).parts[b].opacity, 1.0);
+        assert!((t.pose_at(1.0).parts[b].opacity - 0.6).abs() < 1e-12);
+        assert_eq!(t.pose_at(2.5).parts[b].opacity, 0.2);
+        assert!((t.pose_at(4.0).parts[b].opacity - 0.6).abs() < 1e-12);
+        assert_eq!(t.pose_at(5.0).parts[b].opacity, 1.0);
+        // Other parts are untouched.
+        assert_eq!(t.pose_at(1.0).parts[1].opacity, 1.0);
+    }
+
+    #[test]
+    fn a_fade_reaches_the_descendants_of_a_group_and_starts_from_each_authored_opacity() {
+        let text = ", timelines: [Timeline(id: \"t\", name: \"T\", scenes: [Scene(id: \"s\", beats: [Beat(id: \"b\", \
+                    actions: [Fade(part: \"root\", to: 0.0, for_s: 1.0)])])])]";
+        let s = structure(text).unwrap();
+        let pose = s.timelines()[0].pose_at(1.0);
+        assert!(pose.parts.iter().all(|p| p.opacity == 0.0));
+        assert!((s.timelines()[0].pose_at(0.5).parts[3].opacity - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn bad_and_overlapping_fades_are_refused() {
+        assert!(invalid("Fade(part: \"a\", to: 1.5, for_s: 1.0)").contains("0 to 1"));
+        assert!(invalid("Fade(part: \"a\", to: -0.1, for_s: 1.0)").contains("0 to 1"));
+        assert!(invalid("Fade(part: \"a\", to: 0.5, for_s: 2.0), Fade(part: \"a\", to: 0.2, for_s: 1.0, at_s: 1.0)")
+            .contains("overlap"));
     }
 
     #[test]

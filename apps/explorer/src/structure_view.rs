@@ -44,6 +44,8 @@ pub struct ViewOptions {
 }
 
 const AXIS_NAMES: [&str; 3] = ["x", "y", "z"];
+/// A part this faint (a finished fade-out) is left out altogether: not drawn, not pickable.
+const MIN_VISIBLE_OPACITY: f64 = 0.005;
 /// The section plane moves by this fraction of the extent per key press.
 const SECTION_STEPS: f64 = 50.0;
 
@@ -254,6 +256,8 @@ pub struct StructureScene {
     /// list it was built for; rebuilt only when that list changes.
     unposed: StructureGeometry,
     unposed_key: Vec<usize>,
+    /// Colour and opacity of every vertex of the displayed mesh.
+    rgba: Vec<[f64; 4]>,
 }
 
 /// Everything a named view sets besides the camera.
@@ -371,6 +375,7 @@ impl StructureScene {
             playing: false,
             unposed: full.clone(),
             unposed_key: Vec::new(),
+            rgba: Vec::new(),
         };
         let section = match view.section {
             Some((axis, offset)) => Some(SectionState { axis, offset, flipped: view.flip }),
@@ -420,7 +425,9 @@ impl StructureScene {
             visible.retain(|part| shown.contains(part));
         }
         if let Some(pose) = &pose {
-            visible.retain(|&part| pose.parts.get(part).is_none_or(|p| p.shown));
+            visible.retain(|&part| {
+                pose.parts.get(part).is_none_or(|p| p.shown && p.opacity >= MIN_VISIBLE_OPACITY)
+            });
         }
         let rebuilt = if visible == self.unposed_key {
             None
@@ -450,11 +457,17 @@ impl StructureScene {
         if let Some(pose) = &pose {
             geometry = geometry.with_particles(&pose.particles);
         }
+        let parts = self.structure.parts();
+        let rgba = geometry.rgba_with(|part| match &pose {
+            Some(pose) => pose.parts.get(part).map_or(parts[part].opacity(), |p| p.opacity),
+            None => parts[part].opacity(),
+        });
         if let Some(built) = rebuilt {
             self.unposed = built;
             self.unposed_key = visible;
         }
         self.geometry = geometry;
+        self.rgba = rgba;
         self.isolated = isolated;
         self.peeled = peeled;
         self.section = section;
@@ -607,6 +620,11 @@ impl StructureScene {
 
     pub fn colours(&self) -> &[[f64; 3]] {
         self.geometry.colours()
+    }
+
+    /// Colour and opacity per vertex, for the renderer.
+    pub fn rgba(&self) -> &[[f64; 4]] {
+        &self.rgba
     }
 
     pub fn isolated(&self) -> Option<usize> {
@@ -1160,6 +1178,34 @@ mod tests {
         assert!(!plain.has_timelines());
         assert!(plain.next_timeline().is_err());
         assert_eq!(plain.timeline_camera().unwrap(), None);
+    }
+
+    #[test]
+    fn a_faded_part_becomes_translucent_and_then_leaves_the_scene() {
+        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+            + ", timelines: [Timeline(id: \"f\", name: \"Fade\", scenes: [Scene(id: \"s\", beats: [\
+               Beat(id: \"b\", actions: [Fade(part: \"epidermis\", to: 0.0, for_s: 4.0)])])])])";
+        let structure = Structure::from_ron_str(&text).unwrap();
+        let mut scene =
+            StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap();
+        let skin = scene.structure.part_index("epidermis").unwrap();
+        let alpha_of_skin = |scene: &StructureScene| {
+            let triangle = (0..scene.mesh().indices().len() / 3)
+                .find(|&t| scene.geometry.part_of_triangle(t) == Some(skin))?;
+            Some(scene.rgba()[scene.mesh().indices()[triangle * 3] as usize][3])
+        };
+        assert_eq!(scene.rgba().len(), scene.mesh().vertices().len());
+        assert_eq!(alpha_of_skin(&scene), Some(1.0));
+        scene.next_timeline().unwrap();
+        scene.set_time(2.0).unwrap();
+        assert_eq!(alpha_of_skin(&scene), Some(0.5));
+        assert_eq!(above(&scene, 4.85, 50.0).as_deref(), Some("epidermis"), "still pickable while translucent");
+        // Fully faded: the part is not built, so it is neither drawn nor pickable.
+        scene.set_time(4.0).unwrap();
+        assert_eq!(alpha_of_skin(&scene), None);
+        assert_eq!(above(&scene, 4.85, 50.0), None);
+        scene.set_time(0.0).unwrap();
+        assert_eq!(alpha_of_skin(&scene), Some(1.0));
     }
 
     #[test]

@@ -379,7 +379,7 @@ impl Explorer {
         let (Some(scene), Some(renderer)) = (self.structure_scene.as_ref(), self.renderer.as_mut()) else {
             return false;
         };
-        if let Err(error) = renderer.replace_coloured_mesh(scene.mesh(), scene.colours()) {
+        if let Err(error) = renderer.replace_coloured_mesh_rgba(scene.mesh(), scene.rgba()) {
             eprintln!("Cannot update the displayed structure: {error}");
             return false;
         }
@@ -528,7 +528,7 @@ impl Explorer {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
-        if let Err(error) = renderer.replace_coloured_mesh(scene.mesh(), scene.colours()) {
+        if let Err(error) = renderer.replace_coloured_mesh_rgba(scene.mesh(), scene.rgba()) {
             eprintln!("Cannot update the displayed structure: {error}");
             return;
         }
@@ -809,8 +809,8 @@ impl ApplicationHandler for Explorer {
                 ExplorerMode::Structure => {
                     let scene = self.structure_scene.as_ref()
                         .ok_or("structure was not prepared before window creation")?;
-                    let mut renderer = pollster::block_on(SceneRenderer::new_with_coloured_mesh(
-                        window.clone(), scene.mesh(), scene.colours(),
+                    let mut renderer = pollster::block_on(SceneRenderer::new_with_coloured_mesh_rgba(
+                        window.clone(), scene.mesh(), scene.rgba(),
                     ))?;
                     renderer.set_camera(scene.camera)?;
                     Ok(renderer)

@@ -84,6 +84,10 @@ pub struct LayerDocument {
     pub parts: Vec<String>,
 }
 
+fn opaque() -> f64 {
+    1.0
+}
+
 /// File representation of one part.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,6 +98,10 @@ pub struct PartDocument {
     pub parent: Option<String>,
     pub description: String,
     pub colour: (f64, f64, f64),
+    /// How opaque the part is, above 0 and up to 1 (default 1). Below 1 the part is
+    /// drawn translucent; see `docs/opacity.md`.
+    #[serde(default = "opaque")]
+    pub opacity: f64,
     pub geometry: Option<Geometry>,
     /// Copies of the body, applied before `mirror`. See `docs/cockroach-structure.md`.
     #[serde(default)]
@@ -171,6 +179,7 @@ pub enum StructureError {
     UnknownParent { part: String, parent: String },
     ParentCycle(String),
     InvalidColour(String),
+    InvalidOpacity(String),
     InvalidDimension { part: String, what: &'static str },
     InnerNotLessThanOuter(String),
     InvalidSector { part: String, reason: &'static str },
@@ -224,6 +233,9 @@ impl fmt::Display for StructureError {
             Self::ParentCycle(id) => write!(f, "part '{id}' is part of a parent cycle"),
             Self::InvalidColour(id) => {
                 write!(f, "part '{id}' colour channels must be finite and within [0, 1]")
+            }
+            Self::InvalidOpacity(id) => {
+                write!(f, "part '{id}' opacity must be finite, above 0 and at most 1")
             }
             Self::InvalidDimension { part, what } => {
                 write!(f, "part '{part}': {what} must be finite and positive")
@@ -289,12 +301,18 @@ pub struct Part {
     parent: Option<usize>,
     description: String,
     colour: [f64; 3],
+    opacity: f64,
     geometry: Option<Geometry>,
     repeat: Option<Repeat>,
     mirror: Option<MirrorAxis>,
 }
 
 impl Part {
+    /// 1 for an opaque part; otherwise above 0 and below 1.
+    #[must_use]
+    pub const fn opacity(&self) -> f64 {
+        self.opacity
+    }
     #[must_use]
     pub const fn repeat(&self) -> Option<&Repeat> {
         self.repeat.as_ref()
@@ -486,6 +504,10 @@ impl Structure {
             if ![r, g, b].iter().all(|c| c.is_finite() && (0.0..=1.0).contains(c)) {
                 return Err(StructureError::InvalidColour(part.id.clone()));
             }
+            let opacity = part.opacity;
+            if !(opacity.is_finite() && opacity > 0.0 && opacity <= 1.0) {
+                return Err(StructureError::InvalidOpacity(part.id.clone()));
+            }
             if let Some(geometry) = &part.geometry {
                 validate_geometry(&part.id, geometry, &meshes)?;
             } else if part.repeat.is_some() || part.mirror.is_some() {
@@ -502,6 +524,7 @@ impl Structure {
                 parent,
                 description: part.description.clone(),
                 colour: [r, g, b],
+                opacity,
                 geometry: part.geometry.clone(),
                 repeat: part.repeat,
                 mirror: part.mirror,
@@ -719,6 +742,23 @@ fn validate_layers(
 }
 
 impl StructureGeometry {
+    /// One `[r, g, b, opacity]` per mesh vertex: the part colours with the
+    /// opacity `opacity_of_part` gives for the part that owns the vertex.
+    /// Vertices owned by no part (such as particles) are opaque.
+    #[must_use]
+    pub fn rgba_with(&self, opacity_of_part: impl Fn(usize) -> f64) -> Vec<[f64; 4]> {
+        let mut out: Vec<[f64; 4]> =
+            self.colours.iter().map(|c| [c[0], c[1], c[2], 1.0]).collect();
+        let indices = self.mesh.indices();
+        for range in &self.ranges {
+            let opacity = opacity_of_part(range.part_index).clamp(0.0, 1.0);
+            for &i in &indices[range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3] {
+                out[i as usize][3] = opacity;
+            }
+        }
+        out
+    }
+
     /// Assemble a geometry from parts built elsewhere in the crate.
     pub(crate) fn from_parts(
         mesh: TriangleMesh3,
@@ -1104,6 +1144,38 @@ mod tests {
         assert_eq!(g.part_of_triangle(0), Some(1));
         assert_eq!(g.part_of_triangle(total - 1), Some(2));
         assert_eq!(g.part_of_triangle(total), None);
+    }
+
+    #[test]
+    fn opacity_is_validated_and_reaches_the_vertices() {
+        let text = |opacity: &str| {
+            format!(
+                "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 16, parts: [\
+                 Part(id: \"a\", name: \"a\", parent: None, description: \"d\", colour: (0.5, 0.5, 0.5){opacity}, \
+                 geometry: Some(Extrusion(axis_length: 1.0, profile: Disc(radius: 1.0)))), \
+                 Part(id: \"b\", name: \"b\", parent: None, description: \"d\", colour: (0.5, 0.5, 0.5), \
+                 geometry: Some(Extrusion(axis_length: 1.0, profile: Disc(radius: 0.5))))])"
+            )
+        };
+        let s = Structure::from_ron_str(&text(", opacity: 0.3")).unwrap();
+        assert_eq!(s.parts()[0].opacity(), 0.3);
+        assert_eq!(s.parts()[1].opacity(), 1.0);
+        assert_eq!(Structure::from_ron_str(&text("")).unwrap().parts()[0].opacity(), 1.0);
+        for bad in ["0.0", "-0.5", "1.5"] {
+            assert_eq!(
+                Structure::from_ron_str(&text(&format!(", opacity: {bad}"))).unwrap_err(),
+                StructureError::InvalidOpacity("a".into()),
+                "{bad}"
+            );
+        }
+        // The vertices of each part get its opacity; a faded copy changes only that part.
+        let g = s.build_geometry().unwrap();
+        let rgba = g.rgba_with(|p| s.parts()[p].opacity());
+        assert_eq!(rgba.len(), g.mesh().vertices().len());
+        let first = |part: usize| g.mesh().indices()[g.ranges()[part].first_triangle * 3] as usize;
+        assert_eq!(rgba[first(0)], [0.5, 0.5, 0.5, 0.3]);
+        assert_eq!(rgba[first(1)][3], 1.0);
+        assert!(g.rgba_with(|_| 7.0).iter().all(|c| c[3] == 1.0), "clamped to 1");
     }
 
     #[test]
