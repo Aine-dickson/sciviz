@@ -2756,3 +2756,13 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - **Next action: B1** (particles: `Flow` and `Spread`, seeded and deterministic; tests for determinism, particles inside the container, count
   conserved), then B2 diffusion in a beaker. **Before B1 the user should look at the flower timeline live (Space, arrows, `,` `.`)** and
   say whether the captions and pacing are legible; B1 touches the design note (particle verbs), so check section 5 and the open decisions first.
+
+### Update 2026-11-22 (animation slice B1 done)
+
+- `crates/svf-core/src/structure_particles.rs`: `Spread`, `Flow`, containers, SplitMix64; 12 tests; workspace green (core 431). Design note section 16.
+- User is away and cannot view anything; nothing from A3/A4/B1 has been judged live. The live checks are still owed: flower timeline (Space,
+  arrows, `,` `.`, Home), caption wording, pacing.
+- **Next action: B2 part 1**, a `Spread`/`Flow` timeline action wired into `structure_animation` (RON: e.g. `Spread(id, count, from: (x,y,z), radius, inside: "<part>",
+  seed, for_s)`), with the container taken from a part and a sphere-mesh builder for drawing, then the diffusion-in-a-beaker fixture. Needs a
+  small decision first: how an action names a container (a cylinder-like part, or an explicit shape); proposal is an explicit shape in the action,
+  so no mesh test is needed for the first item. Present that to the user before building if they are reachable; otherwise take the explicit shape.

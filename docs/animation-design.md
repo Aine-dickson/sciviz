@@ -195,3 +195,26 @@ Built in `crates/svf-core/src/structure_animation.rs`, wired into `structure.rs`
   The ovary swell hides the swap only roughly (ovary 1.7x against the fruit's 1.6x/1.8x radii), so the swap is a small jump.
 - Camera values in a timeline are offsets from the fitted camera (as in views), so `pitch_deg: 0` is the default elevation, not level.
 - Not judged by the user: legibility, wording of captions, and live playback.
+
+## 16. Slice B1 result: particle generators in core (2026-11-22)
+
+New `crates/svf-core/src/structure_particles.rs`. **Core only: no timeline action, no Explorer drawing, no fixture yet** (that is B2).
+
+- `Spread` (diffusion): particles start in a small ball and take fixed-length steps in random directions. A step that would leave the
+  container is tried in the mirror direction, then skipped, so nothing leaves and the count never changes. The walk is replayed once
+  on a fixed time step when the spread is made; `position(i, t)` then reads and interpolates, so it is a pure function of the
+  specification and `t` (clamped to the walk).
+- `Flow` (water in a stem, blood in a vessel): particles travel along a polyline at a given speed, wrap from the end to the start, and sit
+  at fixed offsets within a lateral radius of the centre line. Evaluated directly from `t`; not clamped.
+- Containers: `Cylinder` (axis +Y), `Box3`, `Ball`, and `MeshContainer` (ray parity over a closed mesh; cost is one pass over the
+  triangles per question, so low-polygon containers only).
+- Determinism: SplitMix64 written here (first output for seed 0 is pinned in a test), only `+ - * /` and `sqrt` on floats, no hash-ordered
+  iteration. Not yet checked on a second platform; the argument is by construction.
+- Limits: 2000 particles, 20 million stored positions. Reflection is "try the mirror step, else stay", not a physical bounce; fine for a
+  picture, and stated here so it is not mistaken for physics.
+- 12 unit tests, run by Claude (release): known generator value, determinism and seed dependence, inside-container at every step, count
+  fixed, start region, spreading then levelling off, clamping and interpolation, mesh container agreeing with the cube it encloses,
+  bad input refused, flow near its path / at its speed / repeating after one lap / evenly spread.
+- Design changes from section 5: none to the verbs. `Spread` takes a start ball and a container shape instead of "a point or part" and "a closed
+  part"; connecting it to parts (a container taken from a part's own geometry, a path taken from a `Tube` part) is B2's job.
+- Decision for B2 (not needing Opus): particles are drawn as merged low-poly spheres in one extra mesh per frame, as section 6 says.
