@@ -97,4 +97,47 @@ Structure(
              camera: Some((yaw_deg: 0.0, pitch_deg: 0.0, zoom: 1.5)),
              show: ["fruit-stage"], peel: 0, section: Some((axis: Z, offset: 0.0, flip: false))),
     ],
+    // A fixed account of what happens after pollination, told in five beats. The fruit stage
+    // starts hidden (its first action is Show) and replaces the ovary at the end, because a
+    // part cannot change shape; the ovary and ovules swell first so the swap is not a jump.
+    // Timings are for reading, not measured. The petals and stamens fade as they fall (opacity).
+    timelines: [
+        Timeline(id: "pollination", name: "From flower to fruit",
+            camera: Some((yaw_deg: 30.0, pitch_deg: 25.0, zoom: 1.0)),
+            scenes: [
+                Scene(id: "pollination", beats: [
+                    Beat(id: "flower", actions: [
+                        Narrate(text: "A flower. The anthers make pollen; the ovary holds the ovules.", for_s: 4.0),
+                        Highlight(part: "anthers"),
+                    ]),
+                    Beat(id: "pollen-lands", actions: [
+                        Narrate(text: "An insect carries pollen to the sticky stigma.", for_s: 4.0),
+                        Highlight(part: "stigma"),
+                        Camera(yaw_deg: 20.0, pitch_deg: 10.0, zoom: 1.5, for_s: 3.0, ease: Smooth),
+                    ]),
+                    Beat(id: "tube", actions: [
+                        Narrate(text: "A pollen tube grows down the style to the ovules, and fertilises them.", for_s: 4.0),
+                        Highlight(part: "style"),
+                        Highlight(part: "ovules"),
+                    ]),
+                    Beat(id: "fall", actions: [
+                        Narrate(text: "The petals and stamens have done their job and fall away. The ovary swells.", for_s: 4.0),
+                        Move(part: "petals", by: (0.0, -14.0, 0.0), for_s: 4.0, ease: Smooth),
+                        Move(part: "stamens", by: (0.0, -14.0, 0.0), for_s: 4.0, ease: Smooth),
+                        Fade(part: "petals", to: 0.0, for_s: 4.0, ease: Smooth),
+                        Fade(part: "stamens", to: 0.0, for_s: 4.0, ease: Smooth),
+                        Grow(part: "ovary", to: 1.7, for_s: 4.0, ease: Smooth),
+                        Grow(part: "ovules", to: 1.6, for_s: 4.0, ease: Smooth),
+                    ]),
+                    Beat(id: "fruit", actions: [
+                        Hide(part: "petals"),
+                        Hide(part: "stamens"),
+                        Hide(part: "carpel"),
+                        Show(part: "fruit-stage"),
+                        Narrate(text: "The ovary has become a fruit. Each fertilised ovule has become a seed.", for_s: 4.0),
+                        Camera(yaw_deg: 0.0, pitch_deg: 0.0, zoom: 1.5, for_s: 3.0, ease: Smooth),
+                    ]),
+                ]),
+            ]),
+    ],
 )

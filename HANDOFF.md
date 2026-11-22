@@ -2692,3 +2692,97 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   (section while playing, scale-based hide, first particle item, captions only, RON vs a text syntax).
   Per-frame cost is NOT measured. **Next action: the user reviews the note and answers the open questions; only then
   start slice A1.**
+
+### Update 2026-11-22 (animation slice A1; a section bug found and fixed)
+
+- User answers on the animation note: sections disabled during play and available when paused; `Hide`/`Show`
+  instant, **fade and scale-based hiding are on the to-do list** (the renderer has no opacity: `blend: None`);
+  diffusion in a beaker is the first particle item; captions only; RON.
+- **A1 done:** `crates/svf-core/src/structure_animation.rs` (timeline types, validation, pure `pose_at`),
+  13 new unit tests. Full workspace tests (`cargo test --workspace --release`) passed after the change: svf-core
+  413 unit + cockroach 7 + flower 5 + heart 9 (4 real-mask tests ignored by design) + plant cell 6, explorer 79 and 12.
+  Next: A2 `apply_pose`.
+- **Found and fixed a regression:** `3e62a38` ("Find a clear section plane gap on dense meshes") moved the cut plane
+  to the middle of the next gap between vertex rings, up to half a ring spacing off the requested plane on coarse
+  meshes. Two older unit tests had been failing since then (`structure_blocks::a_shell_cut_leaves_a_ring_not_a_disc`,
+  `structure_section::stem_cut_along_the_axis_caps_the_tissues_it_crosses`); I confirmed they fail on a clean checkout
+  of the previous commit in both release and debug. Fix: stay just past the blocked run of vertices (`end + eps`),
+  and use the middle of the gap only when it is too narrow. All tests pass again, including the heart's 98 plane cuts.
+  The heart's live Explorer behaviour was not re-checked by eye after this change.
+- Flower and cell screenshots were retaken after the fix (the cell cut looks unchanged).
+- Note for future sessions: run the full test suite before trusting a branch; two tests were red for days.
+
+### Start here in a fresh session (2026-11-22)
+
+- Branch `b2-5e-heart-tool`, last commit `c4fe766`. Read `docs/animation-design.md` (sections 11 to 13), `docs/item-output-bar.md`
+  and `docs/svf-prismal-boundary.md` first. Do not re-read the whole handoff.
+- **Exact next action: slice A2**, `apply_pose(&StructureGeometry, &Pose) -> StructureGeometry` in
+  `crates/svf-core/src/structure_animation.rs`: per `PartRange`, scale about the part's bounding-box centre, then turns in order
+  (each about that centre), then add `offset`; keep vertex and triangle counts; skip nothing else (visibility is handled by
+  choosing which parts to build, as `Structure::visible_parts` does). Tests: a move keeps signed volume, scale k multiplies it
+  by k cubed, turns keep volume, bodies stay closed, counts unchanged, pose at t=0 equals the unposed geometry.
+- Then A3 (Explorer clock, Space, step and scrub keys, caption in the window title, `--at <s>`, measure frame cost), A4 (flower
+  `pollination` timeline), B1 (particles), B2 (diffusion beaker, then water up the stem).
+- Open to-dos: fade and opacity in the renderer; user to review the flower and cell citations; split the branch into PRs
+  (it holds the open stacked PRs #73 to #75, the heart work, the kidney track, the items and animation); KiTS licence unresolved;
+  user to eyeball the heart in the Explorer after the section fix.
+- Run the full suite before trusting anything: `cargo test --workspace --release` (all green at `c4fe766`).
+- Model: A2 and A3 are routine (Sonnet); any change to the design in `animation-design.md` needs Opus.
+
+### Update 2026-11-22 (animation slice A2 done)
+
+- `StructureGeometry::apply_pose(&Pose)` added in `crates/svf-core/src/structure_animation.rs`: per part, scale about the
+  bounding-box centre, then turns in order, then offset; a pose colour replaces the part's vertex colours. Counts, ranges
+  and winding unchanged; visibility is not applied (build only the visible parts). 5 new tests (move/scale/turn volume,
+  t=0 identity, colour). `cargo test --workspace --release`: svf-core 418 unit, all other suites green.
+- **Next action: A3** (Explorer clock, Space/step/scrub keys, caption in the window title, `--at <s>`, measure frame cost).
+  Then A4 flower `pollination` timeline, B1 particles, B2 diffusion beaker.
+
+### Update 2026-11-22 (animation slice A3 done)
+
+- Explorer timeline player: `--timeline <id>`, `--at <s>`, Space/Left/Right/`,`/`.`/Home/`T`; caption and time in the title;
+  section/peel/isolate/view refused while playing. Apply-pose highlights lighten the part. Details: `docs/animation-design.md` section 14.
+- Tests: `cargo test --workspace --release` green (core 419, explorer 83 incl. 4 new timeline tests). `--at 5 --screenshot`
+  run for a scratch stem timeline and looked right. **Not run: live playback in a window** (user to try Space, arrows, `,` `.`, Home).
+  No fixture has a timeline yet.
+- Frame cost: about 5.5 ms per pose on 82k triangles (scratch probe); heart not timed; real per-frame figure prints on pause.
+- **Next action: A4**, add a `pollination` timeline to `fixtures/structures/flower.ron` (stage parts are separate parts, shown/hidden
+  by Hide/Show), a test for it, screenshots at chosen `--at`, and record the saving vs stage views in `docs/item-output-bar.md`.
+
+### Update 2026-11-22 (animation slice A4 done)
+
+- `fixtures/structures/flower.ron` now has the `pollination` timeline (5 beats, 20 s, captions); test added; screenshots in
+  `docs/evidence/animation-a4-flower/`; register row updated; design note section 15. Camera pitch in timelines is an offset from the fitted camera.
+- **Next action: B1** (particles: `Flow` and `Spread`, seeded and deterministic; tests for determinism, particles inside the container, count
+  conserved), then B2 diffusion in a beaker. **Before B1 the user should look at the flower timeline live (Space, arrows, `,` `.`)** and
+  say whether the captions and pacing are legible; B1 touches the design note (particle verbs), so check section 5 and the open decisions first.
+
+### Update 2026-11-22 (animation slice B1 done)
+
+- `crates/svf-core/src/structure_particles.rs`: `Spread`, `Flow`, containers, SplitMix64; 12 tests; workspace green (core 431). Design note section 16.
+- User is away and cannot view anything; nothing from A3/A4/B1 has been judged live. The live checks are still owed: flower timeline (Space,
+  arrows, `,` `.`, Home), caption wording, pacing.
+- **Next action: B2 part 1**, a `Spread`/`Flow` timeline action wired into `structure_animation` (RON: e.g. `Spread(id, count, from: (x,y,z), radius, inside: "<part>",
+  seed, for_s)`), with the container taken from a part and a sphere-mesh builder for drawing, then the diffusion-in-a-beaker fixture. Needs a
+  small decision first: how an action names a container (a cylinder-like part, or an explicit shape); proposal is an explicit shape in the action,
+  so no mesh test is needed for the first item. Present that to the user before building if they are reachable; otherwise take the explicit shape.
+
+### Update 2026-11-22 (animation slice B2 done: particles in timelines, diffusion beaker)
+
+- `Spread` and `Flow` actions, `Pose.particles`, `StructureGeometry::with_particles`, `fixtures/structures/diffusion-beaker.ron` (+ test), Explorer shows them.
+  Design note section 17. Run: `cargo run --release -p svf-explorer -- --structure fixtures/structures/diffusion-beaker.ron --timeline spreading`.
+- Owed, because the user is away: live look at the flower (A4) and beaker (B2) timelines, caption wording and pacing, and whether 150 particles read as diffusion.
+- **Next options (pick with the user):** (1) water up the dicot stem with `Flow` (needs a xylem path in `dicot-stem.ron`); (2) a digestive-system or cell item
+  using timelines; (3) opacity in the renderer (to-do); (4) split `b2-5e-heart-tool` into PRs (still blocking any merge). Do not start 4 without the user.
+
+### Update 2026-11-22 (opacity built: O1 to O4)
+
+- Opacity done as planned (Opus plan, sorted alpha blending): renderer draws translucent triangles last, farthest first; `Part.opacity`;
+  `Fade` action; parts faded to nothing leave the scene; beaker has glass and water; flower petals fade. `docs/opacity.md`, design note section 18.
+  Deviation from the plan: opacity is looked up per part (`StructureGeometry::rgba_with`) rather than stored per vertex.
+- Verified: `cargo test --workspace --release` green (core 440, explorer 85, render 15, fixtures 7/2/6/9/6); screenshots in `docs/evidence/opacity/`
+  looked at (beaker 4 s and 28 s, flower 14 s). Sort cost 4.8 ms at 80k translucent triangles.
+- Owed (user away): live look at the flower and beaker timelines, now with translucency; whether washed-out dye through glass and water is acceptable
+  (opacities are 0.22 glass, 0.12 water; dye colour could be more saturated).
+- **Next options:** water up the dicot stem (`Flow`; xylem path; the stem could now have a translucent epidermis), a cell or digestive item, or splitting
+  the branch into PRs (user must be present).

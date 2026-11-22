@@ -1,6 +1,6 @@
 # Animation in SVF — design note (proposal for user review)
 
-Status: **proposal; nothing is implemented.** Written 2026-11-22. Decided with the user: first slice is
+Status: **approved by the user on 2026-11-22; slice A1 done (see section 13).** Written 2026-11-22. Decided with the user: first slice is
 poses and steps **plus** particle verbs; the author's words mirror Prismal's timeline words.
 Everything below is "proposed" until the user approves it. Context: `svf-prismal-boundary.md`
 (animation is an SVF capability; the line between tools is whether the learner runs an experiment),
@@ -126,12 +126,119 @@ Each slice: tests run by Claude, screenshots, register and handoff updated; the 
 Physics or equations (Prismal), learner-set variables, graphs, sound or narration audio, video export,
 vertex keyframes, opacity, instancing. Each can be reconsidered when an item needs it.
 
-## 11. Open questions for the user
+## 11. Decisions (user, 2026-11-22)
 
-1. Section while playing: disabled (proposed), or allowed with a slow-frame warning?
-2. Is scale-based hide acceptable until the renderer supports opacity?
-3. Which first particle item: diffusion in a beaker, or water up the stem?
-4. Narration: text captions only (proposed), with sound deferred?
-5. Should the file form stay RON (proposed, consistent with `structure.ron`), or should timelines get their own
-   Prismal-like text syntax? RON keeps one parser and one validator; a text syntax would match Prismal more closely
-   but costs a second parser.
+1. **Section, peel and isolate are disabled while playing and available when paused.**
+2. **`Hide` and `Show` are instant for now** (they waited for the renderer). Scale-based hiding is **not** built.
+   **Fade is built** (2026-11-22, `docs/opacity.md`): `Fade(part, to, for_s)` and per-part `opacity`.
+3. **First particle item: diffusion in a beaker** (B2). Water up the stem follows.
+4. **Captions only**, no sound.
+5. **RON** for the file form; no separate text syntax.
+
+## 12. Changes made while building A1 (so the note matches the code)
+
+- Actions are RON struct variants with named fields, e.g. `Narrate(text: "...", for_s: 3.0)`; every timed
+  action may take `at_s` (an offset inside its beat, default 0) and `ease` (`Linear` default, or `Smooth`).
+- `Hide(part)` and `Show(part)` take effect at `at_s`; the first of them on a part decides whether the part
+  starts shown (first is `Show`: hidden at the start; first is `Hide`: shown at the start).
+- A `Camera` action needs the timeline's start camera (`camera: Some((yaw_deg, pitch_deg, zoom))`), since the
+  core does not know the Explorer's fitted camera.
+- A grouping part (no geometry) given to `Show`, `Hide`, `Move`, `Colour` or `Highlight` stands for its
+  descendants, as in views. `Grow` and `Turn` need a part with geometry (they act about the part's own centre);
+  a named anchor is deferred.
+- Two `Grow`, two `Colour` or two `Camera` actions that overlap in time on the same target are refused.
+
+## 13. Slice A1 result (2026-11-22)
+
+Built in `crates/svf-core/src/structure_animation.rs`, wired into `structure.rs` (`timelines` field,
+`Structure::timelines()`, four new `StructureError` variants) and `lib.rs`. No renderer or Explorer change.
+
+- Actions: Narrate, Wait, Show, Hide, Highlight, Move, Grow, Turn, Colour, Camera (section 12 describes the form).
+- `Timeline::pose_at(t)` is pure; `t` is clamped to the timeline; `beats()` gives start and end times for stepping.
+- 13 unit tests, run by Claude in a release build, all passed: pure and repeatable poses, easing, groups versus
+  `Grow`, chained `Grow`, first `Show`/`Hide` deciding the initial state, ordered turns, colour from the authored
+  colour, camera from the start camera, captions, highlights, beat order, and refusal of bad input.
+- Not done and not claimed: `apply_pose` (A2), the Explorer clock and keys (A3), any fixture timeline (A4), particle verbs (B1).
+- Pivot note: `Grow` and `Turn` act about each part's own centre; the centre is chosen when the pose is applied (A2).
+
+## 14. Slice A2 and A3 result (2026-11-22)
+
+- **A2:** `StructureGeometry::apply_pose` (core). Scale about the bounding-box centre, then turns in order about the same
+  centre, then offset; a pose colour replaces the part colour; a highlighted part is lightened 45% towards white (the renderer
+  has no outline). Visibility is applied by building only the visible parts, not by `apply_pose`.
+- **A3:** Explorer clock (`apps/explorer`). `--timeline <id>` loads a timeline paused at 0; `--at <s>` shows that moment (first
+  timeline if none named) and, with `--screenshot`, writes it. Keys: Space play/pause (loads the first timeline if none),
+  Left/Right scrub 0.5 s, `,` and `.` previous/next beat start, Home rewind, `T` next timeline. The caption and
+  `paused|playing t/T s` are in the window title. The timeline camera is applied while a timeline moves (a mouse drag lasts until
+  the next frame while playing); explicit `--camera-*` flags or `--view` win at start-up.
+- Section, peel, isolate and view keys are refused while playing, and work on the paused pose (the section cuts the posed mesh).
+- Part geometry is rebuilt only when the set of visible parts changes (a Show/Hide instant); every other frame is `apply_pose`
+  on the cached geometry plus the upload.
+- **Measured (scratch probe, release, not committed):** the cockroach, 82,016 triangles, `set_time` (pose and clone, no section)
+  costs about 5.5 ms per call. The upload and the drawing were not timed by that probe; playing prints
+  `pose + upload` per frame when you pause or the timeline ends. The heart (denser) has not been timed.
+- Known limit: if a pose hides every visible part, the frame is refused ("no part with geometry would be visible") and the
+  previous frame stays.
+- Evidence: `docs/evidence/animation-a3-stem-at-5s.png` (stem, skin hidden, pith half-way up, from a scratch timeline).
+  Live playback with a real window has **not** been run by Claude; the user has not tried the keys.
+
+## 15. Slice A4 result: the flower's `pollination` timeline (2026-11-22)
+
+- Added to `fixtures/structures/flower.ron`: 5 beats of 4 s (20 s): flower (anthers highlighted), pollen lands (stigma highlighted,
+  camera moves in), pollen tube (style and ovules highlighted), petals and stamens fall while the ovary and ovules swell, the fruit
+  stage replaces the carpel (Hide/Show, camera to the fruit). One new test, `the_pollination_timeline_swaps_the_flower_for_the_fruit`
+  (poses at start, middle and end; all 41 poses built at 0.5 s steps are closed meshes). Run by Claude, release build, passing.
+- Screenshots: `docs/evidence/animation-a4-flower/at-{1,6,10,15,20}.png` (via `--timeline pollination --at <s>`). I looked at 1, 15 and 20.
+- **Saving versus stage views:** the three views of the flower still exist, but the story needed no extra parts and no new fixture:
+  about 45 lines of RON on top of the existing parts. The "stages need separate parts" limit remains: the fruit is a second set of parts.
+  The ovary swell hides the swap only roughly (ovary 1.7x against the fruit's 1.6x/1.8x radii), so the swap is a small jump.
+- Camera values in a timeline are offsets from the fitted camera (as in views), so `pitch_deg: 0` is the default elevation, not level.
+- Not judged by the user: legibility, wording of captions, and live playback.
+
+## 16. Slice B1 result: particle generators in core (2026-11-22)
+
+New `crates/svf-core/src/structure_particles.rs`. **Core only: no timeline action, no Explorer drawing, no fixture yet** (that is B2).
+
+- `Spread` (diffusion): particles start in a small ball and take fixed-length steps in random directions. A step that would leave the
+  container is tried in the mirror direction, then skipped, so nothing leaves and the count never changes. The walk is replayed once
+  on a fixed time step when the spread is made; `position(i, t)` then reads and interpolates, so it is a pure function of the
+  specification and `t` (clamped to the walk).
+- `Flow` (water in a stem, blood in a vessel): particles travel along a polyline at a given speed, wrap from the end to the start, and sit
+  at fixed offsets within a lateral radius of the centre line. Evaluated directly from `t`; not clamped.
+- Containers: `Cylinder` (axis +Y), `Box3`, `Ball`, and `MeshContainer` (ray parity over a closed mesh; cost is one pass over the
+  triangles per question, so low-polygon containers only).
+- Determinism: SplitMix64 written here (first output for seed 0 is pinned in a test), only `+ - * /` and `sqrt` on floats, no hash-ordered
+  iteration. Not yet checked on a second platform; the argument is by construction.
+- Limits: 2000 particles, 20 million stored positions. Reflection is "try the mirror step, else stay", not a physical bounce; fine for a
+  picture, and stated here so it is not mistaken for physics.
+- 12 unit tests, run by Claude (release): known generator value, determinism and seed dependence, inside-container at every step, count
+  fixed, start region, spreading then levelling off, clamping and interpolation, mesh container agreeing with the cube it encloses,
+  bad input refused, flow near its path / at its speed / repeating after one lap / evenly spread.
+- Design changes from section 5: none to the verbs. `Spread` takes a start ball and a container shape instead of "a point or part" and "a closed
+  part"; connecting it to parts (a container taken from a part's own geometry, a path taken from a `Tube` part) is B2's job.
+- Decision for B2 (not needing Opus): particles are drawn as merged low-poly spheres in one extra mesh per frame, as section 6 says.
+
+## 17. Slice B2 result: particles in timelines, and the diffusion beaker (2026-11-22)
+
+- **Two new actions** in `structure_animation.rs`: `Spread(id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s)`
+  and `Flow(id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s)`. `inside` is an explicit shape written in the action
+  (`Cylinder`, `Box` or `Ball`), as proposed in the handoff: no part geometry is read, so the author states the water region. `Pose.particles` lists
+  the groups running at time `t`. A `Spread` appears when it starts and rests where it ended; a `Flow` is shown only while it runs. Ids must be unique
+  within a timeline; bad input is refused with a reason (count, start outside the container, colours, radii, path, negative times).
+- **Drawing:** `StructureGeometry::with_particles` adds each particle as a closed 20-triangle sphere after the parts (and after any section cut, so a
+  cut does not slice them). Particle triangles belong to no part, so they are not pickable. The Explorer shows them with no other change.
+- **Fixture:** `fixtures/structures/diffusion-beaker.ron`: base and back wall of a beaker (front half left out; water is not drawn because the
+  renderer is opaque), a 28 s timeline `spreading` (3 s intro, then 150 dye particles for 25 s with three captions). Schematic; says so in the file.
+- **Tests (run by Claude, release):** core particles 14, timeline particle actions 3 new, `tests/diffusion_fixture.rs` 2 (inside the water at 281 times, tight
+  drop then spread, every drawn frame closed), Explorer 1 (particles drawn, not parts, gone after scrubbing back).
+- **Cost:** about 0.15 ms per `set_time` for the beaker with 150 particles (scratch probe, release; no section, no upload).
+- Screenshots: `docs/evidence/animation-b2-beaker/at-{0,4,12,28}.png`; I looked at 4 and 12. A first attempt put the half wall on the camera side
+  (angles run from +x towards -z in `Sector`); the fixture uses `first_angle_deg: 225.0` for the back.
+- **Not done:** water up the dicot stem (needs a longitudinal xylem path in the stem fixture; the `Flow` action exists and is tested only on a plain path),
+  atoms combining (`Meet`), fade or opacity (water and glass are both opaque; the front half is simply absent). The user has not seen any of it live.
+
+## 18. Opacity built (2026-11-22)
+
+See `docs/opacity.md`. New action `Fade(part, to, for_s, at_s, ease)`; `PartPose.opacity`; a part faded to nothing is left out of the scene.
+The beaker now has a translucent glass wall and water (no more cut-away); the flower's petals and stamens fade as they fall.
+The to-do "fade and opacity in the renderer" is done. Still not built: scale-based hide, `Meet`, water up the stem.

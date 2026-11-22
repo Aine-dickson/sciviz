@@ -1,0 +1,53 @@
+// Diffusion in a beaker, schematic. Proportions and times are invented, NOT measured data.
+// Proof of concept for the item register (docs/item-output-bar.md); not for lessons as it stands.
+// The glass and the water are translucent (opacity), so the dye can be seen through them. The
+// particles are a picture of random motion, made by SVF from a fixed seed; they are not a
+// simulation of any real dye.
+// Axis is +Y. Units are cm.
+Structure(
+    version: 1,
+    name: "Diffusion of a dye in still water (beaker)",
+    units: "cm",
+    reference: "To be confirmed by the author: textbook account of diffusion as the net movement of randomly moving particles from where they are more crowded to where they are less crowded. Schematic.",
+    circle_segments: 48,
+    parts: [
+        Part(id: "beaker", name: "Beaker", parent: None,
+             description: "A glass beaker holding still water.",
+             colour: (0.5, 0.5, 0.5), geometry: None),
+        Part(id: "base", name: "Base", parent: Some("beaker"),
+             description: "The bottom of the beaker.",
+             colour: (0.55, 0.70, 0.78),
+             geometry: Some(Extrusion(axis_length: 0.3, profile: Disc(radius: 3.2)))),
+        Part(id: "wall", name: "Glass wall", parent: Some("beaker"),
+             description: "The glass wall of the beaker.",
+             colour: (0.65, 0.80, 0.88), opacity: 0.22,
+             geometry: Some(Extrusion(axis_length: 8.0, profile: Annulus(inner: 3.0, outer: 3.2)))),
+        Part(id: "water", name: "Water", parent: Some("beaker"),
+             description: "Still water. Nothing is stirring it.",
+             colour: (0.45, 0.65, 0.95), opacity: 0.12,
+             geometry: Some(Extrusion(axis_length: 7.7, profile: Disc(radius: 2.98)))),
+    ],
+    layers: [],
+    views: [],
+    // One drop of dye is added at the top; its particles spread through the water by random motion alone.
+    timelines: [
+        Timeline(id: "spreading", name: "A drop of dye spreads out",
+            camera: Some((yaw_deg: 0.0, pitch_deg: -10.0, zoom: 1.1)),
+            scenes: [
+                Scene(id: "diffusion", beats: [
+                    Beat(id: "still", actions: [
+                        Narrate(text: "A beaker of still water. Nothing is stirring it.", for_s: 3.0),
+                    ]),
+                    Beat(id: "spread", actions: [
+                        Spread(id: "dye", count: 150, from: (0.0, 6.6, 0.0), radius: 0.4,
+                               inside: Cylinder(base: (0.0, 0.3, 0.0), radius: 2.9, height: 7.4),
+                               step: 0.2, seed: 7, particle_radius: 0.11, colour: (0.85, 0.15, 0.45),
+                               for_s: 25.0),
+                        Narrate(text: "A drop of dye is added at the top. All its particles start close together.", for_s: 7.0),
+                        Narrate(text: "The particles keep moving about at random. Some bump into others, and they drift apart.", for_s: 9.0, at_s: 7.0),
+                        Narrate(text: "Nothing pushes the dye. It spreads because there is more room where the particles are few.", for_s: 9.0, at_s: 16.0),
+                    ]),
+                ]),
+            ]),
+    ],
+)

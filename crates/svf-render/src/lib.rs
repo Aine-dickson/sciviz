@@ -166,7 +166,15 @@ pub struct SceneRenderer {
     vector_vertex_buffer: wgpu::Buffer,
     vector_vertex_count: u32,
     mesh_vertex_count: u32,
+    /// Number of indices of the opaque triangles in `mesh_index_buffer`.
     mesh_index_count: u32,
+    /// Alpha-blended, depth-tested, no depth write; see `docs/opacity.md`.
+    translucent_pipeline: wgpu::RenderPipeline,
+    translucent_index_buffer: wgpu::Buffer,
+    translucent_index_count: u32,
+    /// Kept on the CPU so the translucent triangles can be sorted again when the camera moves.
+    cpu_vertices: Vec<MeshVertex>,
+    translucent_triangles: Vec<[u32; 3]>,
     _depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
 }
@@ -193,7 +201,21 @@ impl SceneRenderer {
             bytemuck::bytes_of(&uniform),
         );
         self.camera = camera;
+        self.sort_translucent();
         Ok(())
+    }
+
+    /// Writes the translucent triangles into their index buffer, farthest from
+    /// the camera first, so nearer ones blend over farther ones.
+    fn sort_translucent(&self) {
+        if self.translucent_triangles.is_empty() {
+            return;
+        }
+        let eye = self.camera.look_at().position().to_array();
+        let eye = [eye[0] as f32, eye[1] as f32, eye[2] as f32];
+        let sorted = sort_translucent_indices(&self.cpu_vertices, &self.translucent_triangles, eye);
+        self.queue
+            .write_buffer(&self.translucent_index_buffer, 0, bytemuck::cast_slice(&sorted));
     }
 
     /// Whether the camera headlight shades the mesh surface.
@@ -225,6 +247,17 @@ impl SceneRenderer {
         colours: &[[f64; 3]],
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_coloured_mesh(mesh, colours)?;
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
+    }
+
+    /// Like [`Self::new_with_coloured_mesh`], with an opacity per vertex
+    /// (0 to 1; below 1 the triangle is drawn translucent after the opaque ones).
+    pub async fn new_with_coloured_mesh_rgba(
+        window: Arc<Window>,
+        mesh: &TriangleMesh3,
+        colours: &[[f64; 4]],
+    ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = convert_coloured_mesh_rgba(mesh, colours)?;
         Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
     }
 
@@ -472,20 +505,47 @@ impl SceneRenderer {
             cache: None,
         });
 
+        let translucent_targets = [Some(wgpu::ColorTargetState {
+            format: config.format,
+            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
+        let translucent_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("svf-translucent-triangle-mesh-pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &mesh_shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &mesh_buffers,
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: None,
+                ..Default::default()
+            },
+            // Tested against the opaque depth but never written, so translucent
+            // triangles do not hide each other; their order does the work.
+            depth_stencil: Some(line_depth_state()),
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &mesh_shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &translucent_targets,
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+
         let mesh_vertex_count =
             u32::try_from(mesh_vertices.len()).map_err(|_| RenderError::MeshConversion)?;
-        let mesh_index_count =
-            u32::try_from(mesh_indices.len()).map_err(|_| RenderError::MeshConversion)?;
         let mesh_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("svf-scientific-mesh-vertex-buffer"),
             contents: bytemuck::cast_slice(&mesh_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-        let mesh_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("svf-scientific-mesh-index-buffer"),
-            contents: bytemuck::cast_slice(&mesh_indices),
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-        });
+        let index_sets = build_index_sets(&device, &mesh_vertices, &mesh_indices)?;
         let vector_vertex_count =
             u32::try_from(vector_vertices.len()).map_err(|_| RenderError::VectorGlyphConversion)?;
         let vector_vertex_buffer = if vector_vertices.is_empty() {
@@ -505,7 +565,7 @@ impl SceneRenderer {
 
         tracing_adapter_info(&adapter);
 
-        Ok(Self {
+        let renderer = Self {
             instance,
             window,
             surface,
@@ -521,14 +581,21 @@ impl SceneRenderer {
             vertex_buffer,
             vertex_count,
             mesh_vertex_buffer,
-            mesh_index_buffer,
+            mesh_index_buffer: index_sets.opaque_buffer,
             vector_vertex_buffer,
             vector_vertex_count,
             mesh_vertex_count,
-            mesh_index_count,
+            mesh_index_count: index_sets.opaque_count,
+            translucent_pipeline,
+            translucent_index_buffer: index_sets.translucent_buffer,
+            translucent_index_count: index_sets.translucent_count,
+            cpu_vertices: mesh_vertices,
+            translucent_triangles: index_sets.translucent_triangles,
             _depth_texture: depth_texture,
             depth_view,
-        })
+        };
+        renderer.sort_translucent();
+        Ok(renderer)
     }
 
     /// Update scientific mesh buffers without recreating the renderer.
@@ -543,9 +610,13 @@ impl SceneRenderer {
             u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
         let index_count = u32::try_from(indices.len()).map_err(|_| RenderError::MeshConversion)?;
 
-        if vertex_count != self.mesh_vertex_count || index_count != self.mesh_index_count {
+        if vertex_count != self.mesh_vertex_count
+            || index_count != self.mesh_index_count
+            || self.translucent_index_count != 0
+        {
             return Err(RenderError::MeshBufferSizeChanged);
         }
+        self.cpu_vertices = vertices.clone();
 
         self.queue
             .write_buffer(&self.mesh_vertex_buffer, 0, bytemuck::cast_slice(&vertices));
@@ -563,25 +634,38 @@ impl SceneRenderer {
         mesh: &TriangleMesh3,
         colours: &[[f64; 3]],
     ) -> Result<(), RenderError> {
-        let (vertices, indices) = convert_coloured_mesh(mesh, colours)?;
+        let rgba: Vec<[f64; 4]> = colours.iter().map(|c| [c[0], c[1], c[2], 1.0]).collect();
+        self.replace_coloured_mesh_rgba(mesh, &rgba)
+    }
+
+    /// Like [`Self::replace_coloured_mesh`], with an opacity per vertex. A
+    /// triangle is translucent when its first vertex has opacity below 1 (all
+    /// vertices of a part share one). On error the previous mesh stays.
+    pub fn replace_coloured_mesh_rgba(
+        &mut self,
+        mesh: &TriangleMesh3,
+        colours: &[[f64; 4]],
+    ) -> Result<(), RenderError> {
+        let (vertices, indices) = convert_coloured_mesh_rgba(mesh, colours)?;
         if vertices.is_empty() || indices.is_empty() {
             return Err(RenderError::MeshConversion);
         }
         let vertex_count =
             u32::try_from(vertices.len()).map_err(|_| RenderError::MeshConversion)?;
-        let index_count = u32::try_from(indices.len()).map_err(|_| RenderError::MeshConversion)?;
+        let index_sets = build_index_sets(&self.device, &vertices, &indices)?;
         self.mesh_vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("svf-scientific-mesh-vertex-buffer"),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-        self.mesh_index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("svf-scientific-mesh-index-buffer"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-        });
+        self.mesh_index_buffer = index_sets.opaque_buffer;
+        self.mesh_index_count = index_sets.opaque_count;
+        self.translucent_index_buffer = index_sets.translucent_buffer;
+        self.translucent_index_count = index_sets.translucent_count;
+        self.translucent_triangles = index_sets.translucent_triangles;
+        self.cpu_vertices = vertices;
         self.mesh_vertex_count = vertex_count;
-        self.mesh_index_count = index_count;
+        self.sort_translucent();
         Ok(())
     }
 
@@ -693,7 +777,9 @@ impl SceneRenderer {
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_vertex_buffer(0, self.mesh_vertex_buffer.slice(..));
             pass.set_index_buffer(self.mesh_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..self.mesh_index_count, 0, 0..1);
+            if self.mesh_index_count > 0 {
+                pass.draw_indexed(0..self.mesh_index_count, 0, 0..1);
+            }
 
             pass.set_pipeline(&self.pipeline);
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -701,6 +787,18 @@ impl SceneRenderer {
 
             pass.set_vertex_buffer(0, self.vector_vertex_buffer.slice(..));
             pass.draw(0..self.vector_vertex_count, 0..1);
+
+            // Translucent triangles last, farthest first, over everything opaque
+            // (including the reference lines, which they should tint).
+            if self.translucent_index_count > 0 {
+                pass.set_pipeline(&self.translucent_pipeline);
+                pass.set_vertex_buffer(0, self.mesh_vertex_buffer.slice(..));
+                pass.set_index_buffer(
+                    self.translucent_index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                pass.draw_indexed(0..self.translucent_index_count, 0, 0..1);
+            }
         }
     }
 
@@ -901,6 +999,16 @@ fn convert_coloured_mesh(
     mesh: &TriangleMesh3,
     colours: &[[f64; 3]],
 ) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
+    let rgba: Vec<[f64; 4]> = colours.iter().map(|c| [c[0], c[1], c[2], 1.0]).collect();
+    convert_coloured_mesh_rgba(mesh, &rgba)
+}
+
+/// Colours are sRGB display values and opacity, all in 0 to 1. Opacity is
+/// kept as given (blending happens in the surface's own colour space).
+fn convert_coloured_mesh_rgba(
+    mesh: &TriangleMesh3,
+    colours: &[[f64; 4]],
+) -> Result<(Vec<MeshVertex>, Vec<u32>), RenderError> {
     if mesh.vertices().len() != colours.len()
         || colours.iter().flatten().any(|c| !c.is_finite() || !(0.0..=1.0).contains(c))
     {
@@ -912,10 +1020,79 @@ fn convert_coloured_mesh(
             srgb_to_linear(colour[0]) as f32,
             srgb_to_linear(colour[1]) as f32,
             srgb_to_linear(colour[2]) as f32,
-            1.0,
+            colour[3] as f32,
         ];
     }
     Ok((vertices, indices))
+}
+
+/// Splits triangles into opaque indices (original order kept) and translucent
+/// triangles. A triangle is translucent when its first vertex has alpha below 1.
+fn partition_triangles(vertices: &[MeshVertex], indices: &[u32]) -> (Vec<u32>, Vec<[u32; 3]>) {
+    let mut opaque = Vec::with_capacity(indices.len());
+    let mut translucent = Vec::new();
+    for t in indices.chunks_exact(3) {
+        if vertices[t[0] as usize].color[3] < 1.0 {
+            translucent.push([t[0], t[1], t[2]]);
+        } else {
+            opaque.extend_from_slice(t);
+        }
+    }
+    (opaque, translucent)
+}
+
+/// Translucent triangles as an index list, farthest centroid from `eye` first.
+/// Equal distances keep their original order, so the result is deterministic.
+fn sort_translucent_indices(
+    vertices: &[MeshVertex],
+    triangles: &[[u32; 3]],
+    eye: [f32; 3],
+) -> Vec<u32> {
+    let distance = |t: &[u32; 3]| -> f32 {
+        let mut centre = [0.0f32; 3];
+        for &i in t {
+            for axis in 0..3 {
+                centre[axis] += vertices[i as usize].position[axis] / 3.0;
+            }
+        }
+        (0..3).map(|a| (centre[a] - eye[a]).powi(2)).sum()
+    };
+    let mut keyed: Vec<(f32, &[u32; 3])> = triangles.iter().map(|t| (distance(t), t)).collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
+    keyed.into_iter().flat_map(|(_, t)| t.iter().copied()).collect()
+}
+
+struct IndexSets {
+    opaque_buffer: wgpu::Buffer,
+    opaque_count: u32,
+    translucent_buffer: wgpu::Buffer,
+    translucent_count: u32,
+    translucent_triangles: Vec<[u32; 3]>,
+}
+
+/// Opaque and translucent index buffers for a mesh. The translucent buffer
+/// starts in source order; `sort_translucent` rewrites it for the camera.
+fn build_index_sets(
+    device: &wgpu::Device,
+    vertices: &[MeshVertex],
+    indices: &[u32],
+) -> Result<IndexSets, RenderError> {
+    let (opaque, translucent_triangles) = partition_triangles(vertices, indices);
+    let opaque_count = u32::try_from(opaque.len()).map_err(|_| RenderError::MeshConversion)?;
+    let translucent: Vec<u32> = translucent_triangles.iter().flatten().copied().collect();
+    let translucent_count =
+        u32::try_from(translucent.len()).map_err(|_| RenderError::MeshConversion)?;
+    let opaque_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("svf-scientific-mesh-index-buffer"),
+        contents: bytemuck::cast_slice(&opaque),
+        usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+    });
+    let translucent_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("svf-translucent-mesh-index-buffer"),
+        contents: bytemuck::cast_slice(&translucent),
+        usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+    });
+    Ok(IndexSets { opaque_buffer, opaque_count, translucent_buffer, translucent_count, translucent_triangles })
 }
 
 fn convert_mapped_surface(
@@ -1139,6 +1316,7 @@ fn tracing_adapter_info(adapter: &wgpu::Adapter) {
 
 #[cfg(test)]
 mod tests {
+    use super::{convert_coloured_mesh_rgba, partition_triangles, sort_translucent_indices, MeshVertex};
     use super::*;
     use svf_core::{
         dataset::Dataset,
@@ -1416,5 +1594,56 @@ mod tests {
         assert_eq!(off.eye_shading[3], 0.0);
         assert_eq!(on.view_projection, off.view_projection);
         assert_eq!(size_of::<CameraUniform>(), 80);
+    }
+
+    fn vertex(x: f32, y: f32, z: f32, alpha: f32) -> MeshVertex {
+        MeshVertex { position: [x, y, z], color: [0.5, 0.5, 0.5, alpha] }
+    }
+
+    /// Three triangles along +Z at depths 1, 2 and 3 (vertices 0-8); the middle one is opaque.
+    fn three_layers() -> (Vec<MeshVertex>, Vec<u32>) {
+        let mut v = Vec::new();
+        for (depth, alpha) in [(1.0, 0.5), (2.0, 1.0), (3.0, 0.5)] {
+            v.push(vertex(0.0, 0.0, depth, alpha));
+            v.push(vertex(1.0, 0.0, depth, alpha));
+            v.push(vertex(0.0, 1.0, depth, alpha));
+        }
+        (v, (0..9).collect())
+    }
+
+    #[test]
+    fn triangles_split_into_opaque_in_order_and_translucent() {
+        let (v, i) = three_layers();
+        let (opaque, translucent) = partition_triangles(&v, &i);
+        assert_eq!(opaque, [3, 4, 5]);
+        assert_eq!(translucent, [[0, 1, 2], [6, 7, 8]]);
+    }
+
+    #[test]
+    fn translucent_triangles_are_sorted_farthest_first_for_the_eye() {
+        let (v, i) = three_layers();
+        let (_, translucent) = partition_triangles(&v, &i);
+        // Eye on the -Z side: the triangle at depth 3 is farthest and goes first.
+        assert_eq!(sort_translucent_indices(&v, &translucent, [0.0, 0.0, -10.0]), [6, 7, 8, 0, 1, 2]);
+        // Eye on the +Z side: the order reverses.
+        assert_eq!(sort_translucent_indices(&v, &translucent, [0.0, 0.0, 10.0]), [0, 1, 2, 6, 7, 8]);
+        // Equal distances keep the source order (deterministic).
+        assert_eq!(sort_translucent_indices(&v, &translucent, [0.0, 0.0, 2.0]), [0, 1, 2, 6, 7, 8]);
+        assert!(sort_translucent_indices(&v, &[], [0.0; 3]).is_empty());
+    }
+
+    #[test]
+    fn opacity_is_carried_to_the_vertices_and_validated() {
+        use svf_core::{geometry::TriangleMesh3, spatial::WorldPoint3};
+        let mesh = TriangleMesh3::new(
+            vec![WorldPoint3::new(0.0, 0.0, 0.0), WorldPoint3::new(1.0, 0.0, 0.0), WorldPoint3::new(0.0, 1.0, 0.0)],
+            vec![0, 1, 2],
+        )
+        .unwrap();
+        let (vertices, _) = convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, 0.25]; 3]).unwrap();
+        assert!(vertices.iter().all(|v| (v.color[3] - 0.25).abs() < 1e-6));
+        assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, 1.5]; 3]).is_err());
+        assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, f64::NAN]; 3]).is_err());
+        assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, 1.0]; 2]).is_err());
     }
 }
