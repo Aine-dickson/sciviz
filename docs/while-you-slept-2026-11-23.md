@@ -26,3 +26,12 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
 - **Decision:** `PartPose` gained `turn_pivots` parallel to `turns` instead of changing the `turns` tuple, so existing
   code and tests are untouched.
 - The circuit switch and the bar-magnet compass are NOT retrofitted; the circuit is re-authored in C3.
+
+## C2.3 Rounded routes (done, committed)
+
+- New module `structure_route` plus RON `corner_radius` / `point_spacing` on `Tube` and on the `Flow` action. Spec in
+  `docs/animation-design.md` section 28.
+- **Decision:** routing between *named* points is left to the C3 item-document compiler (it resolves names to coordinates);
+  the engine only rounds corners. A tube with `corner_radius` takes exactly one `half_widths` entry (a varying width along a
+  routed tube is not supported; say if you want it).
+- **Decision:** a radius too big for its straight run is an error, never silently shrunk.

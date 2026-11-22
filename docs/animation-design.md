@@ -403,3 +403,23 @@ about its base). Without `about` the turn is about the part's own centre as befo
   the hinge vertex in place at half way, and a hinge moves with a `Move`.
 - **Not retrofitted yet:** the circuit switch still fakes the hinge with a turn plus a move; it is re-authored in C3.
 
+## 28. Rounded routes (C2.3, 2026-11-23)
+
+Wires, guts and airways are straight runs joined by bends. Authors list the **corner points** and one radius; SVF makes the
+arcs. Module `structure_route` (`rounded_route(points, radius, spacing)`) does the work, and two RON fields expose it:
+
+- `Tube(path: [corners...], half_widths: [(a, b)], corner_radius: Some(r), point_spacing: Some(s))`. Then `half_widths`
+  has exactly one entry, used along the whole route.
+- `Flow(path: [corners...], corner_radius: Some(r), point_spacing: Some(s), ...)`.
+- `point_spacing` defaults to `radius / 3`. Straight runs and arcs are both sampled so that no two neighbouring points are
+  further apart than it (even spacing is what the tube bend check needs; see section 15 on the digestive system).
+- Each interior corner `B` becomes the circular arc of radius `r` that touches both segments, starting `r / tan(theta / 2)`
+  from `B`. It works in 3D (in the plane of the corner). Points on a straight line are not bent; repeated points are
+  ignored; the first and last points are exact.
+- Refused with a reason: a route that doubles back, and a radius too large for the straight run between two bends.
+  Nothing shrinks silently.
+- **Routing between named points** is not an engine feature. The item-document compiler (C3) resolves names such as
+  `cell.negative` to coordinates and then calls this; the engine only needs the rounding.
+- **Tests:** arcs at the exact radius, even spacing, 3D bends in one plane, a rounded rectangle's length (1e-2), bad input, a
+  closed rounded pipe, and a flow that avoids the cut corner.
+- Not retrofitted: the generated items keep their sampled paths; the circuit is re-authored in C3.

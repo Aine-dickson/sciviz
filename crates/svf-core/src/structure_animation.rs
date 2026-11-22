@@ -205,6 +205,13 @@ pub enum ActionDocument {
         id: String,
         count: usize,
         path: Vec<(f64, f64, f64)>,
+        /// When set, `path` lists corner points: each interior corner becomes an
+        /// arc of this radius (see `structure_route`), sampled at `point_spacing`
+        /// (default: a third of the radius).
+        #[serde(default)]
+        corner_radius: Option<f64>,
+        #[serde(default)]
+        point_spacing: Option<f64>,
         speed: f64,
         /// How far from the path a particle may sit.
         lateral: f64,
@@ -937,13 +944,28 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         });
                         length = length.max(at_s + for_s);
                     }
-                    ActionDocument::Flow { id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s, key } => {
+                    ActionDocument::Flow { id, count, path, corner_radius, point_spacing, speed, lateral, seed, particle_radius, colour, for_s, at_s, key } => {
                         let span = timing(*at_s, *for_s)?;
                         let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
+                        let mut flow_path: Vec<[f64; 3]> = path.iter().map(|p| [p.0, p.1, p.2]).collect();
+                        match (corner_radius, point_spacing) {
+                            (Some(radius), spacing) => {
+                                flow_path = crate::structure_route::rounded_route(
+                                    &flow_path,
+                                    *radius,
+                                    spacing.unwrap_or(radius / 3.0),
+                                )
+                                .map_err(|e| bad(format!("Flow '{id}': {e}")))?;
+                            }
+                            (None, Some(_)) => {
+                                return Err(bad(format!("Flow '{id}': point_spacing needs a corner_radius")));
+                            }
+                            (None, None) => {}
+                        }
                         let flow = Flow::new(&FlowSpec {
                             count: *count,
                             speed: *speed,
-                            path: path.iter().map(|p| [p.0, p.1, p.2]).collect(),
+                            path: flow_path,
                             lateral_radius: *lateral,
                             seed: *seed,
                         })
@@ -1360,6 +1382,28 @@ mod tests {
         assert_eq!(t.pose_at(2.0).particles[0].positions.len(), 10);
         assert!(t.pose_at(4.5).particles.is_empty());
         assert_eq!(t.pose_at(2.0).particles, t.pose_at(2.0).particles);
+    }
+
+    #[test]
+    fn a_flow_with_a_corner_radius_rounds_its_bends() {
+        let flow = |extra: &str| {
+            timeline(&format!(
+                "Flow(id: \"f\", count: 60, path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)]{extra},                  speed: 1.0, lateral: 0.0, seed: 3, particle_radius: 0.05, colour: (0.2, 0.4, 1.0), for_s: 20.0)"
+            ))
+        };
+        let nearest_to_corner = |t: &crate::structure_animation::Timeline| {
+            (0..200)
+                .flat_map(|k| t.pose_at(k as f64 * 0.09).particles[0].positions.clone())
+                .map(|p| ((p[0] - 10.0).powi(2) + p[1].powi(2) + p[2].powi(2)).sqrt())
+                .fold(f64::INFINITY, f64::min)
+        };
+        // A radius of 2 at a right angle cuts the corner off by 2 * (sqrt(2) - 1) = 0.828.
+        assert!(nearest_to_corner(&flow("")) < 0.05, "the sharp path passes through the corner");
+        assert!(nearest_to_corner(&flow(", corner_radius: Some(2.0)")) > 0.8);
+        assert!(invalid("Flow(id: \"f\", count: 3, path: [(0.0, 0.0, 0.0), (5.0, 0.0, 0.0), (5.0, 1.0, 0.0)], corner_radius: Some(3.0), speed: 1.0, lateral: 0.1, seed: 1, particle_radius: 0.05, colour: (0.2, 0.4, 1.0), for_s: 1.0)")
+            .contains("straight run"));
+        assert!(invalid("Flow(id: \"f\", count: 3, path: [(0.0, 0.0, 0.0), (5.0, 0.0, 0.0)], point_spacing: Some(0.5), speed: 1.0, lateral: 0.1, seed: 1, particle_radius: 0.05, colour: (0.2, 0.4, 1.0), for_s: 1.0)")
+            .contains("needs a corner_radius"));
     }
 
     #[test]

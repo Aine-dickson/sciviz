@@ -131,6 +131,14 @@ pub enum Geometry {
         wall: Option<f64>,
         #[serde(default)]
         arc_deg: Option<(f64, f64)>,
+        /// When set, `path` lists the route's corner points: every interior
+        /// corner becomes an arc of this radius and the route is sampled at
+        /// `point_spacing` (default: a third of the radius). Then `half_widths`
+        /// must hold exactly one entry, used all along the route.
+        #[serde(default)]
+        corner_radius: Option<f64>,
+        #[serde(default)]
+        point_spacing: Option<f64>,
     },
     /// An ellipsoid, optionally rotated and hollow.
     Ellipsoid {
@@ -187,6 +195,8 @@ pub enum StructureError {
     InvalidBlock { part: String, reason: &'static str },
     /// A `Tube` whose path bends more tightly than its width allows.
     TubeTooTightlyBent(String),
+    /// A `Tube` route (`corner_radius`) that cannot be built.
+    InvalidRoute { part: String, reason: String },
     /// A bad `repeat` or `mirror`.
     InvalidCopy { part: String, reason: &'static str },
     UnknownPartIndex(usize),
@@ -250,6 +260,7 @@ impl fmt::Display for StructureError {
                  add path points, widen the bend or narrow the tube"
             ),
             Self::InvalidCopy { part, reason } => write!(f, "part '{part}': {reason}"),
+            Self::InvalidRoute { part, reason } => write!(f, "part '{part}': {reason}"),
             Self::UnknownPartIndex(i) => write!(f, "part index {i} is out of range"),
             Self::EmptyLayerId { index } => write!(f, "layer {index} has an empty id"),
             Self::DuplicateLayerId(id) => write!(f, "duplicate layer id '{id}'"),
@@ -795,6 +806,38 @@ fn tube_params<'a>(
     TubeParams { path, half_widths, up, steps_per_span, wall, arc_deg }
 }
 
+/// The path and half-widths a tube is built from: as written, or, with a
+/// `corner_radius`, the rounded route (see `structure_route`).
+#[allow(clippy::type_complexity)]
+fn resolved_tube(
+    part: &str,
+    path: &[[f64; 3]],
+    half_widths: &[(f64, f64)],
+    corner_radius: Option<f64>,
+    point_spacing: Option<f64>,
+) -> Result<(Vec<[f64; 3]>, Vec<(f64, f64)>), StructureError> {
+    let Some(radius) = corner_radius else {
+        if point_spacing.is_some() {
+            return Err(StructureError::InvalidRoute {
+                part: part.to_owned(),
+                reason: "point_spacing needs a corner_radius".to_owned(),
+            });
+        }
+        return Ok((path.to_vec(), half_widths.to_vec()));
+    };
+    if half_widths.len() != 1 {
+        return Err(StructureError::InvalidRoute {
+            part: part.to_owned(),
+            reason: "a tube with a corner_radius needs exactly one half_widths entry".to_owned(),
+        });
+    }
+    let spacing = point_spacing.unwrap_or(radius / 3.0);
+    let route = crate::structure_route::rounded_route(path, radius, spacing)
+        .map_err(|e| StructureError::InvalidRoute { part: part.to_owned(), reason: e.to_string() })?;
+    let widths = vec![half_widths[0]; route.len()];
+    Ok((route, widths))
+}
+
 /// Generates one body of a part (before copies).
 fn build_body(
     builder: &mut MeshBuilder,
@@ -822,8 +865,9 @@ fn build_body(
             build_extrusion(builder, *profile, *axis_length, circle_segments);
             Ok(())
         }
-        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg } => {
-            let params = tube_params(path, half_widths, *up, *steps_per_span, *wall, *arc_deg);
+        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg, corner_radius, point_spacing } => {
+            let (path, half_widths) = resolved_tube(part, path, half_widths, *corner_radius, *point_spacing)?;
+            let params = tube_params(&path, &half_widths, *up, *steps_per_span, *wall, *arc_deg);
             build_tube(builder, &params, circle_segments).map_err(|e| block_error(part, e))
         }
         Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {
@@ -858,8 +902,9 @@ fn validate_geometry(
             };
         }
         Geometry::Extrusion { axis_length, profile } => (axis_length, profile),
-        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg } => {
-            let params = tube_params(path, half_widths, *up, *steps_per_span, *wall, *arc_deg);
+        Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg, corner_radius, point_spacing } => {
+            let (path, half_widths) = resolved_tube(part, path, half_widths, *corner_radius, *point_spacing)?;
+            let params = tube_params(&path, &half_widths, *up, *steps_per_span, *wall, *arc_deg);
             return check_tube(&params).map_err(|e| block_error(part, e));
         }
         Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {

@@ -23,6 +23,7 @@ pub mod spatial;
 pub mod structure;
 pub mod structure_animation;
 pub mod structure_particles;
+pub mod structure_route;
 pub mod structure_blocks;
 pub mod structure_label_layout;
 pub mod structure_labels;

@@ -535,6 +535,63 @@ mod tests {
         0.5 * n as f64 * a * b * (TAU / n as f64).sin()
     }
 
+    #[test]
+    fn a_tube_with_a_corner_radius_is_a_closed_rounded_pipe() {
+        let g = geometry(
+            "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)], half_widths: [(0.4, 0.4)],              corner_radius: Some(2.0), up: (0.0, 0.0, 1.0))",
+            "",
+        );
+        assert_closed(g.mesh());
+        assert!(signed_volume(g.mesh()) > 0.0);
+        // Every vertex stays within the pipe's half-width of the rounded centre line: none lies near the
+        // sharp corner point's outer side (10, 0), which the arc cuts off.
+        let nearest = g
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| v.to_array())
+            .map(|p| ((p[0] - 10.0).powi(2) + p[1].powi(2)).sqrt())
+            .fold(f64::INFINITY, f64::min);
+        assert!(nearest > 0.828 - 0.4 - 1e-6, "nearest {nearest}");
+        // The sharp version, with the same points, reaches the corner.
+        let sharp = geometry(
+            "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)],              half_widths: [(0.4, 0.4), (0.4, 0.4), (0.4, 0.4)], up: (0.0, 0.0, 1.0))",
+            "",
+        );
+        let sharp_nearest = sharp
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| v.to_array())
+            .map(|p| ((p[0] - 10.0).powi(2) + p[1].powi(2)).sqrt())
+            .fold(f64::INFINITY, f64::min);
+        assert!(sharp_nearest < nearest);
+    }
+
+    #[test]
+    fn a_tube_route_needs_one_half_width_and_a_workable_radius() {
+        let attempt = |widths: &str, extra: &str| {
+            structure(&[(
+                "p",
+                &format!(
+                    "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)], half_widths: [{widths}]{extra})"
+                ),
+                "",
+            )])
+            .map(|_| ())
+        };
+        assert!(attempt("(0.4, 0.4)", ", corner_radius: Some(2.0)").is_ok());
+        let two = attempt("(0.4, 0.4), (0.4, 0.4)", ", corner_radius: Some(2.0)").unwrap_err().to_string();
+        assert!(two.contains("exactly one half_widths"), "{two}");
+        let big = attempt("(0.4, 0.4)", ", corner_radius: Some(20.0)").unwrap_err().to_string();
+        assert!(big.contains("straight run"), "{big}");
+        let spacing = attempt("(0.4, 0.4), (0.4, 0.4), (0.4, 0.4)", ", point_spacing: Some(0.5)").unwrap_err().to_string();
+        assert!(spacing.contains("needs a corner_radius"), "{spacing}");
+        // A route narrower than its radius is caught by the existing bend check.
+        let tight = attempt("(3.0, 3.0)", ", corner_radius: Some(1.0)").unwrap_err().to_string();
+        assert!(tight.contains("bends more tightly"), "{tight}");
+    }
+
     fn straight(wall: &str, half: &str, extra: &str) -> String {
         format!(
             "Tube(path: [(0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (10.0, 0.0, 0.0)], \
