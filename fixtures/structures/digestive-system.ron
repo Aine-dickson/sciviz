@@ -1,0 +1,114 @@
+// The digestive system, schematic. Proportions are invented, NOT measured data and NOT to scale.
+// Proof of concept for the item register (docs/item-output-bar.md); not for lessons as it stands.
+// Axis is +Y (head up), the front of the body is +Z; the stomach is on the viewer's right (the person's left).
+// Real small intestine is about 6 metres long and the large intestine about 1.5 metres; here the small intestine is a short
+// zig-zag. Not drawn: the pancreas, the gall bladder, the blood vessels (nutrients and water simply leave through the wall),
+// the teeth and tongue, the appendix. The particles show where food and the substances taken from it go; their number and
+// speed are not measured, and the colours are named in the captions only.
+Structure(
+    version: 1,
+    name: "The digestive system (schematic)",
+    units: "cm",
+    reference: "To be confirmed by the author: textbook account of the human digestive system (mouth, oesophagus, stomach, liver, small intestine where nutrients are absorbed, large intestine where water is absorbed, rectum). Schematic; not to scale.",
+    circle_segments: 32,
+    parts: [
+        Part(id: "digestive-system", name: "Digestive system", parent: None,
+             description: "The tube that food passes through, and the organs that help it.",
+             colour: (0.5, 0.5, 0.5), geometry: None),
+        Part(id: "mouth", name: "Mouth", parent: Some("digestive-system"),
+             description: "Teeth chew food into small pieces, and saliva makes it wet and begins to break it down.",
+             colour: (0.90, 0.45, 0.45), opacity: 0.4,
+             geometry: Some(Ellipsoid(centre: (0.0, 40.5, 0.5), radii: (2.3, 1.6, 2.1)))),
+        Part(id: "oesophagus", name: "Oesophagus (gullet)", parent: Some("digestive-system"),
+             description: "A muscular tube that squeezes swallowed food down to the stomach.",
+             colour: (0.88, 0.55, 0.50), opacity: 0.4,
+             geometry: Some(Tube(path: [(0.00, 39.20, 0.00), (0.00, 34.00, 0.00), (0.50, 30.00, 0.00), (1.50, 28.30, 0.00)], half_widths: [(0.7, 0.7), (0.7, 0.7), (0.7, 0.7), (0.7, 0.7)], up: (0.0, 0.0, 1.0), steps_per_span: 6))),
+        Part(id: "stomach", name: "Stomach", parent: Some("digestive-system"),
+             description: "A stretchy bag with muscular walls. It churns food with acid and juices into a thick liquid.",
+             colour: (0.90, 0.52, 0.42), opacity: 0.35,
+             geometry: Some(Ellipsoid(centre: (3.0, 24.0, 0.0), radii: (4.2, 4.5, 3.2)))),
+        Part(id: "liver", name: "Liver", parent: Some("digestive-system"),
+             description: "The largest organ inside the body. It makes bile, which helps to digest fats, and it deals with the nutrients that the blood brings from the gut.",
+             colour: (0.55, 0.25, 0.20), opacity: 0.75,
+             geometry: Some(Ellipsoid(centre: (-6.8, 23.5, 0.5), radii: (5.4, 3.4, 3.4)))),
+        Part(id: "small-intestine", name: "Small intestine", parent: Some("digestive-system"),
+             description: "A long coiled tube where food is broken down further and nearly all the nutrients pass through its wall into the blood. It is called small because it is narrow, not because it is short.",
+             colour: (0.95, 0.70, 0.60), opacity: 0.4,
+             geometry: Some(Tube(path: [(1.50, 19.60, -0.30), (1.50, 18.57, -0.30), (1.50, 17.53, -0.30), (1.50, 16.50, -0.30), (1.18, 15.72, -0.30), (0.40, 15.40, -0.30), (-0.43, 15.40, -0.30), (-1.27, 15.40, -0.30), (-2.10, 15.40, -0.30), (-2.93, 15.40, -0.30), (-3.77, 15.40, -0.30), (-4.60, 15.40, -0.30), (-5.38, 15.08, -0.30), (-5.70, 14.30, -0.30), (-5.38, 13.52, -0.30), (-4.60, 13.20, -0.30), (-3.68, 13.20, -0.30), (-2.76, 13.20, -0.30), (-1.84, 13.20, -0.30), (-0.92, 13.20, -0.30), (0.00, 13.20, -0.30), (0.92, 13.20, -0.30), (1.84, 13.20, -0.30), (2.76, 13.20, -0.30), (3.68, 13.20, -0.30), (4.60, 13.20, -0.30), (5.38, 12.88, -0.30), (5.70, 12.10, -0.30), (5.38, 11.32, -0.30), (4.60, 11.00, -0.30), (3.68, 11.00, -0.30), (2.76, 11.00, -0.30), (1.84, 11.00, -0.30), (0.92, 11.00, -0.30), (0.00, 11.00, -0.30), (-0.92, 11.00, -0.30), (-1.84, 11.00, -0.30), (-2.76, 11.00, -0.30), (-3.68, 11.00, -0.30), (-4.60, 11.00, -0.30), (-5.38, 10.68, -0.30), (-5.70, 9.90, -0.30), (-5.38, 9.12, -0.30), (-4.60, 8.80, -0.30), (-3.68, 8.80, -0.30), (-2.76, 8.80, -0.30), (-1.84, 8.80, -0.30), (-0.92, 8.80, -0.30), (0.00, 8.80, -0.30), (0.92, 8.80, -0.30), (1.84, 8.80, -0.30), (2.76, 8.80, -0.30), (3.68, 8.80, -0.30), (4.60, 8.80, -0.30), (5.38, 8.48, -0.30), (5.70, 7.70, -0.30), (5.38, 6.92, -0.30), (4.60, 6.60, -0.30), (3.68, 6.60, -0.30), (2.76, 6.60, -0.30), (1.84, 6.60, -0.30), (0.92, 6.60, -0.30), (0.00, 6.60, -0.30), (-0.92, 6.60, -0.30), (-1.84, 6.60, -0.30), (-2.76, 6.60, -0.30), (-3.68, 6.60, -0.30), (-4.60, 6.60, -0.30), (-5.25, 6.45, 0.23), (-5.90, 6.30, 0.75), (-6.55, 6.15, 1.28), (-7.20, 6.00, 1.80)], half_widths: [(0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5), (0.5, 0.5)], up: (0.0, 0.0, 1.0), steps_per_span: 6))),
+        Part(id: "large-intestine", name: "Large intestine", parent: Some("digestive-system"),
+             description: "A wider tube that frames the small intestine. It takes water back into the body and turns what is left into solid waste, which leaves through the rectum and anus.",
+             colour: (0.80, 0.50, 0.40), opacity: 0.35,
+             geometry: Some(Tube(path: [(-7.20, 6.00, 1.80), (-7.20, 6.89, 1.80), (-7.20, 7.78, 1.80), (-7.20, 8.67, 1.80), (-7.20, 9.56, 1.80), (-7.20, 10.45, 1.80), (-7.20, 11.35, 1.80), (-7.20, 12.24, 1.80), (-7.20, 13.13, 1.80), (-7.20, 14.02, 1.80), (-7.20, 14.91, 1.80), (-7.20, 15.80, 1.80), (-6.93, 16.80, 1.80), (-6.20, 17.53, 1.80), (-5.20, 17.80, 1.80), (-4.33, 17.80, 1.80), (-3.47, 17.80, 1.80), (-2.60, 17.80, 1.80), (-1.73, 17.80, 1.80), (-0.87, 17.80, 1.80), (0.00, 17.80, 1.80), (0.87, 17.80, 1.80), (1.73, 17.80, 1.80), (2.60, 17.80, 1.80), (3.47, 17.80, 1.80), (4.33, 17.80, 1.80), (5.20, 17.80, 1.80), (6.20, 17.53, 1.80), (6.93, 16.80, 1.80), (7.20, 15.80, 1.80), (7.20, 14.93, 1.80), (7.20, 14.07, 1.80), (7.20, 13.20, 1.80), (7.20, 12.33, 1.80), (7.20, 11.47, 1.80), (7.20, 10.60, 1.80), (7.20, 9.73, 1.80), (7.20, 8.87, 1.80), (7.20, 8.00, 1.80), (6.93, 7.00, 1.80), (6.20, 6.27, 1.80), (5.20, 6.00, 1.80), (4.40, 6.00, 1.80), (3.60, 6.00, 1.80), (2.80, 6.00, 1.80), (2.00, 6.00, 1.80), (1.00, 5.73, 1.80), (0.27, 5.00, 1.80), (0.00, 4.00, 1.80), (0.00, 3.20, 1.80), (0.00, 2.40, 1.80), (0.00, 1.60, 1.80), (0.00, 0.80, 1.80)], half_widths: [(1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1), (1.1, 1.1)], up: (0.0, 0.0, 1.0), steps_per_span: 6))),
+    ],
+    // Outermost (front) first: the order of removal when peeling.
+    layers: [
+        Layer(id: "large-intestine", name: "Large intestine", parts: ["large-intestine"]),
+        Layer(id: "liver", name: "Liver", parts: ["liver"]),
+        Layer(id: "small-intestine", name: "Small intestine", parts: ["small-intestine"]),
+        Layer(id: "stomach", name: "Stomach", parts: ["stomach"]),
+        Layer(id: "upper-tube", name: "Mouth and gullet", parts: ["mouth", "oesophagus"]),
+    ],
+    views: [
+        View(id: "whole", name: "The whole digestive system",
+             camera: Some((yaw_deg: 45.0, pitch_deg: -25.0, zoom: 1.0)),
+             show: ["digestive-system"], peel: 0, section: None),
+        View(id: "upper", name: "Mouth, gullet, stomach and liver",
+             camera: Some((yaw_deg: 45.0, pitch_deg: -25.0, zoom: 1.5)),
+             show: ["mouth", "oesophagus", "stomach", "liver"], peel: 0, section: None),
+        View(id: "intestines", name: "The intestines",
+             camera: Some((yaw_deg: 45.0, pitch_deg: -25.0, zoom: 1.5)),
+             show: ["small-intestine", "large-intestine"], peel: 0, section: None),
+    ],
+    // One bite of food, followed from mouth to rectum, one organ at a time.
+    timelines: [
+        Timeline(id: "digestion", name: "Following a bite of food",
+            camera: Some((yaw_deg: 45.0, pitch_deg: -25.0, zoom: 1.0)),
+            scenes: [
+                Scene(id: "digestion", beats: [
+                    Beat(id: "whole", actions: [
+                        Narrate(text: "Food is broken down in a long tube called the digestive system, so that the body can take in what it needs. Let us follow a bite of food through it.", for_s: 8.0),
+                    ]),
+                    Beat(id: "mouth", actions: [
+                        Narrate(text: "The mouth: teeth chew the food into small pieces and saliva makes it wet and starts to break it down.", for_s: 8.0),
+                        Highlight(part: "mouth"),
+                        Spread(id: "chewing", count: 14, from: (0.0, 40.5, 0.5), radius: 0.5, inside: Ball(centre: (0.0, 40.5, 0.5), radius: 1.3), step: 0.12, seed: 5, particle_radius: 0.22, colour: (0.92, 0.82, 0.55), for_s: 8.0, stay: false),
+                    ]),
+                    Beat(id: "oesophagus", actions: [
+                        Narrate(text: "The food is swallowed. The oesophagus (gullet) squeezes it down towards the stomach with waves of muscle.", for_s: 8.0),
+                        Highlight(part: "oesophagus"),
+                        Flow(id: "swallow", count: 6, path: [(0.00, 39.20, 0.00), (0.00, 34.00, 0.00), (0.50, 30.00, 0.00), (1.50, 28.30, 0.00)], speed: 2.5, lateral: 0.3, seed: 6, particle_radius: 0.3, colour: (0.92, 0.82, 0.55), for_s: 8.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "stomach", actions: [
+                        Narrate(text: "The stomach churns the food with strong acid and digestive juices, turning it into a thick liquid.", for_s: 10.0),
+                        Highlight(part: "stomach"),
+                        Spread(id: "churning", count: 30, from: (1.8, 27.2, 0.0), radius: 0.4, inside: Ball(centre: (3.0, 25.0, 0.0), radius: 3.0), step: 0.28, seed: 7, particle_radius: 0.28, colour: (0.80, 0.62, 0.35), for_s: 10.0, stay: false),
+                    ]),
+                    Beat(id: "liver", actions: [
+                        Narrate(text: "The liver makes bile, a green juice that helps to break up fats. It is stored in a small bag and added to the food in the small intestine.", for_s: 8.0),
+                        Highlight(part: "liver"),
+                    ]),
+                    Beat(id: "small-intestine", actions: [
+                        Narrate(text: "The small intestine is a long, coiled tube. Food is broken down into very small pieces, and these nutrients pass through the wall into the blood.", for_s: 14.0),
+                        Highlight(part: "small-intestine"),
+                        Flow(id: "chyme", count: 32, path: [(1.50, 19.60, -0.30), (1.50, 18.57, -0.30), (1.50, 17.53, -0.30), (1.50, 16.50, -0.30), (1.18, 15.72, -0.30), (0.40, 15.40, -0.30), (-0.43, 15.40, -0.30), (-1.27, 15.40, -0.30), (-2.10, 15.40, -0.30), (-2.93, 15.40, -0.30), (-3.77, 15.40, -0.30), (-4.60, 15.40, -0.30), (-5.38, 15.08, -0.30), (-5.70, 14.30, -0.30), (-5.38, 13.52, -0.30), (-4.60, 13.20, -0.30), (-3.68, 13.20, -0.30), (-2.76, 13.20, -0.30), (-1.84, 13.20, -0.30), (-0.92, 13.20, -0.30), (0.00, 13.20, -0.30), (0.92, 13.20, -0.30), (1.84, 13.20, -0.30), (2.76, 13.20, -0.30), (3.68, 13.20, -0.30), (4.60, 13.20, -0.30), (5.38, 12.88, -0.30), (5.70, 12.10, -0.30), (5.38, 11.32, -0.30), (4.60, 11.00, -0.30), (3.68, 11.00, -0.30), (2.76, 11.00, -0.30), (1.84, 11.00, -0.30), (0.92, 11.00, -0.30), (0.00, 11.00, -0.30), (-0.92, 11.00, -0.30), (-1.84, 11.00, -0.30), (-2.76, 11.00, -0.30), (-3.68, 11.00, -0.30), (-4.60, 11.00, -0.30), (-5.38, 10.68, -0.30), (-5.70, 9.90, -0.30), (-5.38, 9.12, -0.30), (-4.60, 8.80, -0.30), (-3.68, 8.80, -0.30), (-2.76, 8.80, -0.30), (-1.84, 8.80, -0.30), (-0.92, 8.80, -0.30), (0.00, 8.80, -0.30), (0.92, 8.80, -0.30), (1.84, 8.80, -0.30), (2.76, 8.80, -0.30), (3.68, 8.80, -0.30), (4.60, 8.80, -0.30), (5.38, 8.48, -0.30), (5.70, 7.70, -0.30), (5.38, 6.92, -0.30), (4.60, 6.60, -0.30), (3.68, 6.60, -0.30), (2.76, 6.60, -0.30), (1.84, 6.60, -0.30), (0.92, 6.60, -0.30), (0.00, 6.60, -0.30), (-0.92, 6.60, -0.30), (-1.84, 6.60, -0.30), (-2.76, 6.60, -0.30), (-3.68, 6.60, -0.30), (-4.60, 6.60, -0.30), (-5.25, 6.45, 0.23), (-5.90, 6.30, 0.75), (-6.55, 6.15, 1.28), (-7.20, 6.00, 1.80)], speed: 4.0, lateral: 0.25, seed: 8, particle_radius: 0.3, colour: (0.80, 0.62, 0.35), for_s: 14.0, at_s: 0.0),
+                        Flow(id: "nutrients-0", count: 3, path: [(0.00, 15.40, -0.30), (0.00, 15.40, -3.30)], speed: 1.2, lateral: 0.2, seed: 60, particle_radius: 0.28, colour: (1.0, 0.65, 0.15), for_s: 14.0, at_s: 0.0),
+                        Flow(id: "nutrients-1", count: 3, path: [(0.00, 13.20, -0.30), (0.00, 13.20, -3.30)], speed: 1.2, lateral: 0.2, seed: 61, particle_radius: 0.28, colour: (1.0, 0.65, 0.15), for_s: 14.0, at_s: 0.0),
+                        Flow(id: "nutrients-2", count: 3, path: [(0.00, 11.00, -0.30), (0.00, 11.00, -3.30)], speed: 1.2, lateral: 0.2, seed: 62, particle_radius: 0.28, colour: (1.0, 0.65, 0.15), for_s: 14.0, at_s: 0.0),
+                        Flow(id: "nutrients-3", count: 3, path: [(0.00, 8.80, -0.30), (0.00, 8.80, -3.30)], speed: 1.2, lateral: 0.2, seed: 63, particle_radius: 0.28, colour: (1.0, 0.65, 0.15), for_s: 14.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "large-intestine", actions: [
+                        Narrate(text: "What is left goes into the large intestine. It takes water back into the body, and the rest becomes solid waste.", for_s: 12.0),
+                        Highlight(part: "large-intestine"),
+                        Flow(id: "leftovers", count: 18, path: [(-7.20, 6.00, 1.80), (-7.20, 6.89, 1.80), (-7.20, 7.78, 1.80), (-7.20, 8.67, 1.80), (-7.20, 9.56, 1.80), (-7.20, 10.45, 1.80), (-7.20, 11.35, 1.80), (-7.20, 12.24, 1.80), (-7.20, 13.13, 1.80), (-7.20, 14.02, 1.80), (-7.20, 14.91, 1.80), (-7.20, 15.80, 1.80), (-6.93, 16.80, 1.80), (-6.20, 17.53, 1.80), (-5.20, 17.80, 1.80), (-4.33, 17.80, 1.80), (-3.47, 17.80, 1.80), (-2.60, 17.80, 1.80), (-1.73, 17.80, 1.80), (-0.87, 17.80, 1.80), (0.00, 17.80, 1.80), (0.87, 17.80, 1.80), (1.73, 17.80, 1.80), (2.60, 17.80, 1.80), (3.47, 17.80, 1.80), (4.33, 17.80, 1.80), (5.20, 17.80, 1.80), (6.20, 17.53, 1.80), (6.93, 16.80, 1.80), (7.20, 15.80, 1.80), (7.20, 14.93, 1.80), (7.20, 14.07, 1.80), (7.20, 13.20, 1.80), (7.20, 12.33, 1.80), (7.20, 11.47, 1.80), (7.20, 10.60, 1.80), (7.20, 9.73, 1.80), (7.20, 8.87, 1.80), (7.20, 8.00, 1.80), (6.93, 7.00, 1.80), (6.20, 6.27, 1.80), (5.20, 6.00, 1.80), (4.40, 6.00, 1.80), (3.60, 6.00, 1.80), (2.80, 6.00, 1.80), (2.00, 6.00, 1.80), (1.00, 5.73, 1.80), (0.27, 5.00, 1.80), (0.00, 4.00, 1.80), (0.00, 3.20, 1.80), (0.00, 2.40, 1.80), (0.00, 1.60, 1.80), (0.00, 0.80, 1.80)], speed: 2.5, lateral: 0.35, seed: 9, particle_radius: 0.3, colour: (0.50, 0.33, 0.18), for_s: 12.0, at_s: 0.0),
+                        Flow(id: "water-0", count: 3, path: [(-7.20, 8.00, 1.80), (-9.60, 8.00, 1.80)], speed: 1.0, lateral: 0.2, seed: 80, particle_radius: 0.28, colour: (0.35, 0.65, 1.0), for_s: 12.0, at_s: 0.0),
+                        Flow(id: "water-1", count: 3, path: [(-7.20, 10.00, 1.80), (-9.60, 10.00, 1.80)], speed: 1.0, lateral: 0.2, seed: 81, particle_radius: 0.28, colour: (0.35, 0.65, 1.0), for_s: 12.0, at_s: 0.0),
+                        Flow(id: "water-2", count: 3, path: [(-7.20, 12.00, 1.80), (-9.60, 12.00, 1.80)], speed: 1.0, lateral: 0.2, seed: 82, particle_radius: 0.28, colour: (0.35, 0.65, 1.0), for_s: 12.0, at_s: 0.0),
+                        Flow(id: "water-3", count: 3, path: [(-7.20, 14.00, 1.80), (-9.60, 14.00, 1.80)], speed: 1.0, lateral: 0.2, seed: 83, particle_radius: 0.28, colour: (0.35, 0.65, 1.0), for_s: 12.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "end", actions: [
+                        Narrate(text: "The waste leaves the body through the rectum and anus. The whole journey takes about a day or more.", for_s: 7.0),
+                    ]),
+                ]),
+            ]),
+    ],
+)

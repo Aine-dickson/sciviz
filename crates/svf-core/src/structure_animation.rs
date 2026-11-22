@@ -41,6 +41,10 @@ impl Ease {
     }
 }
 
+fn stay_by_default() -> bool {
+    true
+}
+
 /// One action in a beat. Every action starts `at_s` seconds after its beat
 /// starts (default 0). A beat lasts as long as its longest action.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -147,6 +151,10 @@ pub enum ActionDocument {
         for_s: f64,
         #[serde(default)]
         at_s: f64,
+        /// Whether the particles stay, resting where the walk ended, after `for_s`
+        /// (the default), or disappear when it ends.
+        #[serde(default = "stay_by_default")]
+        stay: bool,
     },
     /// Particles travelling along `path` at `speed` for `for_s` seconds, wrapping
     /// from the end to the start. Shown only while it runs.
@@ -320,6 +328,8 @@ pub struct Pose {
 /// A particle generator placed on the timeline.
 #[derive(Clone, Debug, PartialEq)]
 struct Emitter {
+    /// Whether it is still shown after `end` (a `Spread` that stays).
+    stays: bool,
     id: String,
     start: f64,
     end: f64,
@@ -394,6 +404,7 @@ impl Timeline {
             }
             let local = t - e.start;
             let positions = match &e.kind {
+                EmitterKind::Spread(_) if !e.stays && t > e.end => continue,
                 EmitterKind::Spread(spread) => spread.positions_at(local),
                 EmitterKind::Flow(flow) if t <= e.end => flow.positions_at(local),
                 EmitterKind::Flow(_) => continue,
@@ -745,7 +756,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         length = length.max(at_s + for_s);
                     }
                     ActionDocument::Spread {
-                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s,
+                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s, stay,
                     } => {
                         let span = timing(*at_s, *for_s)?;
                         let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
@@ -764,6 +775,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         )
                         .map_err(|e| bad(format!("Spread '{id}': {e}")))?;
                         emitters.push(Emitter {
+                            stays: *stay,
                             id: id.clone(),
                             start: span.start,
                             end: span.end,
@@ -785,6 +797,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         })
                         .map_err(|e| bad(format!("Flow '{id}': {e}")))?;
                         emitters.push(Emitter {
+                            stays: false,
                             id: id.clone(),
                             start: span.start,
                             end: span.end,
@@ -1092,6 +1105,17 @@ mod tests {
         // At the end the particles rest where the walk ended, and the answer is repeatable.
         assert_eq!(t.pose_at(6.0).particles, t.pose_at(6.0).particles);
         assert_eq!(t.pose_at(6.0).particles, t.pose_at(100.0).particles);
+    }
+
+    #[test]
+    fn a_spread_that_does_not_stay_disappears_when_its_walk_ends() {
+        let t = timeline(&DIFFUSION.replace("at_s: 1.0)", "at_s: 1.0, stay: false), Wait(for_s: 9.0)"));
+        assert_eq!(t.pose_at(3.0).particles.len(), 1);
+        assert_eq!(t.pose_at(6.0).particles.len(), 1, "still there at the end of the walk");
+        assert!(t.pose_at(6.5).particles.is_empty());
+        // The default is unchanged: it rests where it ended.
+        let stays = timeline(&DIFFUSION.replace("at_s: 1.0)", "at_s: 1.0), Wait(for_s: 9.0)"));
+        assert_eq!(stays.pose_at(9.0).particles.len(), 1);
     }
 
     #[test]

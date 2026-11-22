@@ -2813,3 +2813,13 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Tests: `cargo test --workspace --release` green after this item (core 440, fixtures 4/4/7/3/2/6/9/6, explorer 85, render 15).
 - Owed from the user: live look at all five timelines; caption wording; pacing; legibility; citations.
 - **Next options:** a legend/label mechanism for particles and parts (Opus design); a digestive item; `Meet`; PR split (user must be present).
+
+### Update 2026-11-22 (digestive item)
+
+- `fixtures/structures/digestive-system.ron`, `tests/digestive_fixture.rs`, `Spread` `stay` option (core, tested), register row, design note section 22.
+  `cargo test --workspace --release` green (core 441, fixtures 4/7/3/2/4/6/4/9/6, explorer 85, render 15). Screenshots at 48 and 60 s looked at.
+- Items with timelines: flower, beaker, stem, breathing, gas exchange, digestive. Owed from the user: a live look at all six, caption wording, pacing, legibility, citations.
+- Authoring chores seen so far, for a later "author surface" decision (not now): long tubes need lines-and-arcs path helpers; particle legends/labels; position-dependent particle colour;
+  a rib cannot hinge (no pivot for `Turn`). Collect before designing; do not start without the user.
+- **Next options:** the heart and blood circulation (the heart fixture exists; a flow of blood through its chambers is the obvious next story, but the heart camera is not to be reopened);
+  a plant cell timeline; `Meet`; the PR split (user must be present).

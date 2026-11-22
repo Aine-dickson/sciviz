@@ -289,3 +289,23 @@ oxygen (blue) crossing from the sac into the blood; carbon dioxide (yellow) cros
 - Tests (`tests/gas_exchange_fixture.rs`, run by Claude, release): parts closed and translucent; beat starts 0, 7, 15, 23, 31; blood stays within 1.1 um of the capillary axis and in its half;
   oxygen goes towards the capillary and carbon dioxide towards the sac; every drawn frame closed.
 - Evidence: `docs/evidence/gas-exchange/at-{3,12,20,28,36}.png` (28 looked at, before and after enlarging the gas dots). Not seen live by the user.
+
+## 22. The digestive system (2026-11-22)
+
+`fixtures/structures/digestive-system.ron`: mouth, oesophagus, stomach, liver, small intestine (a coil of 5 rows with half-circle turns) and large intestine
+(ascending, transverse, descending, sigmoid, rectum) in front of it. All hollow-looking organs are translucent (0.35 to 0.4); the liver is 0.75. Timeline `digestion`,
+75 s, 8 beats: introduction; mouth (chewing: a `Spread` in a ball); oesophagus (a `Flow` of swallowed food); stomach (a `Spread` churning in a ball); liver (highlight and caption only);
+small intestine (a `Flow` along the whole coil, plus four short streams of nutrients leaving backwards through the wall); large intestine (a slower `Flow` of leftovers, plus four
+streams of water leaving sideways); the end (waste leaves).
+- **One core change, small: `Spread` gets `stay` (default true).** With `stay: false` the particles disappear when their walk ends instead of resting where it ended. Without it the chewed food
+  stayed frozen in the mouth and stomach for the rest of the film. The beaker still uses the default. One new test in `structure_animation.rs`.
+- **Authoring finding:** a long winding tube cannot be written as a few corner points; the tube-bend check (curvature radius must exceed the widest half-width) rejects Catmull-Rom curves through
+  uneven points. The fixture's paths were generated as exact lines and arcs sampled at an even spacing of 0.9 cm (turn radius 1.1 for the small intestine, 2.0 for the large) and written out.
+  The generator is not kept in the repository; the numbers in the file are the source. A "path from lines and arcs" helper in the structure format would remove this chore (candidate for later,
+  needs design).
+- **Limits:** lengths and widths are not to scale; the particles do not change colour as food is digested (the stomach and small intestine use a darker tan than the mouth); the loop wraps from the end of
+  a path to its start; nutrients and water just leave through the wall, there are no blood vessels or a colon wall to cross; a person's stomach is on the viewer's right (the person's left), as drawn.
+- Tests (`tests/digestive_fixture.rs`, run by Claude, release): parts closed and translucent; beat starts 0, 8, 16, 24, 34, 42, 56, 68 and duration 75; chewing inside its ball and gone after its beat;
+  churning inside its ball and gone; swallowed food within 0.3 cm of the gullet's line; small-intestine food inside its region; nutrients and water move outwards; leftovers inside the large intestine's region;
+  every drawn frame closed.
+- Evidence: `docs/evidence/digestive/at-{12,28,48,60}.png` (48 and 60 looked at, 48 again after the `stay` change). Not seen live by the user.
