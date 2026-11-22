@@ -2804,3 +2804,12 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   (Space, arrows, `,` `.`), caption wording, pacing, legibility.
 - **Next options:** gas exchange in an alveolus (a zoomed second timeline; particles crossing a membrane need two-way spread, which `Spread` does not do);
   a digestive item; `Meet`; splitting the branch into PRs (user must be present). Ask the user which.
+
+### Update 2026-11-22 (gas exchange in an air sac)
+
+- `fixtures/structures/gas-exchange.ron` + test + register row + design note section 21. No core code changed. Gas movement is built from opposite `Flow`s.
+- **Gap worth a design decision (Opus):** there is no legend or label mechanism for particles (colours are named in captions only), and no particle colour that depends on position
+  (so blood cannot change colour as it passes). Both came up in four items now (beaker, stem, breathing, gas exchange). Collect before designing.
+- Tests: `cargo test --workspace --release` green after this item (core 440, fixtures 4/4/7/3/2/6/9/6, explorer 85, render 15).
+- Owed from the user: live look at all five timelines; caption wording; pacing; legibility; citations.
+- **Next options:** a legend/label mechanism for particles and parts (Opus design); a digestive item; `Meet`; PR split (user must be present).

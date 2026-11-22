@@ -274,3 +274,18 @@ breathing out (7 s), then two quicker breaths (10 s). In: the diaphragm moves do
 - Tests (`tests/breathing_fixture.rs`, run by Claude, release): parts closed; beats start at 0, 5, 12, 19 and everything returns after each breath;
   air stays within 0.2 cm of the airway paths and goes down on breathing in and up on breathing out; every drawn frame is a closed mesh.
 - Evidence: `docs/evidence/breathing/at-{3,7,12}.png` (looked at). Not seen live by the user.
+
+## 21. Gas exchange in an air sac (2026-11-22)
+
+`fixtures/structures/gas-exchange.ron`: a hollow translucent sphere (the air sac, wall 0.8 um, opacity 0.3) and a translucent tube (the capillary, opacity 0.35)
+touching it. Timeline `gas-exchange`, 39 s, 5 beats: the sac; blood arriving (dark cells up the lower half of the capillary, bright cells up the upper half);
+oxygen (blue) crossing from the sac into the blood; carbon dioxide (yellow) crossing the other way; the blood leaving.
+- **No new core code.** Two-way gas movement is two sets of short opposite `Flow` streams across the wall, not a new verb. A real gas moves by random motion;
+  the streams show direction only (stated in the file). Because a `Flow` wraps from the end of its path to the start, each gas stream loops, which reads as continuous crossing.
+- Blood colour does not change as cells pass; two fixed groups stand for "before" and "after" (stated in the file). A proper version would need a particle colour that
+  depends on position, which is not built.
+- A section along Z shows the sac cut open (a view, `inside`); the gases lie on the Z=0 plane so the cut passes through the streams (not looked at).
+- Captions name the colours (blue dots, yellow dots) because there is no legend. A legend or label mechanism does not exist yet; the same gap exists in the beaker and stem items.
+- Tests (`tests/gas_exchange_fixture.rs`, run by Claude, release): parts closed and translucent; beat starts 0, 7, 15, 23, 31; blood stays within 1.1 um of the capillary axis and in its half;
+  oxygen goes towards the capillary and carbon dioxide towards the sac; every drawn frame closed.
+- Evidence: `docs/evidence/gas-exchange/at-{3,12,20,28,36}.png` (28 looked at, before and after enlarging the gas dots). Not seen live by the user.
