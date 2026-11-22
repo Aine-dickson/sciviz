@@ -15,8 +15,8 @@ use crate::{
     structure_lesson::{validate_relations, validate_views},
     structure_mesh::{MeshContainer, Provenance},
     structure_blocks::{
-        build_ellipsoid, build_tube, check_copies, check_ellipsoid, check_tube, expand_copies,
-        BlockError, EllipsoidParams, TubeParams,
+        build_cone, build_ellipsoid, build_tube, check_cone, check_copies, check_ellipsoid, check_tube,
+        expand_copies, BlockError, ConeParams, EllipsoidParams, TubeParams,
     },
 };
 
@@ -149,6 +149,9 @@ pub enum Geometry {
         #[serde(default)]
         wall: Option<f64>,
     },
+    /// A closed solid cone from a flat circular base to a point: the arrowhead
+    /// of a direction marker (`Cone(base, tip, radius)`).
+    Cone { base: [f64; 3], tip: [f64; 3], radius: f64 },
     /// One named body of a `.svfmesh` container, resolved when the structure is
     /// loaded with [`Structure::from_ron_with`].
     Mesh { file: String, body: String },
@@ -870,6 +873,10 @@ fn build_body(
             let params = tube_params(&path, &half_widths, *up, *steps_per_span, *wall, *arc_deg);
             build_tube(builder, &params, circle_segments).map_err(|e| block_error(part, e))
         }
+        Geometry::Cone { base, tip, radius } => {
+            let params = ConeParams { base: *base, tip: *tip, radius: *radius };
+            build_cone(builder, &params, circle_segments).map_err(|e| block_error(part, e))
+        }
         Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {
             let params = EllipsoidParams {
                 centre: *centre,
@@ -906,6 +913,10 @@ fn validate_geometry(
             let (path, half_widths) = resolved_tube(part, path, half_widths, *corner_radius, *point_spacing)?;
             let params = tube_params(&path, &half_widths, *up, *steps_per_span, *wall, *arc_deg);
             return check_tube(&params).map_err(|e| block_error(part, e));
+        }
+        Geometry::Cone { base, tip, radius } => {
+            let params = ConeParams { base: *base, tip: *tip, radius: *radius };
+            return check_cone(&params).map_err(|e| block_error(part, e));
         }
         Geometry::Ellipsoid { centre, radii, rotate_deg, wall } => {
             let params = EllipsoidParams {

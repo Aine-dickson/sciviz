@@ -171,6 +171,40 @@ pub fn rounded_route(points: &[[f64; 3]], radius: f64, spacing: f64) -> Result<V
     Ok(out)
 }
 
+/// The point `fraction` (0 to 1) of the way along `route` by length, and the unit
+/// direction of travel there. Use it to place a direction marker on a wire or a
+/// flow path: a cone `Cone(base: point - direction * L / 2, tip: point + direction * L / 2, ...)`
+/// points the way the route runs.
+///
+/// Returns `None` for a route with fewer than two distinct points, a non-finite
+/// point, or a `fraction` outside 0 to 1.
+#[must_use]
+pub fn point_along(route: &[[f64; 3]], fraction: f64) -> Option<([f64; 3], [f64; 3])> {
+    if !(0.0..=1.0).contains(&fraction) || route.iter().flatten().any(|c| !c.is_finite()) {
+        return None;
+    }
+    let pieces: Vec<(usize, f64)> = route
+        .windows(2)
+        .enumerate()
+        .map(|(i, w)| (i, length(sub(w[1], w[0]))))
+        .filter(|(_, d)| *d > 1e-12)
+        .collect();
+    let total: f64 = pieces.iter().map(|(_, d)| d).sum();
+    if pieces.is_empty() || !total.is_finite() {
+        return None;
+    }
+    let mut remaining = fraction * total;
+    for (n, &(i, d)) in pieces.iter().enumerate() {
+        if remaining <= d || n == pieces.len() - 1 {
+            let direction = scale(sub(route[i + 1], route[i]), 1.0 / d);
+            let t = (remaining / d).clamp(0.0, 1.0);
+            return Some((add(route[i], scale(sub(route[i + 1], route[i]), t)), direction));
+        }
+        remaining -= d;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +301,29 @@ mod tests {
         let tight = [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 2.0, 0.0], [20.0, 2.0, 0.0]];
         assert!(matches!(rounded_route(&tight, 1.5, 0.5), Err(RouteError::RadiusTooLarge { .. })));
         assert!(rounded_route(&tight, 0.9, 0.5).is_ok());
+    }
+
+    #[test]
+    fn a_point_along_a_route_has_the_direction_of_travel() {
+        let route = rounded_route(&[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0]], 2.0, 0.1).unwrap();
+        let (start, dir) = point_along(&route, 0.0).unwrap();
+        assert_eq!((start, dir), ([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        let (end, dir) = point_along(&route, 1.0).unwrap();
+        assert!(d(end, [10.0, 10.0, 0.0]) < 1e-9 && d(dir, [0.0, 1.0, 0.0]) < 1e-9);
+        // Straight 8, a quarter circle of radius 2 (length pi), straight 8.
+        let total = 16.0 + std::f64::consts::PI;
+        // Halfway is the middle of the arc: centre (8, 2), 45 degrees round, heading diagonally.
+        let (mid, dir) = point_along(&route, 0.5).unwrap();
+        let s2 = std::f64::consts::FRAC_1_SQRT_2;
+        assert!(d(mid, [8.0 + 2.0 * s2, 2.0 - 2.0 * s2, 0.0]) < 0.01, "{mid:?}");
+        assert!(d(dir, [s2, s2, 0.0]) < 0.05, "{dir:?}");
+        assert!((length(dir) - 1.0).abs() < 1e-9);
+        // The point 8 along is the start of the bend, still heading along +x.
+        let (bend, dir) = point_along(&route, 8.0 / total).unwrap();
+        assert!(d(bend, [8.0, 0.0, 0.0]) < 1e-3 && d(dir, [1.0, 0.0, 0.0]) < 0.05, "{bend:?} {dir:?}");
+        // Bad input.
+        assert!(point_along(&route, 1.5).is_none());
+        assert!(point_along(&[[1.0, 1.0, 1.0]], 0.5).is_none());
+        assert!(point_along(&[[0.0; 3], [f64::NAN, 0.0, 0.0]], 0.5).is_none());
     }
 }

@@ -46,3 +46,18 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
   message), because one part has a single scale and a single centre.
 - The salt item still has its 64 separate grows; it is re-authored in C4.
 - **Limit:** a parent that owns geometry cannot be scaled without its children (split its own geometry into a child part).
+
+## C2.5 Direction markers (done, committed)
+
+- New `Cone(base, tip, radius)` geometry block and `structure_route::point_along(route, fraction)`. Spec:
+  `docs/animation-design.md` section 30; picture: `docs/evidence/c2-markers/demo.png`.
+- **Decision:** an arrowhead is a separate cone part, placed by a kit using `point_along`; there is no one-piece "arrow"
+  primitive yet, and no moving arrowhead. Say if you want either.
+
+## C2 is complete. What I did NOT do, and why
+
+- **C3 (circuit kit and item-document compiler) is not started.** Your policy says kit and item-document design is Opus, and
+  it begins with a design note whose choices (what a kit is in Rust, the item-document grammar, how names such as
+  `cell.negative` resolve, how kits declare their rules) have long-term consequences. This needs an Opus session. It should
+  start with `/model opus` then read `docs/authoring-convention.md` sections 5 and 9, then the notes above.
+- Nothing is merged or pushed. The branch is `c1-fidelity-register` (6 commits on top of #83).

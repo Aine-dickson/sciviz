@@ -447,3 +447,21 @@ arcs. Module `structure_route` (`rounded_route(points, radius, spacing)`) does t
   the parent's own geometry into a child part.
 - **Tests:** group grow about an off-origin centre, rigid group turn (distance preserved), `each`, a group hinge, the
   conflict error, a label anchor following a body turn.
+
+## 30. Direction markers (C2.5, 2026-11-23)
+
+Arrows show which way something runs: conventional current, a field line, a flow, a force. Two small pieces:
+
+- **`Cone(base: (x, y, z), tip: (x, y, z), radius: r)`**, a new structure geometry block: a closed solid cone from a flat
+  circular base to a point, wound outward (positive volume). It is the arrowhead. Refused with a reason: a base equal to the
+  tip, a radius that is not positive and finite, non-finite points.
+- **`structure_route::point_along(route, fraction)`** returns the point a fraction of the way along a route by length and the
+  unit direction of travel there. A kit or compiler uses it to place a marker on a wire or flow path:
+  `Cone(base: p - dir * L / 2, tip: p + dir * L / 2, radius: r)` points the way the route runs. It works on any point list,
+  including the output of `rounded_route`.
+- Authors never place these by hand. The circuit kit (C3) puts arrowheads on the loop; the field kit puts them on lines.
+- **Tests:** a cone is closed, has the exact inscribed-polygon volume, points from base to tip in any direction;
+  `point_along` gives the start and end, the middle of a rounded bend and the start of a bend, and refuses bad input.
+- **Evidence:** `docs/evidence/c2-markers/demo.png` (a pipe with two rounded bends and three arrowheads, from
+  `demo.ron`; not a lesson item).
+- **Not done:** a one-piece arrow (shaft plus head as one part) and arrowheads that animate along with a `Flow`.
