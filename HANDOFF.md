@@ -2680,3 +2680,8 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Observation: a second authored item cost less than the first, as the blocks and the test pattern
   are reusable. That is evidence for a stable authoring convention, but also for a template or
   generator, which is the author-surface question deferred by the user.
+- **Next: animation design needs an Opus session** (per the working policy: it is an architecture decision
+  with long-term consequences). Inputs already gathered: `docs/svf-prismal-boundary.md` (the rule and the
+  open question), `docs/flower-structure.md` findings 1 to 3 (stages need separate parts, no default view,
+  views cannot target parts), and the user's examples: diffusion, water up a stem, atoms combining, growth
+  stages. Start with a design note only; no implementation until the user reviews it.
