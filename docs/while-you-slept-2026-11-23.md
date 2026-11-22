@@ -61,3 +61,11 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
   `cell.negative` resolve, how kits declare their rules) have long-term consequences. This needs an Opus session. It should
   start with `/model opus` then read `docs/authoring-convention.md` sections 5 and 9, then the notes above.
 - Nothing is merged or pushed. The branch is `c1-fidelity-register` (6 commits on top of #83).
+
+## Also checked
+
+- **PR #41 (VSEPR schematic view) is superseded.** `origin/main` already has `crates/svf-core/src/vsepr_view.rs`, in a newer
+  form than the PR head. I did not close it; that is yours to do (`gh pr close 41`).
+- **Please look at, in this order:** the "Fidelity by part" scores (the magnet's field lines are F2 though the model is crude),
+  then the pictures in `docs/evidence/c2-smooth-shading/` and `docs/evidence/c2-markers/`, then the behaviour change in C2.4.
+- Nothing was merged, pushed or deleted. Stashes untouched. No `cargo fmt`.

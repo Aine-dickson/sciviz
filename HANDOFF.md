@@ -1,6 +1,6 @@
 # SVF handoff
 
-Last updated: 2026-11-23. Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
+Last updated: 2026-11-23 (night, after C1 and C2). Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
 (everything up to this date) and `docs/MILESTONES.md`. Design contracts live in `docs/<feature>.md`.
 
 ## Objective
@@ -23,6 +23,10 @@ with about 75% confidence that SVF produces valuable output across several subje
   - twelve proof-of-concept items in biology, chemistry and physics.
 - The proof-of-concept items have done their job: the **authoring convention is agreed** (`docs/authoring-convention.md`,
   decisions in section 9). Items are now polished towards reality through kits, one fidelity level at a time.
+- **C1 and C2 are done** on branch `c1-fidelity-register` (6 commits off #83, local only, no PR yet): fidelity scores
+  (`docs/item-output-bar.md`), smooth shading, `Turn` hinge (`about`), rounded routes (`corner_radius`), group `Grow`/`Turn`
+  (`each`), and `Cone` plus `point_along` for direction markers. Specs: `docs/animation-design.md` sections 27 to 30. What was
+  decided on the way, and what the user must look at: `docs/while-you-slept-2026-11-23.md`.
 - Branch `b2-5e-heart-tool` was split on 2026-11-23 into the PR stack #73 to #83 (`docs/archive/branch-split-2026-11-23.md`).
   The top is `split/11-authoring-convention` (#83). **Start new work on a new branch off that top**, not off `b2-5e-heart-tool`, which is
   kept unchanged as a reference only. **Nothing is merged without the user's explicit OK.** Merge bottom-up: retarget the next PR's base
@@ -50,30 +54,30 @@ with about 75% confidence that SVF produces valuable output across several subje
 
 - Known warnings (not blocking): unused `VectorSource3::new`, `prepare_imported_scene_with_options/_with_vectors`, and the
   `VseprDemo` fields.
-- Labels: the anchor cost on heart-sized meshes has not been measured; the reference axis shows faintly through the caption
-  panel; key swatches look lighter than the lit particles.
-- The renderer shades each triangle flat, so curved surfaces look faceted (first item of C2).
+- Labels: the reference axis shows faintly through the caption panel; key swatches look lighter than the lit particles.
 - KiTS licence unresolved (CC BY-NC-SA vs CC BY 3.0); the kidney stays a paused probe.
 - Still owed by the user: a live look at the ten timelines, caption wording and pacing, and citations for the authored items.
-- PR #41 (VSEPR schematic view, 2026-11-09) is still open; check whether it is superseded before acting on it.
+- PR #41 (VSEPR schematic view) is **superseded**: `main` already has `vsepr_view.rs` in a newer form (checked 2026-11-23).
+  Closing it is the user's call.
+- A `Grow`/`Turn` on a part that has children now takes the children with it (group transforms); a parent that owns geometry
+  cannot be scaled alone. Smooth shading is not applied to the plain `SceneRenderer::new` path (the parametric demo).
 
 ## Exact next action
 
-1. **C1 (done 2026-11-23, branch `c1-fidelity-register` off #83, not yet a PR):** the fidelity column and the "Fidelity by
-   part" table are in `docs/item-output-bar.md`. The user is to glance at the scores.
-2. **C2:** the engine gaps, one slice each with tests and screenshots, in this order:
-   1. smooth shading (vertex normals instead of the per-triangle normal in `mesh.wgsl`);
-   2. a hinge pivot for `Turn`;
-   3. lines-and-arcs paths and routing between named points;
-   4. group transforms;
-   5. direction markers (arrowheads).
-3. **C3:** the circuit kit and the item-document compiler (Opus; short design note first). Re-author the circuit with them and
-   compare the cost with `tools/structure-items/simple_circuit.py`.
+1. **The user:** look at the scores in `docs/item-output-bar.md` ("Fidelity by part"), the evidence pictures in
+   `docs/evidence/c2-smooth-shading/` and `docs/evidence/c2-markers/`, and the decisions in
+   `docs/while-you-slept-2026-11-23.md`. Say whether to open a PR for the C1+C2 branch.
+2. **C3 (needs Opus, `/model opus`):** the circuit kit and the item-document compiler. Start with a short design note (what
+   a kit is in Rust; the item-document grammar in RON; how names such as `cell.negative` resolve to coordinates for
+   `rounded_route` and `point_along`; how a kit declares and tests its rules). Then re-author the circuit with it and compare
+   the cost with `tools/structure-items/simple_circuit.py`. The engine pieces it needs now exist (hinge, rounded routes,
+   markers, group transforms, smooth shading).
+3. C4 chemistry kits, C5 biology realism, C6 author-surface review (`docs/authoring-convention.md` section 8).
 
-Model: C1 and C2 are routine (Sonnet). Kit and item-document design is Opus.
+Model: C3 design is Opus; building a kit once its note is agreed is Sonnet.
 
 ## Verified
 
-- `cargo test --workspace --release --no-fail-fast`: 0 failures at `a93e5b8` (core 457, render 20, explorer 87, and every
-  fixture suite). The result for each split PR head is in `docs/archive/branch-split-2026-11-23.md`.
+- `cargo test --workspace --release --no-fail-fast`: 0 failures at `9ac18ef` on `c1-fidelity-register` (core 474, render 23,
+  explorer 87, and every fixture suite). The result for each split PR head is in `docs/archive/branch-split-2026-11-23.md`.
 - Screenshots of each item, looked at by Claude, are in `docs/evidence/`. None have been judged live by the user.
