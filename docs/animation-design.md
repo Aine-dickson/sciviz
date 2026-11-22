@@ -242,3 +242,18 @@ New `crates/svf-core/src/structure_particles.rs`. **Core only: no timeline actio
 See `docs/opacity.md`. New action `Fade(part, to, for_s, at_s, ease)`; `PartPose.opacity`; a part faded to nothing is left out of the scene.
 The beaker now has a translucent glass wall and water (no more cut-away); the flower's petals and stamens fade as they fall.
 The to-do "fade and opacity in the renderer" is done. Still not built: scale-based hide, `Meet`, water up the stem.
+
+## 19. Water up the dicot stem (2026-11-22)
+
+`fixtures/structures/dicot-stem.ron` now has the timeline `water-up` (24 s, 3 beats): the whole stem; the tissues in the way fade
+(epidermis to 0.1, pith to 0.12, cortex, phloem, cambium and medullary rays to nothing, xylem to 0.5) while the camera drops a little;
+then eight `Flow` actions, one up the middle of each xylem bundle (14 particles each, 1.2 mm/s along a 12 mm path, so a lap is 10 s), with two captions.
+- **Finding:** first try, fading everything to about 0.12, was unreadable (the translucent layers merged into one yellow-green mass).
+  Taking the layers that are in the way out completely and keeping the xylem at 0.5 with bright cyan water worked. Lesson for later items:
+  translucency is for context, not for stacking five layers; fade the ones in the way to nothing.
+- **Limits:** straight paths and a wrap from top to bottom (direction, not a real circuit or speed); no roots or leaves are drawn, so "from the
+  roots to the leaves" is carried by the caption; the paths were computed from the `Sector` angle convention (+x towards -z).
+- **Tests (run by Claude, release):** `tests/dicot_stem_fixture.rs` (water inside the xylem radius, height and bundle angle at 301 times; fades; every
+  drawn frame closed). Three Explorer tests that appended their own timeline to the stem text now use `plain_stem()`, which cuts the file at its
+  `// Timelines.` marker; keep that marker when editing the fixture.
+- Screenshots: `docs/evidence/stem-water/at-{1,8,12,20}.png` (8 and 12 retaken after the fix; I looked at 12). Not seen live by the user.

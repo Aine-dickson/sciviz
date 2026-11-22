@@ -815,6 +815,13 @@ mod tests {
 
     const STEM: &str = include_str!("../../../fixtures/structures/dicot-stem.ron");
 
+    /// The stem fixture without its own timelines, for tests that add their own.
+    fn plain_stem() -> String {
+        let cut = STEM.find("
+    // Timelines.").expect("the stem fixture marks where its timelines start");
+        format!("{})", &STEM[..cut])
+    }
+
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| (*s).to_owned()).collect()
     }
@@ -1088,7 +1095,7 @@ mod tests {
 
     #[test]
     fn a_view_that_cannot_be_applied_changes_nothing() {
-        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+        let text = plain_stem().trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
             + ", views: [View(id: \"up\", name: \"Straight up\", camera: Some((yaw_deg: 0.0, pitch_deg: 89.9, zoom: 1.0)))])";
         let structure = Structure::from_ron_str(&text).unwrap();
         let mut scene =
@@ -1101,7 +1108,7 @@ mod tests {
     }
 
     fn stem_with_timeline() -> StructureScene {
-        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+        let text = plain_stem().trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
             + ", timelines: [Timeline(id: \"peel\", name: \"Skin off\", camera: Some((yaw_deg: 10.0, pitch_deg: 20.0, zoom: 1.0)), \
                scenes: [Scene(id: \"s\", beats: [\
                Beat(id: \"a\", actions: [Narrate(text: \"The whole stem\", for_s: 2.0)]), \
@@ -1174,7 +1181,9 @@ mod tests {
 
     #[test]
     fn a_scene_without_timelines_refuses_them() {
-        let mut plain = scene();
+        let structure = Structure::from_ron_str(&plain_stem()).unwrap();
+        let mut plain =
+            StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap();
         assert!(!plain.has_timelines());
         assert!(plain.next_timeline().is_err());
         assert_eq!(plain.timeline_camera().unwrap(), None);
@@ -1182,7 +1191,7 @@ mod tests {
 
     #[test]
     fn a_faded_part_becomes_translucent_and_then_leaves_the_scene() {
-        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+        let text = plain_stem().trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
             + ", timelines: [Timeline(id: \"f\", name: \"Fade\", scenes: [Scene(id: \"s\", beats: [\
                Beat(id: \"b\", actions: [Fade(part: \"epidermis\", to: 0.0, for_s: 4.0)])])])])";
         let structure = Structure::from_ron_str(&text).unwrap();

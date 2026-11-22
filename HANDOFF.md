@@ -2786,3 +2786,12 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   (opacities are 0.22 glass, 0.12 water; dye colour could be more saturated).
 - **Next options:** water up the dicot stem (`Flow`; xylem path; the stem could now have a translucent epidermis), a cell or digestive item, or splitting
   the branch into PRs (user must be present).
+
+### Update 2026-11-22 (water up the dicot stem)
+
+- `dicot-stem.ron` has the `water-up` timeline (fades plus eight `Flow`s); `tests/dicot_stem_fixture.rs`; design note section 19; register row.
+  Keep the `// Timelines.` marker in the fixture: three Explorer tests cut the file there.
+- Workspace green (core 440, fixtures 7/3/2/6/9/6, explorer 85, render 15). Screenshot at 12 s looked at; first version unreadable, fixed (see section 19).
+- Owed (user away): live look at flower, beaker and stem timelines; caption wording and pacing; legibility of the stem.
+- Items now built with timelines: flower, beaker, stem. **Next options:** a cell or digestive/breathing item (the syllabus lists BOD, CEL, TRN); splitting the branch
+  into PRs (user must be present); `Meet` (atoms combining; needs the chemistry module); scale-based hide. Ask the user which when they are back.
