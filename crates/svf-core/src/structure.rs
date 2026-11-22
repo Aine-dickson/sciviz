@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::{
     geometry::{GeometryError, TriangleMesh3},
     spatial::WorldPoint3,
+    structure_animation::{validate_timelines, Timeline, TimelineDocument},
     structure_lesson::{validate_relations, validate_views},
     structure_mesh::{MeshContainer, Provenance},
     structure_blocks::{
@@ -65,6 +66,9 @@ pub struct StructureDocument {
     /// Named lesson views. Optional.
     #[serde(default)]
     pub views: Vec<ViewDocument>,
+    /// Animation timelines. Optional; see `docs/animation-design.md`.
+    #[serde(default)]
+    pub timelines: Vec<TimelineDocument>,
     /// Where derived geometry came from. Optional; see `docs/heart-structure.md` section 18.
     #[serde(default)]
     pub provenance: Option<Provenance>,
@@ -188,6 +192,10 @@ pub enum StructureError {
     DuplicateViewId(String),
     UnknownViewPart { view: String, part: String },
     InvalidView { view: String, reason: &'static str },
+    EmptyTimelineId { index: usize },
+    DuplicateTimelineId(String),
+    UnknownTimelinePart { timeline: String, part: String },
+    InvalidTimeline { timeline: String, reason: String },
     /// A `Mesh` part in a structure read without a resolver.
     MeshNeedsResolver { part: String },
     /// The resolver or the container reader failed for this file.
@@ -246,6 +254,12 @@ impl fmt::Display for StructureError {
                 write!(f, "view '{view}' shows unknown part '{part}'")
             }
             Self::InvalidView { view, reason } => write!(f, "view '{view}': {reason}"),
+            Self::EmptyTimelineId { index } => write!(f, "timeline {index} has an empty id"),
+            Self::DuplicateTimelineId(id) => write!(f, "duplicate timeline id '{id}'"),
+            Self::UnknownTimelinePart { timeline, part } => {
+                write!(f, "timeline '{timeline}' names unknown part '{part}'")
+            }
+            Self::InvalidTimeline { timeline, reason } => write!(f, "timeline '{timeline}': {reason}"),
             Self::MeshNeedsResolver { part } => {
                 write!(f, "part '{part}' uses a mesh file; load the structure with a resolver")
             }
@@ -352,6 +366,7 @@ pub struct Structure {
     layers: Vec<Layer>,
     relations: Vec<Relation>,
     views: Vec<View>,
+    timelines: Vec<Timeline>,
     provenance: Option<Provenance>,
     meshes: HashMap<String, MeshContainer>,
 }
@@ -511,6 +526,7 @@ impl Structure {
         let layers = validate_layers(&document.layers, &parts, &by_id)?;
         let relations = validate_relations(&document.relations, &by_id)?;
         let views = validate_views(&document.views, &parts, &by_id, layers.len())?;
+        let timelines = validate_timelines(&document.timelines, &parts, &by_id)?;
 
         Ok(Self {
             name: document.name,
@@ -521,6 +537,7 @@ impl Structure {
             layers,
             relations,
             views,
+            timelines,
             provenance: document.provenance,
             meshes,
         })
@@ -570,6 +587,12 @@ impl Structure {
     #[must_use]
     pub fn views(&self) -> &[View] {
         &self.views
+    }
+
+    /// Animation timelines, in file order.
+    #[must_use]
+    pub fn timelines(&self) -> &[Timeline] {
+        &self.timelines
     }
 
     /// Parts to show when the `peeled` outermost layers are removed (clamped

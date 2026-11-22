@@ -21,6 +21,7 @@ pub mod segmentation;
 pub mod scalar_visualization;
 pub mod spatial;
 pub mod structure;
+pub mod structure_animation;
 pub mod structure_blocks;
 pub mod structure_lesson;
 pub mod structure_mesh;

@@ -1,6 +1,6 @@
 # Animation in SVF — design note (proposal for user review)
 
-Status: **proposal; nothing is implemented.** Written 2026-11-22. Decided with the user: first slice is
+Status: **approved by the user on 2026-11-22; slice A1 done (see section 13).** Written 2026-11-22. Decided with the user: first slice is
 poses and steps **plus** particle verbs; the author's words mirror Prismal's timeline words.
 Everything below is "proposed" until the user approves it. Context: `svf-prismal-boundary.md`
 (animation is an SVF capability; the line between tools is whether the learner runs an experiment),
@@ -126,12 +126,38 @@ Each slice: tests run by Claude, screenshots, register and handoff updated; the 
 Physics or equations (Prismal), learner-set variables, graphs, sound or narration audio, video export,
 vertex keyframes, opacity, instancing. Each can be reconsidered when an item needs it.
 
-## 11. Open questions for the user
+## 11. Decisions (user, 2026-11-22)
 
-1. Section while playing: disabled (proposed), or allowed with a slow-frame warning?
-2. Is scale-based hide acceptable until the renderer supports opacity?
-3. Which first particle item: diffusion in a beaker, or water up the stem?
-4. Narration: text captions only (proposed), with sound deferred?
-5. Should the file form stay RON (proposed, consistent with `structure.ron`), or should timelines get their own
-   Prismal-like text syntax? RON keeps one parser and one validator; a text syntax would match Prismal more closely
-   but costs a second parser.
+1. **Section, peel and isolate are disabled while playing and available when paused.**
+2. **`Hide` and `Show` are instant for now** (they wait for the renderer). Scale-based hiding and fade
+   are **not** built. To do: fade needs opacity in the renderer (`blend: None` today); do it as a
+   renderer decision when an item needs it.
+3. **First particle item: diffusion in a beaker** (B2). Water up the stem follows.
+4. **Captions only**, no sound.
+5. **RON** for the file form; no separate text syntax.
+
+## 12. Changes made while building A1 (so the note matches the code)
+
+- Actions are RON struct variants with named fields, e.g. `Narrate(text: "...", for_s: 3.0)`; every timed
+  action may take `at_s` (an offset inside its beat, default 0) and `ease` (`Linear` default, or `Smooth`).
+- `Hide(part)` and `Show(part)` take effect at `at_s`; the first of them on a part decides whether the part
+  starts shown (first is `Show`: hidden at the start; first is `Hide`: shown at the start).
+- A `Camera` action needs the timeline's start camera (`camera: Some((yaw_deg, pitch_deg, zoom))`), since the
+  core does not know the Explorer's fitted camera.
+- A grouping part (no geometry) given to `Show`, `Hide`, `Move`, `Colour` or `Highlight` stands for its
+  descendants, as in views. `Grow` and `Turn` need a part with geometry (they act about the part's own centre);
+  a named anchor is deferred.
+- Two `Grow`, two `Colour` or two `Camera` actions that overlap in time on the same target are refused.
+
+## 13. Slice A1 result (2026-11-22)
+
+Built in `crates/svf-core/src/structure_animation.rs`, wired into `structure.rs` (`timelines` field,
+`Structure::timelines()`, four new `StructureError` variants) and `lib.rs`. No renderer or Explorer change.
+
+- Actions: Narrate, Wait, Show, Hide, Highlight, Move, Grow, Turn, Colour, Camera (section 12 describes the form).
+- `Timeline::pose_at(t)` is pure; `t` is clamped to the timeline; `beats()` gives start and end times for stepping.
+- 13 unit tests, run by Claude in a release build, all passed: pure and repeatable poses, easing, groups versus
+  `Grow`, chained `Grow`, first `Show`/`Hide` deciding the initial state, ordered turns, colour from the authored
+  colour, camera from the start camera, captions, highlights, beat order, and refusal of bad input.
+- Not done and not claimed: `apply_pose` (A2), the Explorer clock and keys (A3), any fixture timeline (A4), particle verbs (B1).
+- Pivot note: `Grow` and `Turn` act about each part's own centre; the centre is chosen when the pose is applied (A2).

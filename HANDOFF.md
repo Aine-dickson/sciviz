@@ -2692,3 +2692,22 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   (section while playing, scale-based hide, first particle item, captions only, RON vs a text syntax).
   Per-frame cost is NOT measured. **Next action: the user reviews the note and answers the open questions; only then
   start slice A1.**
+
+### Update 2026-11-22 (animation slice A1; a section bug found and fixed)
+
+- User answers on the animation note: sections disabled during play and available when paused; `Hide`/`Show`
+  instant, **fade and scale-based hiding are on the to-do list** (the renderer has no opacity: `blend: None`);
+  diffusion in a beaker is the first particle item; captions only; RON.
+- **A1 done:** `crates/svf-core/src/structure_animation.rs` (timeline types, validation, pure `pose_at`),
+  13 new unit tests. Full workspace tests (`cargo test --workspace --release`) passed after the change: svf-core
+  413 unit + cockroach 7 + flower 5 + heart 9 (4 real-mask tests ignored by design) + plant cell 6, explorer 79 and 12.
+  Next: A2 `apply_pose`.
+- **Found and fixed a regression:** `3e62a38` ("Find a clear section plane gap on dense meshes") moved the cut plane
+  to the middle of the next gap between vertex rings, up to half a ring spacing off the requested plane on coarse
+  meshes. Two older unit tests had been failing since then (`structure_blocks::a_shell_cut_leaves_a_ring_not_a_disc`,
+  `structure_section::stem_cut_along_the_axis_caps_the_tissues_it_crosses`); I confirmed they fail on a clean checkout
+  of the previous commit in both release and debug. Fix: stay just past the blocked run of vertices (`end + eps`),
+  and use the middle of the gap only when it is too narrow. All tests pass again, including the heart's 98 plane cuts.
+  The heart's live Explorer behaviour was not re-checked by eye after this change.
+- Flower and cell screenshots were retaken after the fix (the cell cut looks unchanged).
+- Note for future sessions: run the full test suite before trusting a branch; two tests were red for days.
