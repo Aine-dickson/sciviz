@@ -2728,3 +2728,12 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   user to eyeball the heart in the Explorer after the section fix.
 - Run the full suite before trusting anything: `cargo test --workspace --release` (all green at `c4fe766`).
 - Model: A2 and A3 are routine (Sonnet); any change to the design in `animation-design.md` needs Opus.
+
+### Update 2026-11-22 (animation slice A2 done)
+
+- `StructureGeometry::apply_pose(&Pose)` added in `crates/svf-core/src/structure_animation.rs`: per part, scale about the
+  bounding-box centre, then turns in order, then offset; a pose colour replaces the part's vertex colours. Counts, ranges
+  and winding unchanged; visibility is not applied (build only the visible parts). 5 new tests (move/scale/turn volume,
+  t=0 identity, colour). `cargo test --workspace --release`: svf-core 418 unit, all other suites green.
+- **Next action: A3** (Explorer clock, Space/step/scrub keys, caption in the window title, `--at <s>`, measure frame cost).
+  Then A4 flower `pollination` timeline, B1 particles, B2 diffusion beaker.

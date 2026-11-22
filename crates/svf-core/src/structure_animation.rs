@@ -14,7 +14,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::structure::{Part, StructureError};
+use crate::geometry::TriangleMesh3;
+use crate::spatial::WorldPoint3;
+use crate::structure::{Part, StructureError, StructureGeometry};
 use crate::structure_lesson::ViewCamera;
 
 const EPS: f64 = 1e-9;
@@ -308,6 +310,85 @@ impl Timeline {
             }
         }
         Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()) }
+    }
+}
+
+/// Rotate `v` about the unit `axis` by `degrees` (Rodrigues' formula).
+fn rotate(v: [f64; 3], axis: [f64; 3], degrees: f64) -> [f64; 3] {
+    let (s, c) = degrees.to_radians().sin_cos();
+    let dot = axis[0] * v[0] + axis[1] * v[1] + axis[2] * v[2];
+    let cross = [
+        axis[1] * v[2] - axis[2] * v[1],
+        axis[2] * v[0] - axis[0] * v[2],
+        axis[0] * v[1] - axis[1] * v[0],
+    ];
+    [
+        v[0] * c + cross[0] * s + axis[0] * dot * (1.0 - c),
+        v[1] * c + cross[1] * s + axis[1] * dot * (1.0 - c),
+        v[2] * c + cross[2] * s + axis[2] * dot * (1.0 - c),
+    ]
+}
+
+impl StructureGeometry {
+    /// The geometry as it looks under `pose`. Each part is scaled about the
+    /// centre of its bounding box, turned in order about that same centre,
+    /// then moved by its offset. Vertex and triangle counts, ranges and
+    /// winding are unchanged; a colour in the pose replaces the part's colour.
+    /// Visibility is not applied here: build only the visible parts.
+    /// Parts the pose has no entry for are left as they are.
+    #[must_use]
+    pub fn apply_pose(&self, pose: &Pose) -> Self {
+        let mut points: Vec<[f64; 3]> =
+            self.mesh().vertices().iter().map(|p| p.to_array()).collect();
+        let mut colours = self.colours().to_vec();
+        let indices = self.mesh().indices();
+
+        for range in self.ranges() {
+            let Some(part) = pose.parts.get(range.part_index) else { continue };
+            let mut used: Vec<usize> = indices
+                [range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3]
+                .iter()
+                .map(|&i| i as usize)
+                .collect();
+            used.sort_unstable();
+            used.dedup();
+            if used.is_empty() {
+                continue;
+            }
+
+            let mut lo = [f64::INFINITY; 3];
+            let mut hi = [f64::NEG_INFINITY; 3];
+            for &i in &used {
+                for axis in 0..3 {
+                    lo[axis] = lo[axis].min(points[i][axis]);
+                    hi[axis] = hi[axis].max(points[i][axis]);
+                }
+            }
+            let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
+
+            for &i in &used {
+                let mut rel = [
+                    (points[i][0] - centre[0]) * part.scale,
+                    (points[i][1] - centre[1]) * part.scale,
+                    (points[i][2] - centre[2]) * part.scale,
+                ];
+                for &(axis, degrees) in &part.turns {
+                    rel = rotate(rel, axis, degrees);
+                }
+                for axis in 0..3 {
+                    points[i][axis] = centre[axis] + rel[axis] + part.offset[axis];
+                }
+                if let Some(colour) = part.colour {
+                    colours[i] = colour;
+                }
+            }
+        }
+
+        let vertices = points.iter().map(|p| WorldPoint3::new(p[0], p[1], p[2])).collect();
+        // Same indices, finite inputs: an affine map of a valid mesh stays valid.
+        let mesh = TriangleMesh3::new(vertices, indices.to_vec())
+            .expect("a posed mesh keeps its topology and stays finite");
+        Self::from_parts(mesh, colours, self.ranges().to_vec())
     }
 }
 
@@ -679,6 +760,102 @@ mod tests {
             StructureError::InvalidTimeline { reason, .. } => reason,
             other => panic!("unexpected error {other:?}"),
         }
+    }
+
+    fn signed_volume(geometry: &crate::structure::StructureGeometry, range: usize) -> f64 {
+        let r = geometry.ranges()[range];
+        let v = geometry.mesh().vertices();
+        let idx = geometry.mesh().indices();
+        let mut total = 0.0;
+        for tri in r.first_triangle..r.first_triangle + r.triangle_count {
+            let p = |k: usize| {
+                v[idx[tri * 3 + k] as usize].to_array()
+            };
+            let (a, b, c) = (p(0), p(1), p(2));
+            total += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+                + a[2] * (b[0] * c[1] - b[1] * c[0]))
+                / 6.0;
+        }
+        total
+    }
+
+    fn posed(actions: &str, t: f64) -> (crate::structure::StructureGeometry, crate::structure::StructureGeometry) {
+        let s = structure(&one(actions)).unwrap();
+        let base = s.build_geometry().unwrap();
+        let pose = s.timelines()[0].pose_at(t);
+        let after = base.apply_pose(&pose);
+        (base, after)
+    }
+
+    // Built ranges are a, b, c (the group `root` has no geometry): b is range 1.
+    #[test]
+    fn a_pose_move_keeps_counts_and_volume() {
+        let (base, after) = posed("Move(part: \"b\", by: (10.0, 2.0, -3.0), for_s: 4.0)", 4.0);
+        assert_eq!(after.mesh().indices(), base.mesh().indices());
+        assert_eq!(after.mesh().vertices().len(), base.mesh().vertices().len());
+        assert_eq!(after.ranges(), base.ranges());
+        assert!((signed_volume(&after, 1) - signed_volume(&base, 1)).abs() < 1e-9);
+        let (b0, b1) = (base.mesh().vertices(), after.mesh().vertices());
+        let r = base.ranges()[1];
+        let first = base.mesh().indices()[r.first_triangle * 3] as usize;
+        assert!((b1[first].to_array()[0] - b0[first].to_array()[0] - 10.0).abs() < 1e-9);
+        // Parts not moved are untouched.
+        let a = base.mesh().indices()[base.ranges()[0].first_triangle * 3] as usize;
+        assert_eq!(b1[a], b0[a]);
+    }
+
+    #[test]
+    fn a_pose_scale_multiplies_volume_by_the_cube() {
+        let (base, after) = posed("Grow(part: \"b\", to: 2.0, for_s: 1.0)", 1.0);
+        let ratio = signed_volume(&after, 1) / signed_volume(&base, 1);
+        assert!((ratio - 8.0).abs() < 1e-9, "ratio {ratio}");
+    }
+
+    #[test]
+    fn a_pose_turn_keeps_volume_and_centre() {
+        let (base, after) = posed("Turn(part: \"b\", axis: (0.0, 1.0, 1.0), deg: 90.0, for_s: 1.0)", 1.0);
+        assert!((signed_volume(&after, 1) - signed_volume(&base, 1)).abs() < 1e-9);
+        let centre = |g: &crate::structure::StructureGeometry| {
+            let r = g.ranges()[1];
+            let mut used: Vec<usize> = g.mesh().indices()
+                [r.first_triangle * 3..(r.first_triangle + r.triangle_count) * 3]
+                .iter()
+                .map(|&i| i as usize)
+                .collect();
+            used.sort_unstable();
+            used.dedup();
+            let v = g.mesh().vertices();
+            let n = used.len() as f64;
+            [
+                used.iter().map(|&i| v[i].to_array()[0]).sum::<f64>() / n,
+                used.iter().map(|&i| v[i].to_array()[1]).sum::<f64>() / n,
+                used.iter().map(|&i| v[i].to_array()[2]).sum::<f64>() / n,
+            ]
+        };
+        // The disc extrusion is symmetric, so the vertex mean is its bounding-box centre.
+        let (c0, c1) = (centre(&base), centre(&after));
+        for axis in 0..3 {
+            assert!((c0[axis] - c1[axis]).abs() < 1e-9);
+        }
+        assert_ne!(base.mesh().vertices(), after.mesh().vertices());
+    }
+
+    #[test]
+    fn a_pose_at_time_zero_equals_the_unposed_geometry() {
+        let (base, after) = posed(
+            "Move(part: \"b\", by: (5.0, 0.0, 0.0), for_s: 2.0), Grow(part: \"a\", to: 3.0, for_s: 2.0)",
+            0.0,
+        );
+        assert_eq!(base, after);
+    }
+
+    #[test]
+    fn a_pose_colour_replaces_only_that_part() {
+        let (base, after) = posed("Colour(part: \"b\", to: (1.0, 0.0, 0.0), for_s: 1.0)", 1.0);
+        let r = base.ranges()[1];
+        let b = base.mesh().indices()[r.first_triangle * 3] as usize;
+        assert_eq!(after.colours()[b], [1.0, 0.0, 0.0]);
+        assert_eq!(after.colours()[0], base.colours()[0]);
     }
 
     #[test]
