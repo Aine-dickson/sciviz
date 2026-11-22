@@ -41,6 +41,10 @@ impl Ease {
     }
 }
 
+fn stay_by_default() -> bool {
+    true
+}
+
 /// One action in a beat. Every action starts `at_s` seconds after its beat
 /// starts (default 0). A beat lasts as long as its longest action.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -147,6 +151,10 @@ pub enum ActionDocument {
         for_s: f64,
         #[serde(default)]
         at_s: f64,
+        /// Whether the particles stay, resting where the walk ended, after `for_s`
+        /// (the default), or disappear when it ends.
+        #[serde(default = "stay_by_default")]
+        stay: bool,
     },
     /// Particles travelling along `path` at `speed` for `for_s` seconds, wrapping
     /// from the end to the start. Shown only while it runs.
@@ -320,6 +328,8 @@ pub struct Pose {
 /// A particle generator placed on the timeline.
 #[derive(Clone, Debug, PartialEq)]
 struct Emitter {
+    /// Whether it is still shown after `end` (a `Spread` that stays).
+    stays: bool,
     id: String,
     start: f64,
     end: f64,
@@ -394,6 +404,7 @@ impl Timeline {
             }
             let local = t - e.start;
             let positions = match &e.kind {
+                EmitterKind::Spread(_) if !e.stays && t > e.end => continue,
                 EmitterKind::Spread(spread) => spread.positions_at(local),
                 EmitterKind::Flow(flow) if t <= e.end => flow.positions_at(local),
                 EmitterKind::Flow(_) => continue,
@@ -745,7 +756,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         length = length.max(at_s + for_s);
                     }
                     ActionDocument::Spread {
-                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s,
+                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s, stay,
                     } => {
                         let span = timing(*at_s, *for_s)?;
                         let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
@@ -764,6 +775,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         )
                         .map_err(|e| bad(format!("Spread '{id}': {e}")))?;
                         emitters.push(Emitter {
+                            stays: *stay,
                             id: id.clone(),
                             start: span.start,
                             end: span.end,
@@ -785,6 +797,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         })
                         .map_err(|e| bad(format!("Flow '{id}': {e}")))?;
                         emitters.push(Emitter {
+                            stays: false,
                             id: id.clone(),
                             start: span.start,
                             end: span.end,
@@ -1095,6 +1108,17 @@ mod tests {
     }
 
     #[test]
+    fn a_spread_that_does_not_stay_disappears_when_its_walk_ends() {
+        let t = timeline(&DIFFUSION.replace("at_s: 1.0)", "at_s: 1.0, stay: false), Wait(for_s: 9.0)"));
+        assert_eq!(t.pose_at(3.0).particles.len(), 1);
+        assert_eq!(t.pose_at(6.0).particles.len(), 1, "still there at the end of the walk");
+        assert!(t.pose_at(6.5).particles.is_empty());
+        // The default is unchanged: it rests where it ended.
+        let stays = timeline(&DIFFUSION.replace("at_s: 1.0)", "at_s: 1.0), Wait(for_s: 9.0)"));
+        assert_eq!(stays.pose_at(9.0).particles.len(), 1);
+    }
+
+    #[test]
     fn a_flow_is_shown_only_while_it_runs() {
         let t = timeline(
             "Flow(id: \"sap\", count: 10, path: [(0.0, 0.0, 0.0), (0.0, 4.0, 0.0)], speed: 1.0, lateral: 0.1, \
@@ -1153,6 +1177,28 @@ mod tests {
         let pose = s.timelines()[0].pose_at(1.0);
         assert!(pose.parts.iter().all(|p| p.opacity == 0.0));
         assert!((s.timelines()[0].pose_at(0.5).parts[3].opacity - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_later_fade_grow_or_colour_starts_where_the_previous_one_ended() {
+        let t = timeline(
+            "Fade(part: \"b\", to: 0.2, for_s: 1.0), Grow(part: \"b\", to: 0.5, for_s: 1.0), \
+             Colour(part: \"b\", to: (1.0, 0.0, 0.0), for_s: 1.0), \
+             Fade(part: \"b\", to: 1.0, for_s: 2.0, at_s: 2.0), Grow(part: \"b\", to: 1.5, for_s: 2.0, at_s: 2.0), \
+             Colour(part: \"b\", to: (0.0, 0.0, 1.0), for_s: 2.0, at_s: 2.0)",
+        );
+        let b = 2; // root, a, b, c
+        // Between the two: held at the first one's end.
+        let held = &t.pose_at(1.5).parts[b];
+        assert!((held.opacity - 0.2).abs() < 1e-12 && (held.scale - 0.5).abs() < 1e-12);
+        assert_eq!(held.colour, Some([1.0, 0.0, 0.0]));
+        // Half-way through the second one: half-way from the first one's end, with no jump back.
+        let mid = &t.pose_at(3.0).parts[b];
+        assert!((mid.opacity - 0.6).abs() < 1e-12);
+        assert!((mid.scale - 1.0).abs() < 1e-12);
+        assert_eq!(mid.colour, Some([0.5, 0.0, 0.5]));
+        let end = &t.pose_at(4.0).parts[b];
+        assert!((end.opacity - 1.0).abs() < 1e-12 && (end.scale - 1.5).abs() < 1e-12);
     }
 
     #[test]

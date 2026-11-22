@@ -2786,3 +2786,75 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   (opacities are 0.22 glass, 0.12 water; dye colour could be more saturated).
 - **Next options:** water up the dicot stem (`Flow`; xylem path; the stem could now have a translucent epidermis), a cell or digestive item, or splitting
   the branch into PRs (user must be present).
+
+### Update 2026-11-22 (water up the dicot stem)
+
+- `dicot-stem.ron` has the `water-up` timeline (fades plus eight `Flow`s); `tests/dicot_stem_fixture.rs`; design note section 19; register row.
+  Keep the `// Timelines.` marker in the fixture: three Explorer tests cut the file there.
+- Workspace green (core 440, fixtures 7/3/2/6/9/6, explorer 85, render 15). Screenshot at 12 s looked at; first version unreadable, fixed (see section 19).
+- Owed (user away): live look at flower, beaker and stem timelines; caption wording and pacing; legibility of the stem.
+- Items now built with timelines: flower, beaker, stem. **Next options:** a cell or digestive/breathing item (the syllabus lists BOD, CEL, TRN); splitting the branch
+  into PRs (user must be present); `Meet` (atoms combining; needs the chemistry module); scale-based hide. Ask the user which when they are back.
+
+### Update 2026-11-22 (breathing item)
+
+- `fixtures/structures/breathing.ron` + `tests/breathing_fixture.rs` + register row + design note section 20. No core code changed. Workspace green (core 440,
+  fixtures 4/7/3/2/6/9/6, explorer 85, render 15). Screenshots at 3, 7 and 12 s looked at; first view was a side view (yaw -40), fixed to +45.
+- Items with timelines: flower, beaker, stem, breathing (plus authored/untimed: cockroach, heart, plant cell). Owed from the user: live look at all four timelines
+  (Space, arrows, `,` `.`), caption wording, pacing, legibility.
+- **Next options:** gas exchange in an alveolus (a zoomed second timeline; particles crossing a membrane need two-way spread, which `Spread` does not do);
+  a digestive item; `Meet`; splitting the branch into PRs (user must be present). Ask the user which.
+
+### Update 2026-11-22 (gas exchange in an air sac)
+
+- `fixtures/structures/gas-exchange.ron` + test + register row + design note section 21. No core code changed. Gas movement is built from opposite `Flow`s.
+- **Gap worth a design decision (Opus):** there is no legend or label mechanism for particles (colours are named in captions only), and no particle colour that depends on position
+  (so blood cannot change colour as it passes). Both came up in four items now (beaker, stem, breathing, gas exchange). Collect before designing.
+- Tests: `cargo test --workspace --release` green after this item (core 440, fixtures 4/4/7/3/2/6/9/6, explorer 85, render 15).
+- Owed from the user: live look at all five timelines; caption wording; pacing; legibility; citations.
+- **Next options:** a legend/label mechanism for particles and parts (Opus design); a digestive item; `Meet`; PR split (user must be present).
+
+### Update 2026-11-22 (digestive item)
+
+- `fixtures/structures/digestive-system.ron`, `tests/digestive_fixture.rs`, `Spread` `stay` option (core, tested), register row, design note section 22.
+  `cargo test --workspace --release` green (core 441, fixtures 4/7/3/2/4/6/4/9/6, explorer 85, render 15). Screenshots at 48 and 60 s looked at.
+- Items with timelines: flower, beaker, stem, breathing, gas exchange, digestive. Owed from the user: a live look at all six, caption wording, pacing, legibility, citations.
+- Authoring chores seen so far, for a later "author surface" decision (not now): long tubes need lines-and-arcs path helpers; particle legends/labels; position-dependent particle colour;
+  a rib cannot hinge (no pivot for `Turn`). Collect before designing; do not start without the user.
+- **Next options:** the heart and blood circulation (the heart fixture exists; a flow of blood through its chambers is the obvious next story, but the heart camera is not to be reopened);
+  a plant cell timeline; `Meet`; the PR split (user must be present).
+
+### Update 2026-11-22 (chemistry side: H2 + O2 -> H2O)
+
+- The user moved to the chemistry/physics side. I surveyed the syllabus and the existing assets (see the reply summarised in `docs/animation-design.md` section 23) and the user chose the reaction.
+- `fixtures/structures/water-reaction.ron` + `tests/water_reaction_fixture.rs` (5 tests) + register row + section 23. No core code changed. Workspace green (core 441, fixtures 4/7/3/2/4/6/4/9/6/5, explorer 85, render 15).
+- Candidates not yet built, all fixed accounts that fit SVF: simple circuit with a switch (cell, wires, bulb: `Flow` plus `Colour`; no new code), states of matter (needs a small
+  "vibrate in place" particle verb for solids), convection currents (closed-loop `Flow`), atoms and electron shells (rule-driven, `Turn` about the nucleus), NaCl lattice and dissolving, magnetic field lines.
+  Left to Prismal by the boundary rule: acids/pH, motion and F = ma, waves, Ohm's law with measurements, reaction rates. Not possible yet: Moon phases (the renderer has no directional light).
+- Bridge between `chemistry.rs` molecules and structure files: wanted, undesigned (Opus).
+- Owed from the user: a live look at all seven timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction), caption wording, pacing, legibility, citations.
+
+### Update 2026-11-22 (magnetic field lines)
+
+- `fixtures/structures/bar-magnet.ron`, `tests/bar_magnet_fixture.rs` (7 tests), register row, design note section 24. No core code changed. Field lines and needles come from a stated two-point-pole model.
+- Workspace green (see the test totals in the commit check). Screenshots at 14, 28 and 56 s looked at. Owed from the user: a live look at all eight timelines (flower, beaker, stem, breathing, gas exchange, digestive,
+  water reaction, bar magnet), caption wording, pacing, legibility, citations.
+- Remaining chemistry/physics candidates: simple circuit with a switch, states of matter (needs a vibrate-in-place particle verb), convection currents, electron shells, NaCl lattice, two magnets attracting/repelling (field of two magnets).
+- Authoring chores list (unchanged, for a later Opus design): particle legends/labels, position-dependent particle colour, lines-and-arcs path helper for tubes, no hinge for `Turn`, no arrow-head/direction marker on tubes (new today), a bridge from `chemistry.rs` molecules to structure files.
+
+### Update 2026-11-22 (salt: NaCl lattice and dissolving)
+
+- `fixtures/structures/salt-dissolving.ron` (generated by `tools/structure-items/salt_dissolving.py`, kept), `tests/salt_dissolving_fixture.rs` (5 tests), register row, design note section 25. No core code changed; one unit test added
+  for Fade/Grow/Colour chaining. Run: `cargo run --release -p svf-explorer -- --structure fixtures/structures/salt-dissolving.ron --timeline dissolving`.
+- `cargo test --workspace --release` green (core 442, all fixture suites incl. salt 5, explorer 85, render 15). Screenshots at 14, 25, 44, 56 and 90 s looked at.
+- Owed from the user: a live look at all nine timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction, bar magnet, salt), caption wording, pacing, legibility, citations.
+- Authoring chores list gains: `Grow` on a group (each child about its own centre) for lattices; `--camera-pitch` replaces rather than offsets the timeline camera.
+- Remaining chemistry/physics candidates: simple circuit with a switch, states of matter (needs a vibrate-in-place particle verb), convection currents, electron shells, two magnets.
+
+### Update 2026-11-22 (simple circuit with a switch)
+
+- `fixtures/structures/simple-circuit.ron` (generated by `tools/structure-items/simple_circuit.py`), `tests/simple_circuit_fixture.rs` (5 tests), register row, design note section 26. No core code changed.
+  Run: `cargo run --release -p svf-explorer -- --structure fixtures/structures/simple-circuit.ron --timeline circuit`.
+- `cargo test --workspace --release --no-fail-fast` green (core 442, all fixture suites incl. circuit 5 and salt 5, explorer 85, render 15). Screenshots at 5, 21.8, 30 and 50 s looked at.
+- Owed from the user: a live look at all ten timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction, bar magnet, salt, circuit), caption wording, pacing, legibility, citations.
+- Remaining chemistry/physics candidates: states of matter (needs a vibrate-in-place particle verb), convection currents, electron shells, two magnets; a circuit diagram beside the circuit would need symbol parts.

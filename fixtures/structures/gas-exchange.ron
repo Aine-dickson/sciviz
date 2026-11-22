@@ -1,0 +1,96 @@
+// Gas exchange in an air sac (alveolus), schematic and NOT TO SCALE. Invented proportions, not measured data.
+// Proof of concept for the item register (docs/item-output-bar.md); not for lessons as it stands.
+// A real air sac is about a fifth of a millimetre across and its wall and the capillary wall are each one cell thick;
+// here the walls are drawn thick enough to see, and one capillary touches one sac. The particles show which way each
+// gas goes and which way the blood flows; their number and speed are not measured, and the gases are not really
+// travelling in straight lines (they spread out by random motion). Blood cells are not shown changing colour as they
+// pass: two groups of cells (dark before the sac, bright after) stand for that. Axis is +Y; units are micrometres (um).
+Structure(
+    version: 1,
+    name: "Gas exchange in an air sac (alveolus), not to scale",
+    units: "um",
+    reference: "To be confirmed by the author: textbook account of gas exchange (oxygen diffuses from the air in the alveolus into the blood of the surrounding capillaries; carbon dioxide diffuses from the blood into the alveolus; the walls are one cell thick). Schematic; not to scale.",
+    circle_segments: 40,
+    parts: [
+        Part(id: "gas-exchange", name: "Gas exchange", parent: None,
+             description: "An air sac of the lung and a capillary wrapped against it, where gases pass between the air and the blood.",
+             colour: (0.5, 0.5, 0.5), geometry: None),
+        Part(id: "alveolus", name: "Air sac (alveolus)", parent: Some("gas-exchange"),
+             description: "A tiny hollow sac at the end of an airway, full of air. Its wall is very thin, so gases pass through it easily. Real lungs have hundreds of millions of them, which gives a very large surface for gas exchange.",
+             colour: (0.95, 0.62, 0.68), opacity: 0.3,
+             geometry: Some(Ellipsoid(centre: (0.0, 0.0, 0.0), radii: (10.0, 10.0, 10.0), wall: Some(0.8)))),
+        Part(id: "capillary", name: "Capillary", parent: Some("gas-exchange"),
+             description: "A very small blood vessel with a wall one cell thick. It runs close against the air sac, so gases only have a short way to go between the air and the blood.",
+             colour: (0.80, 0.30, 0.35), opacity: 0.35,
+             geometry: Some(Tube(path: [(12.2, -18.0, 0.0), (12.2, 0.0, 0.0), (12.2, 18.0, 0.0)], half_widths: [(2.3, 2.3), (2.3, 2.3), (2.3, 2.3)], up: (0.0, 0.0, 1.0)))),
+    ],
+    layers: [
+        Layer(id: "air-sac", name: "Air sac", parts: ["alveolus"]),
+        Layer(id: "capillary", name: "Capillary", parts: ["capillary"]),
+    ],
+    views: [
+        View(id: "front", name: "The air sac and its capillary",
+             camera: Some((yaw_deg: 45.0, pitch_deg: -30.0, zoom: 1.0)),
+             show: ["gas-exchange"], peel: 0, section: None),
+        View(id: "inside", name: "Inside the air sac (cut open)",
+             camera: Some((yaw_deg: 45.0, pitch_deg: -30.0, zoom: 1.0)),
+             show: ["gas-exchange"], peel: 0, section: Some((axis: Z, offset: 0.0, flip: false))),
+    ],
+    // Blood flows in the capillary; oxygen crosses into it and carbon dioxide crosses out.
+    timelines: [
+        Timeline(id: "gas-exchange", name: "How oxygen gets into the blood",
+            camera: Some((yaw_deg: 45.0, pitch_deg: -30.0, zoom: 1.0)),
+            scenes: [
+                Scene(id: "exchange", beats: [
+                    Beat(id: "sac", actions: [
+                        Narrate(text: "Deep in the lungs, the airways end in tiny air sacs called alveoli. Here one is drawn far bigger than it really is.", for_s: 7.0),
+                        Highlight(part: "alveolus"),
+                    ]),
+                    Beat(id: "blood", actions: [
+                        Narrate(text: "Each air sac is wrapped in very small blood vessels called capillaries. Blood arriving here is low in oxygen (dark).", for_s: 8.0),
+                        Highlight(part: "capillary"),
+                        Flow(id: "blood-poor-a", count: 9, path: [(12.2, -16.0, 0.0), (12.2, -1.5, 0.0)], speed: 3.0, lateral: 1.1, seed: 21, particle_radius: 0.8, colour: (0.40, 0.10, 0.45), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "blood-rich-a", count: 9, path: [(12.2, 1.5, 0.0), (12.2, 16.0, 0.0)], speed: 3.0, lateral: 1.1, seed: 22, particle_radius: 0.8, colour: (0.95, 0.12, 0.12), for_s: 8.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "oxygen", actions: [
+                        Narrate(text: "The air in the sac is rich in oxygen. Oxygen (blue dots) passes through the very thin walls into the blood.", for_s: 8.0),
+                        Flow(id: "blood-poor-b", count: 9, path: [(12.2, -16.0, 0.0), (12.2, -1.5, 0.0)], speed: 3.0, lateral: 1.1, seed: 21, particle_radius: 0.8, colour: (0.40, 0.10, 0.45), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "blood-rich-b", count: 9, path: [(12.2, 1.5, 0.0), (12.2, 16.0, 0.0)], speed: 3.0, lateral: 1.1, seed: 22, particle_radius: 0.8, colour: (0.95, 0.12, 0.12), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-a-0", count: 4, path: [(4.5, -3.0, 0.0), (11.7, -3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 30, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-a-1", count: 4, path: [(4.5, -1.5, 0.0), (11.7, -1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 31, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-a-2", count: 4, path: [(4.5, 0.0, 0.0), (11.7, 0.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 32, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-a-3", count: 4, path: [(4.5, 1.5, 0.0), (11.7, 1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 33, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-a-4", count: 4, path: [(4.5, 3.0, 0.0), (11.7, 3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 34, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "carbon-dioxide", actions: [
+                        Narrate(text: "At the same time, carbon dioxide (yellow dots), a waste gas, passes from the blood into the air sac, to be breathed out.", for_s: 8.0),
+                        Flow(id: "blood-poor-c", count: 9, path: [(12.2, -16.0, 0.0), (12.2, -1.5, 0.0)], speed: 3.0, lateral: 1.1, seed: 21, particle_radius: 0.8, colour: (0.40, 0.10, 0.45), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "blood-rich-c", count: 9, path: [(12.2, 1.5, 0.0), (12.2, 16.0, 0.0)], speed: 3.0, lateral: 1.1, seed: 22, particle_radius: 0.8, colour: (0.95, 0.12, 0.12), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-b-0", count: 4, path: [(4.5, -3.0, 0.0), (11.7, -3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 30, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-b-1", count: 4, path: [(4.5, -1.5, 0.0), (11.7, -1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 31, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-b-2", count: 4, path: [(4.5, 0.0, 0.0), (11.7, 0.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 32, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-b-3", count: 4, path: [(4.5, 1.5, 0.0), (11.7, 1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 33, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-b-4", count: 4, path: [(4.5, 3.0, 0.0), (11.7, 3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 34, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-a-0", count: 4, path: [(11.7, -2.2, 0.0), (4.5, -2.2, 0.0)], speed: 2.6, lateral: 0.5, seed: 40, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-a-1", count: 4, path: [(11.7, -0.8, 0.0), (4.5, -0.8, 0.0)], speed: 2.6, lateral: 0.5, seed: 41, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-a-2", count: 4, path: [(11.7, 0.8, 0.0), (4.5, 0.8, 0.0)], speed: 2.6, lateral: 0.5, seed: 42, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-a-3", count: 4, path: [(11.7, 2.2, 0.0), (4.5, 2.2, 0.0)], speed: 2.6, lateral: 0.5, seed: 43, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                    ]),
+                    Beat(id: "leaving", actions: [
+                        Narrate(text: "The blood leaves with more oxygen (bright red) and less carbon dioxide. It goes on to the heart, which pumps it round the body.", for_s: 8.0),
+                        Flow(id: "blood-poor-d", count: 9, path: [(12.2, -16.0, 0.0), (12.2, -1.5, 0.0)], speed: 3.0, lateral: 1.1, seed: 21, particle_radius: 0.8, colour: (0.40, 0.10, 0.45), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "blood-rich-d", count: 9, path: [(12.2, 1.5, 0.0), (12.2, 16.0, 0.0)], speed: 3.0, lateral: 1.1, seed: 22, particle_radius: 0.8, colour: (0.95, 0.12, 0.12), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-c-0", count: 4, path: [(4.5, -3.0, 0.0), (11.7, -3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 30, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-c-1", count: 4, path: [(4.5, -1.5, 0.0), (11.7, -1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 31, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-c-2", count: 4, path: [(4.5, 0.0, 0.0), (11.7, 0.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 32, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-c-3", count: 4, path: [(4.5, 1.5, 0.0), (11.7, 1.5, 0.0)], speed: 2.6, lateral: 0.5, seed: 33, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "oxygen-c-4", count: 4, path: [(4.5, 3.0, 0.0), (11.7, 3.0, 0.0)], speed: 2.6, lateral: 0.5, seed: 34, particle_radius: 0.55, colour: (0.30, 0.80, 1.0), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-b-0", count: 4, path: [(11.7, -2.2, 0.0), (4.5, -2.2, 0.0)], speed: 2.6, lateral: 0.5, seed: 40, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-b-1", count: 4, path: [(11.7, -0.8, 0.0), (4.5, -0.8, 0.0)], speed: 2.6, lateral: 0.5, seed: 41, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-b-2", count: 4, path: [(11.7, 0.8, 0.0), (4.5, 0.8, 0.0)], speed: 2.6, lateral: 0.5, seed: 42, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                        Flow(id: "co2-b-3", count: 4, path: [(11.7, 2.2, 0.0), (4.5, 2.2, 0.0)], speed: 2.6, lateral: 0.5, seed: 43, particle_radius: 0.55, colour: (0.95, 0.85, 0.30), for_s: 8.0, at_s: 0.0),
+                    ]),
+                ]),
+            ]),
+    ],
+)
