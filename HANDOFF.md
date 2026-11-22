@@ -2864,3 +2864,12 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Design contract `docs/labels.md`: labels, colour key and in-picture captions as one host-neutral overlay. Core computes the data and the layout; the host draws it. The user chose `fontdue` + DejaVu Sans for the Explorer (recorded in `docs/DEPENDENCIES.md`).
 - L1 done: label/key data, actions, view fields and anchors in `svf-core` (`structure_labels.rs`). Workspace green (core 449).
 - **Next action: L2**, the callout-column layout in core (pure function; tests for no overlap, inside the viewport, order kept, deterministic). Then L3 (fontdue overlay in svf-render), L4 (Explorer), L5 (retrofit items).
+
+### Update 2026-11-22 (labels L2 to L4, circuit labelled)
+
+- Labels work end to end: core layout (L2), fontdue overlay in `svf-render` (L3), Explorer captions, key and labels drawn in the picture and in screenshots (L4).
+  The circuit is the first labelled item. Details and known issues: `docs/labels.md` section 9.
+- `cargo test --workspace --release --no-fail-fast`: 0 failures (core 457, render 20, explorer 87, fixture suites incl. circuit 6).
+- The caption is no longer in the window title; every item's screenshots now show it in the picture.
+- **Next action: L5**, keys and labels on the particle items and the salt item (drop "(blue)"-style colour names from captions), then one heart view with labels.
+

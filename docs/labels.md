@@ -131,4 +131,22 @@ L1 and L2 need no new dependency. L3 adds `fontdue` and DejaVu Sans (user's deci
   `Camera3::project_to_viewport` (the inverse of `ray_from_viewport`, tested as a round trip). When a column overflows, the labels set last are dropped.
   Hiding by another part (the anchor ray test) is left to the host, which has picking. 7 layout tests: placement, side override, push-apart order,
   bands, rejects, overflow, and 500 random scenes checked against every guarantee and for determinism.
+- **L3 done (2026-11-22).** `svf-render`: `overlay.rs` (CPU only: `TextKit` with fontdue and a 1024 x 1024 glyph atlas packed in shelves,
+  text measuring and word wrapping, and `compose_overlay`, which lays out the caption band, the key box and the labels through the core layout) and
+  `overlay_gpu.rs` + `overlay.wgsl` (one alpha-blended pipeline of screen-space quads drawn last in `encode_scene` with depth compare Always, so
+  screenshots include it). `SceneRenderer::set_overlay` and `surface_size` added. Sizes scale with the target height (1200 px reference): labels 22 px,
+  captions 26 px. 5 tests, including one that checks every character of every fixture file has a glyph in DejaVu Sans (no missing ₂ ⁺ ⁻ →).
+- **L4 done (2026-11-22).** Explorer: `StructureScene::overlay_items` (labels from the pose, or from the current view when there is no timeline;
+  anchors projected with the target's camera; labels on hidden parts, or on parts faded below 0.2, are dropped, and so is a label whose anchor is
+  hidden by another opaque part, using one ray test). The overlay is rebuilt every redraw and at the capture size before `--screenshot`. The caption has
+  left the window title. 2 Explorer tests: the circuit overlay, and occlusion by an opaque part but not a translucent one.
+- **L5 started:** the simple circuit has 7 labels and an `Electron` key on its flow; "(blue)" was dropped from its caption. Evidence:
+  `docs/evidence/labels/circuit-at-{5,30}.png` and `salt-at-44-caption.png` (looked at). First authoring lesson: two leaders crossed until the
+  "Cell" label was anchored on top of the cell; anchors are worth choosing, not leaving to the default, when parts are close together.
+- **Known issues:**
+  - `label_anchor` copies the vertex list on every call; on the 80k-vertex heart this cost has not been measured.
+  - The reference axis line shows faintly through the caption panel (panel alpha 0.8).
+  - The key swatch is drawn unlit while the particles are lit, so the swatch looks a little lighter than the particles.
+- **Next:** L5 for the other particle items (beaker, stem, breathing, gas exchange, digestive) and the salt item, dropping colour names from
+  their captions where a key now says it; then labels in one heart view.
 
