@@ -100,8 +100,9 @@ The policy for **"as far as possible"**: for every part, climb until no better s
 the level reached and what stopped it ("no open dataset of a dicot stem at cell level; F1 from textbook proportions"). An item's
 fidelity is the list of its parts' levels, never one word.
 
-Today almost every part is F0. Only the heart is F3 in form, and only the bar magnet and the salt are F2 in places (a
-stated field model; crystallographic spacing and ionic radii).
+Today almost every part is F0. Only the heart (and the paused kidney probe) is F3 in form. Only the bar magnet, the salt
+and the water reaction are F2 in places (a stated field model; crystallographic spacing and ionic radii; textbook bond
+lengths and angles). The per-part scores are in `docs/item-output-bar.md`, "Fidelity by part" (C1, 2026-11-23).
 
 ## 5. The author surface
 

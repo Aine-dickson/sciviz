@@ -59,8 +59,8 @@ with about 75% confidence that SVF produces valuable output across several subje
 
 ## Exact next action
 
-1. **C1:** add a fidelity column (form / behaviour / appearance, F0 to F3) to the register in `docs/item-output-bar.md`, and
-   score every item from what is recorded.
+1. **C1 (done 2026-11-23, branch `c1-fidelity-register` off #83, not yet a PR):** the fidelity column and the "Fidelity by
+   part" table are in `docs/item-output-bar.md`. The user is to glance at the scores.
 2. **C2:** the engine gaps, one slice each with tests and screenshots, in this order:
    1. smooth shading (vertex normals instead of the per-triangle normal in `mesh.wgsl`);
    2. a hinge pivot for `Turn`;
