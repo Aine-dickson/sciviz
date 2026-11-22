@@ -2858,3 +2858,9 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - `cargo test --workspace --release --no-fail-fast` green (core 442, all fixture suites incl. circuit 5 and salt 5, explorer 85, render 15). Screenshots at 5, 21.8, 30 and 50 s looked at.
 - Owed from the user: a live look at all ten timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction, bar magnet, salt, circuit), caption wording, pacing, legibility, citations.
 - Remaining chemistry/physics candidates: states of matter (needs a vibrate-in-place particle verb), convection currents, electron shells, two magnets; a circuit diagram beside the circuit would need symbol parts.
+
+### Update 2026-11-22 (labels: design and slice L1)
+
+- Design contract `docs/labels.md`: labels, colour key and in-picture captions as one host-neutral overlay. Core computes the data and the layout; the host draws it. The user chose `fontdue` + DejaVu Sans for the Explorer (recorded in `docs/DEPENDENCIES.md`).
+- L1 done: label/key data, actions, view fields and anchors in `svf-core` (`structure_labels.rs`). Workspace green (core 449).
+- **Next action: L2**, the callout-column layout in core (pure function; tests for no overlap, inside the viewport, order kept, deterministic). Then L3 (fontdue overlay in svf-render), L4 (Explorer), L5 (retrofit items).

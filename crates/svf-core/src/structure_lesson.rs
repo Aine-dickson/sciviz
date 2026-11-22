@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 
 use crate::structure::{Part, StructureError};
+use crate::structure_labels::{key_entry, KeyDocument, KeyEntry, PartLabel};
 
 /// How two parts are related. The parts tree already says "is part of".
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
@@ -123,6 +124,12 @@ pub struct ViewDocument {
     pub peel: usize,
     #[serde(default)]
     pub section: Option<ViewSection>,
+    /// Parts labelled in this view (with their names and default anchors).
+    #[serde(default)]
+    pub labels: Vec<String>,
+    /// Colour key shown in this view.
+    #[serde(default)]
+    pub key: Vec<KeyDocument>,
 }
 
 /// One validated view.
@@ -134,6 +141,8 @@ pub struct View {
     show: Vec<usize>,
     peel: usize,
     section: Option<ViewSection>,
+    labels: Vec<PartLabel>,
+    key: Vec<KeyEntry>,
 }
 
 impl View {
@@ -161,6 +170,16 @@ impl View {
     #[must_use]
     pub const fn section(&self) -> Option<&ViewSection> {
         self.section.as_ref()
+    }
+    /// Labels shown in this view, in file order.
+    #[must_use]
+    pub fn labels(&self) -> &[PartLabel] {
+        &self.labels
+    }
+    /// Colour key shown in this view, in file order.
+    #[must_use]
+    pub fn key(&self) -> &[KeyEntry] {
+        &self.key
     }
 }
 
@@ -240,6 +259,20 @@ pub(crate) fn validate_views(
                 }
             }
         }
+        let mut labels = Vec::with_capacity(d.labels.len());
+        for part_id in &d.labels {
+            let part = *by_id.get(part_id.as_str()).ok_or_else(|| StructureError::UnknownViewPart {
+                view: d.id.clone(),
+                part: part_id.clone(),
+            })?;
+            labels.push(PartLabel { part, text: parts[part].name().to_owned(), at: None, side: None });
+        }
+        let key = d
+            .key
+            .iter()
+            .map(|k| key_entry(k.colour, &k.text))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|reason| StructureError::InvalidView { view: d.id.clone(), reason })?;
         views.push(View {
             id: d.id.clone(),
             name: d.name.clone(),
@@ -247,6 +280,8 @@ pub(crate) fn validate_views(
             show: shown.iter().enumerate().filter(|(_, s)| **s).map(|(i, _)| i).collect(),
             peel: d.peel,
             section: d.section,
+            labels,
+            key,
         });
     }
     Ok(views)

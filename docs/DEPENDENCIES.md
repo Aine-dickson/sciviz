@@ -26,3 +26,13 @@ References:
 |---|---:|---|---|
 | serde | =1.0.229 (derive) | Deserialize structure files | svf-core |
 | ron | =0.12.3 | Rusty Object Notation parser for structure files (accepted B2 decision) | svf-core |
+
+## Decided for labels (2026-11-22, slice L3; see `docs/labels.md`)
+
+| Dependency | Version | Purpose | Scope |
+|---|---:|---|---|
+| fontdue | 0.9.5 | Rasterise glyphs for the text overlay (labels, key, captions) | svf-render |
+| DejaVu Sans (font file, not a crate) | 2.37 | Embedded font; Bitstream Vera licence (bundling allowed), licence text shipped next to it | svf-render |
+
+Chosen by the user over Noto Sans and over deferring. `glyphon` was rejected because it brings a whole shaping stack and is tied to one wgpu release.
+
