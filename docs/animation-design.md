@@ -57,7 +57,7 @@ timelines: [
 | `Show`, `Hide` | a part appears or disappears (instant, or scale-based over `for_s`; see 6) |
 | `Move(part, by, for_s)` | translate |
 | `Grow(part, to, for_s, about)` | uniform scale about the part's centre or a named anchor |
-| `Turn(part, about, deg, for_s)` | rotate about an axis |
+| `Turn(part, axis, deg, about, for_s)` | rotate about an axis; about the part's own centre, or about a hinge point `about` (see section 27) |
 | `Colour(part, to, for_s)` | change colour |
 | `Camera(yaw, pitch, zoom, for_s)` | move the camera, like a view's setting |
 | `Narrate(text, for_s)` | caption text |
@@ -387,3 +387,19 @@ the lamp goes out; summary with conventional current.
   and the filament is fully bright or fully dark outside its 0.3 s ramps; electrons lie in the circuit and pass the switch and the filament within a lap; the open lever is more than 1 cm from the contact, the closed lever lies along
   the gap and touches it, and the pivot end stays put while turning; every drawn frame (every 0.5 s) is closed.
 - Evidence: `docs/evidence/simple-circuit/at-{5,21.8,30,50}.png` (all looked at). Not seen live by the user.
+
+## 27. Hinged turns (C2.2, 2026-11-23)
+
+`Turn` takes an optional `about: Some((x, y, z))`: a point of the structure's authored space. The part then swings about
+the line through that point along `axis` (a rib about its joint with the spine, a switch lever about its pivot, a petal
+about its base). Without `about` the turn is about the part's own centre as before, so every existing file is unchanged.
+
+- **Order and scale.** Turns apply in the order they began, after `Grow`. The hinge point is a fixed point of authored
+  space, so `Grow` (about the part's centre) does not move it.
+- **A hinge travels with its part.** `offset` (from `Move`) is added last, so a moved part carries its hinge with it.
+- **Pose type.** `PartPose.turn_pivots` runs parallel to `turns`: `None` for a centre turn, the point for a hinge. Label
+  anchors use the same `pose_point`, so a label on a hinged part swings with it.
+- **Tests:** a quarter turn about a vertex puts every vertex exactly where the rotation says (1e-9), keeps volume, leaves
+  the hinge vertex in place at half way, and a hinge moves with a `Move`.
+- **Not retrofitted yet:** the circuit switch still fakes the hinge with a turn plus a move; it is re-authored in C3.
+

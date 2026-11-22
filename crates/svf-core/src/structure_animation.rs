@@ -102,11 +102,16 @@ pub enum ActionDocument {
         #[serde(default)]
         ease: Ease,
     },
-    /// Rotate a part, about its own centre, by `deg` about `axis`.
+    /// Rotate a part by `deg` about `axis`. The turn is about the part's own
+    /// centre unless `about` names a hinge point (a point of the structure's
+    /// authored space): then the part swings about the line through `about`
+    /// along `axis`. A hinge point stays with the part when it is moved.
     Turn {
         part: String,
         axis: (f64, f64, f64),
         deg: f64,
+        #[serde(default)]
+        about: Option<(f64, f64, f64)>,
         for_s: f64,
         #[serde(default)]
         at_s: f64,
@@ -285,7 +290,7 @@ struct PartTrack {
     /// `(span, from, to)`, non-overlapping, ascending.
     scales: Vec<(Span, f64, f64)>,
     /// `(span, unit axis, degrees)`, ascending in start.
-    turns: Vec<(Span, [f64; 3], f64)>,
+    turns: Vec<(Span, [f64; 3], f64, Option<[f64; 3]>)>,
     /// `(span, from, to)`, non-overlapping, ascending.
     colours: Vec<(Span, [f64; 3], [f64; 3])>,
     /// The part's authored opacity, used until the first fade starts.
@@ -350,6 +355,9 @@ pub struct PartPose {
     pub scale: f64,
     /// `(unit axis, degrees)`, in the order the turns began.
     pub turns: Vec<([f64; 3], f64)>,
+    /// One entry per entry of `turns`: the hinge point it swings about, or
+    /// `None` for a turn about the part's own centre.
+    pub turn_pivots: Vec<Option<[f64; 3]>>,
     /// `None` keeps the part's authored colour.
     pub colour: Option<[f64; 3]>,
     /// Opacity, 0 to 1: the authored opacity, changed by any `Fade`.
@@ -549,8 +557,16 @@ pub(crate) fn pose_point(point: [f64; 3], centre: [f64; 3], part: &PartPose) -> 
         (point[1] - centre[1]) * part.scale,
         (point[2] - centre[2]) * part.scale,
     ];
-    for &(axis, degrees) in &part.turns {
-        rel = rotate(rel, axis, degrees);
+    for (k, &(axis, degrees)) in part.turns.iter().enumerate() {
+        match part.turn_pivots.get(k).copied().flatten() {
+            None => rel = rotate(rel, axis, degrees),
+            Some(pivot) => {
+                // Turn about the hinge: work relative to it, then come back to the centre frame.
+                let about = [pivot[0] - centre[0], pivot[1] - centre[1], pivot[2] - centre[2]];
+                let r = rotate([rel[0] - about[0], rel[1] - about[1], rel[2] - about[2]], axis, degrees);
+                rel = [r[0] + about[0], r[1] + about[1], r[2] + about[2]];
+            }
+        }
     }
     [centre[0] + rel[0] + part.offset[0], centre[1] + rel[1] + part.offset[1], centre[2] + rel[2] + part.offset[2]]
 }
@@ -620,10 +636,12 @@ fn part_pose(track: &PartTrack, t: f64) -> PartPose {
     }
 
     let mut turns = Vec::new();
-    for (span, axis, degrees) in &track.turns {
+    let mut turn_pivots = Vec::new();
+    for (span, axis, degrees, pivot) in &track.turns {
         let p = span.progress(t);
         if p > 0.0 {
             turns.push((*axis, degrees * p));
+            turn_pivots.push(*pivot);
         }
     }
 
@@ -645,7 +663,7 @@ fn part_pose(track: &PartTrack, t: f64) -> PartPose {
     }
 
     let highlighted = track.highlights.iter().any(|&(from, to)| t >= from && t < to);
-    PartPose { shown, offset, scale, turns, colour, opacity, highlighted }
+    PartPose { shown, offset, scale, turns, turn_pivots, colour, opacity, highlighted }
 }
 
 fn positive_finite(x: f64) -> bool {
@@ -811,7 +829,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         tracks[i].scales.push((span, 1.0, *to));
                         length = length.max(at_s + for_s);
                     }
-                    ActionDocument::Turn { part, axis, deg, for_s, at_s, ease } => {
+                    ActionDocument::Turn { part, axis, deg, about, for_s, at_s, ease } => {
                         let mut span = timing(*at_s, *for_s)?;
                         span.ease = *ease;
                         let norm = (axis.0 * axis.0 + axis.1 * axis.1 + axis.2 * axis.2).sqrt();
@@ -824,8 +842,14 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                                 beat.id
                             )));
                         }
+                        if let Some(p) = about {
+                            if !(p.0.is_finite() && p.1.is_finite() && p.2.is_finite()) {
+                                return Err(bad(format!("beat '{}': a hinge point must be finite", beat.id)));
+                            }
+                        }
                         let i = with_geometry(part, "Turn")?;
-                        tracks[i].turns.push((span, [axis.0 / norm, axis.1 / norm, axis.2 / norm], *deg));
+                        let pivot = about.map(|p| [p.0, p.1, p.2]);
+                        tracks[i].turns.push((span, [axis.0 / norm, axis.1 / norm, axis.2 / norm], *deg, pivot));
                         length = length.max(at_s + for_s);
                     }
                     ActionDocument::Fade { part, to, for_s, at_s, ease } => {
@@ -1208,6 +1232,65 @@ mod tests {
             assert!((c0[axis] - c1[axis]).abs() < 1e-9);
         }
         assert_ne!(base.mesh().vertices(), after.mesh().vertices());
+    }
+
+    /// The vertices of range 1 (part `b`) of a built geometry.
+    fn range_one_points(g: &crate::structure::StructureGeometry) -> Vec<[f64; 3]> {
+        let r = g.ranges()[1];
+        let mut used: Vec<usize> = g.mesh().indices()[r.first_triangle * 3..(r.first_triangle + r.triangle_count) * 3]
+            .iter()
+            .map(|&i| i as usize)
+            .collect();
+        used.sort_unstable();
+        used.dedup();
+        used.iter().map(|&i| g.mesh().vertices()[i].to_array()).collect()
+    }
+
+    #[test]
+    fn a_hinged_turn_swings_the_part_about_the_hinge_point() {
+        let s0 = structure(&one("Wait(for_s: 1.0)")).unwrap();
+        let base0 = s0.build_geometry().unwrap();
+        let p = range_one_points(&base0)[0];
+        let actions = format!(
+            "Turn(part: \"b\", axis: (0.0, 0.0, 2.0), deg: 90.0, about: Some(({}, {}, {})), for_s: 1.0)",
+            p[0], p[1], p[2]
+        );
+        let (base, after) = posed(&actions, 1.0);
+        let (before, now) = (range_one_points(&base), range_one_points(&after));
+        for (b, a) in before.iter().zip(&now) {
+            // A quarter turn about z through p: (dx, dy) goes to (-dy, dx); z is unchanged.
+            let (dx, dy) = (b[0] - p[0], b[1] - p[1]);
+            assert!((a[0] - (p[0] - dy)).abs() < 1e-9 && (a[1] - (p[1] + dx)).abs() < 1e-9 && (a[2] - b[2]).abs() < 1e-9);
+        }
+        assert!((signed_volume(&after, 1) - signed_volume(&base, 1)).abs() < 1e-9);
+        // Halfway through, the hinge point itself has not moved at all.
+        let (_, half) = posed(&actions, 0.5);
+        let hinge = range_one_points(&half)
+            .into_iter()
+            .find(|q| (q[0] - p[0]).abs() < 1e-9 && (q[1] - p[1]).abs() < 1e-9 && (q[2] - p[2]).abs() < 1e-9);
+        assert!(hinge.is_some(), "the vertex at the hinge point stays put");
+        // Other parts are untouched.
+        assert_eq!(after.mesh().vertices()[base.mesh().indices()[0] as usize], base.mesh().vertices()[base.mesh().indices()[0] as usize]);
+    }
+
+    #[test]
+    fn a_hinge_point_travels_with_a_move_and_an_unhinged_turn_is_unchanged() {
+        let s0 = structure(&one("Wait(for_s: 1.0)")).unwrap();
+        let p = range_one_points(&s0.build_geometry().unwrap())[0];
+        let hinged = format!(
+            "Move(part: \"b\", by: (5.0, 0.0, 0.0), for_s: 1.0),              Turn(part: \"b\", axis: (0.0, 0.0, 1.0), deg: 90.0, about: Some(({}, {}, {})), for_s: 1.0)",
+            p[0], p[1], p[2]
+        );
+        let (base, after) = posed(&hinged, 1.0);
+        let moved_pivot = [p[0] + 5.0, p[1], p[2]];
+        for (b, a) in range_one_points(&base).iter().zip(&range_one_points(&after)) {
+            let (dx, dy) = (b[0] - p[0], b[1] - p[1]);
+            assert!((a[0] - (moved_pivot[0] - dy)).abs() < 1e-9 && (a[1] - (moved_pivot[1] + dx)).abs() < 1e-9);
+        }
+        // `about: None` (the default) is the old behaviour: the file without `about` poses identically.
+        let (_, plain) = posed("Turn(part: \"b\", axis: (0.0, 1.0, 1.0), deg: 90.0, for_s: 1.0)", 1.0);
+        let (_, none) = posed("Turn(part: \"b\", axis: (0.0, 1.0, 1.0), deg: 90.0, about: None, for_s: 1.0)", 1.0);
+        assert_eq!(plain.mesh().vertices(), none.mesh().vertices());
     }
 
     #[test]

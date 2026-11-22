@@ -17,4 +17,12 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
   evidence folders for comparison. Looked at by Claude only.
 - Tests: 3 new renderer tests (cube stays sharp, sphere smooth and unsplit, mixed winding / zero-area face / colour kept).
   Workspace tests: 0 failures.
-- Not measured: cost on heart-sized meshes (the function is O(triangles); the heart structure was not timed).
+- Cost on the heart: the whole Explorer start plus screenshot takes 0.68 s (`heart.png` in the evidence folder), so no cache is needed.
+
+## C2.2 Hinge for Turn (done, committed)
+
+- `Turn(..., about: Some((x, y, z)))` swings a part about that point (RON, optional; old files unchanged). Spec in
+  `docs/animation-design.md` section 27. The hinge point travels with `Move`; `Grow` does not shift it.
+- **Decision:** `PartPose` gained `turn_pivots` parallel to `turns` instead of changing the `turns` tuple, so existing
+  code and tests are untouched.
+- The circuit switch and the bar-magnet compass are NOT retrofitted; the circuit is re-authored in C3.
