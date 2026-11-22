@@ -2737,3 +2737,14 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   t=0 identity, colour). `cargo test --workspace --release`: svf-core 418 unit, all other suites green.
 - **Next action: A3** (Explorer clock, Space/step/scrub keys, caption in the window title, `--at <s>`, measure frame cost).
   Then A4 flower `pollination` timeline, B1 particles, B2 diffusion beaker.
+
+### Update 2026-11-22 (animation slice A3 done)
+
+- Explorer timeline player: `--timeline <id>`, `--at <s>`, Space/Left/Right/`,`/`.`/Home/`T`; caption and time in the title;
+  section/peel/isolate/view refused while playing. Apply-pose highlights lighten the part. Details: `docs/animation-design.md` section 14.
+- Tests: `cargo test --workspace --release` green (core 419, explorer 83 incl. 4 new timeline tests). `--at 5 --screenshot`
+  run for a scratch stem timeline and looked right. **Not run: live playback in a window** (user to try Space, arrows, `,` `.`, Home).
+  No fixture has a timeline yet.
+- Frame cost: about 5.5 ms per pose on 82k triangles (scratch probe); heart not timed; real per-frame figure prints on pause.
+- **Next action: A4**, add a `pollination` timeline to `fixtures/structures/flower.ron` (stage parts are separate parts, shown/hidden
+  by Hide/Show), a test for it, screenshots at chosen `--at`, and record the saving vs stage views in `docs/item-output-bar.md`.

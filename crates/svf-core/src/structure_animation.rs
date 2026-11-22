@@ -329,8 +329,12 @@ fn rotate(v: [f64; 3], axis: [f64; 3], degrees: f64) -> [f64; 3] {
     ]
 }
 
+/// How far a highlighted part's colour moves towards white.
+const HIGHLIGHT_LIGHTEN: f64 = 0.45;
+
 impl StructureGeometry {
-    /// The geometry as it looks under `pose`. Each part is scaled about the
+    /// The geometry as it looks under `pose`. A highlighted part is
+    /// lightened towards white. Each part is scaled about the
     /// centre of its bounding box, turned in order about that same centre,
     /// then moved by its offset. Vertex and triangle counts, ranges and
     /// winding are unchanged; a colour in the pose replaces the part's colour.
@@ -380,6 +384,9 @@ impl StructureGeometry {
                 }
                 if let Some(colour) = part.colour {
                     colours[i] = colour;
+                }
+                if part.highlighted {
+                    colours[i] = colours[i].map(|c| lerp(c, 1.0, HIGHLIGHT_LIGHTEN));
                 }
             }
         }
@@ -847,6 +854,15 @@ mod tests {
             0.0,
         );
         assert_eq!(base, after);
+    }
+
+    #[test]
+    fn a_highlighted_part_is_lightened_and_others_are_not() {
+        let (base, after) = posed("Highlight(part: \"b\"), Wait(for_s: 1.0)", 0.5);
+        let r = base.ranges()[1];
+        let b = base.mesh().indices()[r.first_triangle * 3] as usize;
+        assert!(after.colours()[b][0] > base.colours()[b][0]);
+        assert_eq!(after.colours()[0], base.colours()[0]);
     }
 
     #[test]

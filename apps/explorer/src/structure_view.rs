@@ -27,6 +27,10 @@ pub struct StructureConfig {
     pub view: ViewOptions,
     /// `--view <id>`: start in a named view of the structure file.
     pub view_id: Option<String>,
+    /// `--timeline <id>`: start with this timeline loaded, paused at 0 (or `--at`).
+    pub timeline_id: Option<String>,
+    /// `--at <seconds>`: show the picture at this time (first timeline if none named).
+    pub at_s: Option<f64>,
 }
 
 /// Initial section and peel state from the command line. A flag that is given
@@ -57,6 +61,8 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
     let mut screenshot: Option<PathBuf> = None;
     let mut view = ViewOptions::default();
     let mut view_id: Option<String> = None;
+    let mut timeline_id: Option<String> = None;
+    let mut at_s: Option<f64> = None;
     let mut index = 1;
     while index < args.len() {
         let value = args.get(index + 1);
@@ -141,6 +147,25 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
                     .ok_or_else(|| "--view requires a view id".to_owned())?;
                 view_id = Some(value.clone());
             }
+            "--timeline" => {
+                if timeline_id.is_some() {
+                    return Err("--timeline may only be supplied once".to_owned());
+                }
+                let value = value
+                    .filter(|v| !v.starts_with("--") && !v.is_empty())
+                    .ok_or_else(|| "--timeline requires a timeline id".to_owned())?;
+                timeline_id = Some(value.clone());
+            }
+            "--at" => {
+                if at_s.is_some() {
+                    return Err("--at may only be supplied once".to_owned());
+                }
+                let seconds = parse_finite_f64("--at", value)?;
+                if seconds < 0.0 {
+                    return Err("--at must not be negative".to_owned());
+                }
+                at_s = Some(seconds);
+            }
             argument if argument.starts_with("--") => {
                 return Err(format!("unknown option '{argument}' in structure mode"));
             }
@@ -159,6 +184,8 @@ pub fn parse_structure_args(args: &[String]) -> Result<Option<StructureConfig>, 
         screenshot,
         view,
         view_id,
+        timeline_id,
+        at_s,
     }))
 }
 
@@ -218,6 +245,15 @@ pub struct StructureScene {
     /// Index of the current named view, if one is applied.
     view: Option<usize>,
     bounds: ([f64; 3], [f64; 3]),
+    /// The loaded timeline (index into the structure's timelines) and its time.
+    timeline: Option<usize>,
+    time: f64,
+    /// True while the Explorer clock is running.
+    pub playing: bool,
+    /// The visible parts' geometry before any pose or section, and the part
+    /// list it was built for; rebuilt only when that list changes.
+    unposed: StructureGeometry,
+    unposed_key: Vec<usize>,
 }
 
 /// Everything a named view sets besides the camera.
@@ -250,7 +286,19 @@ impl StructureScene {
                 eprintln!("{line}");
             }
         }
-        Self::from_structure(structure, &config.camera, &config.view, config.view_id.as_deref())
+        let mut scene =
+            Self::from_structure(structure, &config.camera, &config.view, config.view_id.as_deref())?;
+        if config.timeline_id.is_some() || config.at_s.is_some() {
+            let index = match config.timeline_id.as_deref() {
+                Some(id) => scene.timeline_position(id)?,
+                None => 0,
+            };
+            scene.load_timeline(index, config.at_s.unwrap_or(0.0))?;
+            if !config.camera.is_requested() && config.view_id.is_none() {
+                scene.follow_timeline_camera()?;
+            }
+        }
+        Ok(scene)
     }
 
     pub fn from_structure(
@@ -310,7 +358,7 @@ impl StructureScene {
         let mut scene = Self {
             structure,
             camera,
-            geometry: full,
+            geometry: full.clone(),
             fitted,
             isolated: None,
             peeled: 0,
@@ -318,6 +366,11 @@ impl StructureScene {
             shown: Vec::new(),
             view: None,
             bounds: (low, high),
+            timeline: None,
+            time: 0.0,
+            playing: false,
+            unposed: full.clone(),
+            unposed_key: Vec::new(),
         };
         let section = match view.section {
             Some((axis, offset)) => Some(SectionState { axis, offset, flipped: view.flip }),
@@ -346,17 +399,46 @@ impl StructureScene {
         shown: Vec<usize>,
         view: Option<usize>,
     ) -> Result<(), String> {
+        self.refresh(isolated, peeled, section, shown, view, self.time)
+    }
+
+    /// Rebuild what is displayed for a state and a time. Nothing changes on error.
+    /// With a timeline loaded, parts the pose hides are left out and the rest are
+    /// posed; part geometry is rebuilt only when the set of visible parts changes.
+    fn refresh(
+        &mut self,
+        isolated: Option<usize>,
+        peeled: usize,
+        section: Option<SectionState>,
+        shown: Vec<usize>,
+        view: Option<usize>,
+        time: f64,
+    ) -> Result<(), String> {
+        let pose = self.timeline.map(|i| self.structure.timelines()[i].pose_at(time));
         let mut visible = self.structure.visible_parts(isolated, peeled);
         if !shown.is_empty() {
             visible.retain(|part| shown.contains(part));
         }
-        let mut geometry = self
-            .structure
-            .build_geometry_for(&visible)
-            .map_err(|e| format!("cannot build structure geometry: {e}"))?;
-        if geometry.mesh().indices().is_empty() {
-            return Err("no part with geometry would be visible".to_owned());
+        if let Some(pose) = &pose {
+            visible.retain(|&part| pose.parts.get(part).is_none_or(|p| p.shown));
         }
+        let rebuilt = if visible == self.unposed_key {
+            None
+        } else {
+            let built = self
+                .structure
+                .build_geometry_for(&visible)
+                .map_err(|e| format!("cannot build structure geometry: {e}"))?;
+            if built.mesh().indices().is_empty() {
+                return Err("no part with geometry would be visible".to_owned());
+            }
+            Some(built)
+        };
+        let base = rebuilt.as_ref().unwrap_or(&self.unposed);
+        let mut geometry = match &pose {
+            Some(pose) => base.apply_pose(pose),
+            None => base.clone(),
+        };
         if let Some(state) = section {
             geometry = section_geometry(&geometry, &state.plane()?)
                 .map_err(|e| format!("cannot cut the structure: {e}"))?;
@@ -364,13 +446,122 @@ impl StructureScene {
                 return Err("the section would remove everything; move or flip the plane".to_owned());
             }
         }
+        if let Some(built) = rebuilt {
+            self.unposed = built;
+            self.unposed_key = visible;
+        }
         self.geometry = geometry;
         self.isolated = isolated;
         self.peeled = peeled;
         self.section = section;
         self.shown = shown;
         self.view = view;
+        self.time = time;
         Ok(())
+    }
+
+    // ---- timelines ----
+
+    fn timeline_position(&self, id: &str) -> Result<usize, String> {
+        let timelines = self.structure.timelines();
+        timelines.iter().position(|t| t.id() == id).ok_or_else(|| {
+            let ids: Vec<&str> = timelines.iter().map(|t| t.id()).collect();
+            if ids.is_empty() {
+                "this structure has no timelines".to_owned()
+            } else {
+                format!("unknown timeline '{id}'; this structure has: {}", ids.join(", "))
+            }
+        })
+    }
+
+    /// Load timeline `index` paused at `time` (clamped). Unchanged on error.
+    pub fn load_timeline(&mut self, index: usize, time: f64) -> Result<(), String> {
+        let timeline = self.structure.timelines().get(index).ok_or("this structure has no timelines")?;
+        let time = if time.is_nan() { 0.0 } else { time.clamp(0.0, timeline.duration()) };
+        let previous = self.timeline;
+        self.timeline = Some(index);
+        let result = self.refresh(
+            self.isolated, self.peeled, self.section, self.shown.clone(), self.view, time,
+        );
+        match result {
+            Ok(()) => self.playing = false,
+            Err(_) => self.timeline = previous,
+        }
+        result
+    }
+
+    pub fn has_timelines(&self) -> bool {
+        !self.structure.timelines().is_empty()
+    }
+
+    pub fn has_timeline_loaded(&self) -> bool {
+        self.timeline.is_some()
+    }
+
+    pub fn duration(&self) -> Option<f64> {
+        self.timeline.map(|i| self.structure.timelines()[i].duration())
+    }
+
+    pub fn time(&self) -> f64 {
+        self.time
+    }
+
+    /// Move to time `t` (clamped to the timeline); needs a loaded timeline.
+    pub fn set_time(&mut self, t: f64) -> Result<(), String> {
+        let duration = self.duration().ok_or("no timeline is loaded; press Space")?;
+        let t = if t.is_nan() { 0.0 } else { t.clamp(0.0, duration) };
+        self.refresh(self.isolated, self.peeled, self.section, self.shown.clone(), self.view, t)
+    }
+
+    /// `T`: load the next timeline (the first when none is loaded), paused at 0.
+    pub fn next_timeline(&mut self) -> Result<String, String> {
+        let count = self.structure.timelines().len();
+        if count == 0 {
+            return Err("this structure has no timelines".to_owned());
+        }
+        let next = self.timeline.map_or(0, |i| (i + 1) % count);
+        self.load_timeline(next, 0.0)?;
+        Ok(format!("Timeline {}/{}: {}", next + 1, count, self.structure.timelines()[next].name()))
+    }
+
+    /// The start of the next (`forward`) or previous beat, or an end of the timeline.
+    pub fn beat_time(&self, forward: bool) -> Option<f64> {
+        let timeline = &self.structure.timelines()[self.timeline?];
+        let epsilon = 1e-9;
+        let mut starts = timeline.beats().iter().map(|b| b.start);
+        Some(if forward {
+            starts.find(|&s| s > self.time + epsilon).unwrap_or_else(|| timeline.duration())
+        } else {
+            starts.rfind(|&s| s < self.time - epsilon).unwrap_or(0.0)
+        })
+    }
+
+    /// The timeline's camera at the current time, as a camera relative to the
+    /// fitted one. `None` when no timeline is loaded or it has no camera.
+    pub fn timeline_camera(&self) -> Result<Option<Camera3>, String> {
+        let Some(c) = self.pose().and_then(|p| p.camera) else { return Ok(None) };
+        let setup = CameraSetup {
+            yaw_degrees: Some(c.yaw_deg),
+            pitch_degrees: Some(c.pitch_deg),
+            zoom_factor: Some(c.zoom),
+        };
+        apply_camera_setup(&self.fitted, &setup).map(Some)
+    }
+
+    fn follow_timeline_camera(&mut self) -> Result<(), String> {
+        if let Some(camera) = self.timeline_camera()? {
+            self.camera = camera;
+        }
+        Ok(())
+    }
+
+    /// Caption at the current time.
+    pub fn caption(&self) -> Option<String> {
+        self.pose().and_then(|p| p.caption)
+    }
+
+    fn pose(&self) -> Option<svf_core::structure_animation::Pose> {
+        self.timeline.map(|i| self.structure.timelines()[i].pose_at(self.time))
     }
 
     /// `V`: apply the next named view (camera, parts shown, peel, section).
@@ -429,6 +620,22 @@ impl StructureScene {
     /// Short state text for the window title; empty when nothing is applied.
     pub fn state_text(&self) -> String {
         let mut parts = Vec::new();
+        if let (Some(i), Some(duration)) = (self.timeline, self.duration()) {
+            parts.push(format!(
+                "{} {:.1}/{:.1}s{}",
+                if self.playing { "playing" } else { "paused" },
+                self.time,
+                duration,
+                if self.structure.timelines().len() > 1 {
+                    format!(" ({})", self.structure.timelines()[i].name())
+                } else {
+                    String::new()
+                }
+            ));
+            if let Some(caption) = self.caption() {
+                parts.push(format!("\"{caption}\""));
+            }
+        }
         if let Some(i) = self.view {
             parts.push(format!("view: {}", self.structure.views()[i].name()));
         }
@@ -869,6 +1076,86 @@ mod tests {
         assert!(error.contains("elevation"), "{error}");
         assert_eq!(scene.view, None);
         assert_eq!(scene.camera, before);
+    }
+
+    fn stem_with_timeline() -> StructureScene {
+        let text = STEM.trim_end().trim_end_matches(')').trim_end().trim_end_matches(',').to_owned()
+            + ", timelines: [Timeline(id: \"peel\", name: \"Skin off\", camera: Some((yaw_deg: 10.0, pitch_deg: 20.0, zoom: 1.0)), \
+               scenes: [Scene(id: \"s\", beats: [\
+               Beat(id: \"a\", actions: [Narrate(text: \"The whole stem\", for_s: 2.0)]), \
+               Beat(id: \"b\", actions: [Hide(part: \"epidermis\"), Narrate(text: \"No skin\", for_s: 2.0)]), \
+               Beat(id: \"c\", actions: [Move(part: \"pith\", by: (0.0, 3.0, 0.0), for_s: 2.0)])])])])";
+        let structure = Structure::from_ron_str(&text).unwrap();
+        StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap()
+    }
+
+    #[test]
+    fn parses_timeline_flags() {
+        let c = parse_structure_args(&args(&["x", "--structure", "a.ron", "--timeline", "t", "--at", "2.5"]))
+            .unwrap()
+            .unwrap();
+        assert_eq!((c.timeline_id.as_deref(), c.at_s), (Some("t"), Some(2.5)));
+        let bad = |extra: &[&str]| {
+            let mut a = vec!["x", "--structure", "a.ron"];
+            a.extend_from_slice(extra);
+            parse_structure_args(&args(&a)).is_err()
+        };
+        assert!(bad(&["--at", "-1"]));
+        assert!(bad(&["--at", "nan"]));
+        assert!(bad(&["--at", "1", "--at", "2"]));
+        assert!(bad(&["--timeline"]));
+    }
+
+    #[test]
+    fn scrubbing_a_timeline_hides_poses_and_restores_the_picture() {
+        let mut scene = stem_with_timeline();
+        assert!(!scene.has_timeline_loaded());
+        assert!(scene.set_time(1.0).is_err());
+        scene.next_timeline().unwrap();
+        assert_eq!(scene.duration(), Some(6.0));
+        let whole = scene.mesh().clone();
+        assert_eq!(above(&scene, 4.85, 50.0).as_deref(), Some("epidermis"));
+        assert!(scene.state_text().contains("paused 0.0/6.0s") && scene.state_text().contains("The whole stem"));
+
+        scene.set_time(3.0).unwrap();
+        assert_eq!(above(&scene, 4.85, 50.0), None, "the skin is hidden at 3 s");
+        assert!(scene.state_text().contains("No skin"), "{}", scene.state_text());
+
+        // Moving the pith lifts it by half its travel at 5 s.
+        scene.set_time(5.0).unwrap();
+        let ray = Ray3::new(WorldPoint3::new(0.5, 50.0, 0.0), WorldVector3::new(0.0, -1.0, 0.0)).unwrap();
+        let lifted = intersect_mesh(&ray, scene.mesh()).unwrap().position().to_array()[1];
+        scene.set_time(4.0).unwrap();
+        let before = intersect_mesh(&ray, scene.mesh()).unwrap().position().to_array()[1];
+        assert!((lifted - before - 1.5).abs() < 1e-6, "{before} {lifted}");
+
+        // Back at 0 the picture is the original one again.
+        scene.set_time(0.0).unwrap();
+        assert_eq!(scene.mesh(), &whole);
+    }
+
+    #[test]
+    fn beats_are_stepped_and_a_timeline_camera_is_reported() {
+        let mut scene = stem_with_timeline();
+        scene.next_timeline().unwrap();
+        assert_eq!(scene.beat_time(true), Some(2.0));
+        scene.set_time(2.0).unwrap();
+        assert_eq!(scene.beat_time(true), Some(4.0));
+        assert_eq!(scene.beat_time(false), Some(0.0));
+        scene.set_time(6.0).unwrap();
+        assert_eq!(scene.beat_time(true), Some(6.0));
+        assert_eq!(scene.beat_time(false), Some(4.0));
+        assert!(scene.timeline_camera().unwrap().is_some());
+        // Unknown timelines are refused with the choices.
+        assert!(scene.timeline_position("nope").unwrap_err().contains("peel"));
+    }
+
+    #[test]
+    fn a_scene_without_timelines_refuses_them() {
+        let mut plain = scene();
+        assert!(!plain.has_timelines());
+        assert!(plain.next_timeline().is_err());
+        assert_eq!(plain.timeline_camera().unwrap(), None);
     }
 
     #[test]

@@ -60,6 +60,51 @@ enum StructureCommand {
     NextView,
 }
 
+/// Keyboard commands of the timeline player.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TimelineCommand {
+    TogglePlay,
+    Scrub(f64),
+    Beat(bool),
+    Rewind,
+    NextTimeline,
+}
+
+/// Seconds a Left or Right key press moves the timeline.
+const SCRUB_STEP_S: f64 = 0.5;
+
+/// Cost of the frames played since Space: building the pose and uploading it.
+#[derive(Clone, Copy, Debug, Default)]
+struct FrameStats {
+    frames: u32,
+    pose: std::time::Duration,
+    upload: std::time::Duration,
+    worst: std::time::Duration,
+}
+
+impl FrameStats {
+    fn add(&mut self, pose: std::time::Duration, upload: std::time::Duration) {
+        self.frames += 1;
+        self.pose += pose;
+        self.upload += upload;
+        self.worst = self.worst.max(pose + upload);
+    }
+
+    fn report(&self) -> String {
+        if self.frames == 0 {
+            return "Paused.".to_owned();
+        }
+        let n = f64::from(self.frames);
+        format!(
+            "Played {} frames: pose {:.2} ms + upload {:.2} ms per frame on average, worst {:.2} ms (excludes drawing).",
+            self.frames,
+            self.pose.as_secs_f64() * 1000.0 / n,
+            self.upload.as_secs_f64() * 1000.0 / n,
+            self.worst.as_secs_f64() * 1000.0,
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ExplorerMode {
     #[default]
@@ -138,6 +183,9 @@ struct Explorer {
     screenshot_path: Option<std::path::PathBuf>,
     /// Process exit code to use after the event loop ends.
     exit_code: i32,
+    /// When the timeline clock last advanced (while playing).
+    last_tick: Option<std::time::Instant>,
+    frame_stats: FrameStats,
 }
 
 impl Default for Explorer {
@@ -174,6 +222,8 @@ impl Explorer {
             drag_moved: false,
             screenshot_path: None,
             exit_code: 0,
+            last_tick: None,
+            frame_stats: FrameStats::default(),
         }
     }
 
@@ -323,12 +373,138 @@ impl Explorer {
         }
     }
 
+    /// Send the scene's current mesh (and optionally its camera) to the
+    /// renderer and refresh the title. Returns false if the renderer refused.
+    fn push_structure(&mut self, with_camera: bool) -> bool {
+        let (Some(scene), Some(renderer)) = (self.structure_scene.as_ref(), self.renderer.as_mut()) else {
+            return false;
+        };
+        if let Err(error) = renderer.replace_coloured_mesh(scene.mesh(), scene.colours()) {
+            eprintln!("Cannot update the displayed structure: {error}");
+            return false;
+        }
+        if with_camera {
+            match scene.timeline_camera() {
+                Ok(Some(camera)) => {
+                    if let Err(error) = renderer.set_camera(camera) {
+                        eprintln!("Cannot move the timeline camera: {error}");
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => eprintln!("Timeline camera: {error}"),
+            }
+        }
+        if let Some(window) = self.window.as_ref() {
+            window.set_title(&structure_title("", &scene.state_text()));
+            window.request_redraw();
+        }
+        true
+    }
+
+    /// Timeline keys: Space, Left/Right, `,`/`.`, Home, `T`.
+    fn timeline_command(&mut self, command: TimelineCommand) {
+        let Some(scene) = self.structure_scene.as_mut() else {
+            return;
+        };
+        if !scene.has_timelines() {
+            eprintln!("This structure has no timelines.");
+            return;
+        }
+        let result: Result<Option<String>, String> = (|| match command {
+            TimelineCommand::TogglePlay => {
+                if scene.playing {
+                    scene.playing = false;
+                    return Ok(Some(self.frame_stats.report()));
+                }
+                if !scene.has_timeline_loaded() {
+                    scene.next_timeline()?;
+                }
+                let duration = scene.duration().unwrap_or(0.0);
+                if scene.time() >= duration {
+                    scene.set_time(0.0)?;
+                }
+                scene.playing = true;
+                self.last_tick = Some(std::time::Instant::now());
+                self.frame_stats = FrameStats::default();
+                Ok(None)
+            }
+            TimelineCommand::Scrub(seconds) => {
+                if !scene.has_timeline_loaded() {
+                    scene.next_timeline()?;
+                }
+                scene.set_time(scene.time() + seconds)?;
+                Ok(None)
+            }
+            TimelineCommand::Beat(forward) => {
+                if !scene.has_timeline_loaded() {
+                    scene.next_timeline()?;
+                }
+                let target = scene.beat_time(forward).ok_or("no timeline is loaded")?;
+                scene.set_time(target)?;
+                Ok(None)
+            }
+            TimelineCommand::Rewind => {
+                if !scene.has_timeline_loaded() {
+                    scene.next_timeline()?;
+                }
+                scene.set_time(0.0)?;
+                Ok(None)
+            }
+            TimelineCommand::NextTimeline => {
+                scene.playing = false;
+                scene.next_timeline().map(Some)
+            }
+        })();
+        match result {
+            Ok(message) => {
+                if let Some(message) = message {
+                    eprintln!("{message}");
+                }
+                self.push_structure(true);
+            }
+            Err(error) => eprintln!("{error}"),
+        }
+    }
+
+    /// Advance the clock one frame while playing; stops at the end of the timeline.
+    fn advance_clock(&mut self) {
+        let Some(scene) = self.structure_scene.as_mut() else {
+            return;
+        };
+        if !scene.playing {
+            return;
+        }
+        let now = std::time::Instant::now();
+        let elapsed = self.last_tick.replace(now).map_or(0.0, |last| (now - last).as_secs_f64());
+        let target = scene.time() + elapsed;
+        let started = std::time::Instant::now();
+        let end = scene.duration().unwrap_or(0.0);
+        if let Err(error) = scene.set_time(target) {
+            eprintln!("{error}");
+            scene.playing = false;
+        } else if target >= end {
+            scene.playing = false;
+        }
+        let posed = started.elapsed();
+        let finished = !scene.playing;
+        let uploaded = std::time::Instant::now();
+        self.push_structure(true);
+        self.frame_stats.add(posed, uploaded.elapsed());
+        if finished {
+            eprintln!("{}", self.frame_stats.report());
+        }
+    }
+
     /// Run one structure command (`I`, `A`, `S`, `[`, `]`, `F`, `P`, `R`),
     /// then push the new mesh to the renderer and refresh the title.
     fn structure_command(&mut self, command: StructureCommand) {
         let Some(scene) = self.structure_scene.as_mut() else {
             return;
         };
+        if scene.playing {
+            eprintln!("Pause (Space) before changing the view; cuts are disabled while playing.");
+            return;
+        }
         let result = match command {
             StructureCommand::Isolate => match self.selected_part {
                 Some(part) => scene.isolate(part),
@@ -693,6 +869,16 @@ impl ApplicationHandler for Explorer {
         }
     }
 
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let playing = self.structure_scene.as_ref().is_some_and(|scene| scene.playing);
+        event_loop.set_control_flow(if playing { ControlFlow::Poll } else { ControlFlow::Wait });
+        if playing {
+            if let Some(window) = self.window.as_ref() {
+                window.request_redraw();
+            }
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -804,6 +990,17 @@ impl ApplicationHandler for Explorer {
                         PhysicalKey::Code(KeyCode::KeyP) => self.structure_command(StructureCommand::Peel),
                         PhysicalKey::Code(KeyCode::KeyR) => self.structure_command(StructureCommand::Restore),
                         PhysicalKey::Code(KeyCode::KeyV) => self.structure_command(StructureCommand::NextView),
+                        PhysicalKey::Code(KeyCode::Space) => self.timeline_command(TimelineCommand::TogglePlay),
+                        PhysicalKey::Code(KeyCode::ArrowLeft) => {
+                            self.timeline_command(TimelineCommand::Scrub(-SCRUB_STEP_S));
+                        }
+                        PhysicalKey::Code(KeyCode::ArrowRight) => {
+                            self.timeline_command(TimelineCommand::Scrub(SCRUB_STEP_S));
+                        }
+                        PhysicalKey::Code(KeyCode::Comma) => self.timeline_command(TimelineCommand::Beat(false)),
+                        PhysicalKey::Code(KeyCode::Period) => self.timeline_command(TimelineCommand::Beat(true)),
+                        PhysicalKey::Code(KeyCode::Home) => self.timeline_command(TimelineCommand::Rewind),
+                        PhysicalKey::Code(KeyCode::KeyT) => self.timeline_command(TimelineCommand::NextTimeline),
                         PhysicalKey::Code(KeyCode::KeyL) => {
                             if let Some(renderer) = self.renderer.as_mut() {
                                 renderer.set_shaded(!renderer.shaded());
@@ -818,6 +1015,7 @@ impl ApplicationHandler for Explorer {
             }
 
             WindowEvent::RedrawRequested => {
+                self.advance_clock();
                 if let Some(renderer) = self.renderer.as_mut() {
                     if let Err(error) = renderer.render() {
                         eprintln!("Render failed: {error}");
@@ -839,10 +1037,11 @@ fn main() {
         Ok(config) => config,
         Err(error) => {
             eprintln!("Invalid Explorer arguments: {error}");
-            eprintln!("Usage: svf-explorer --structure <file.ron> [--view <id>] [--section <x|y|z>=<offset>] [--section-flip] [--peel <layers>] [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
+            eprintln!("Usage: svf-explorer --structure <file.ron> [--view <id>] [--section <x|y|z>=<offset>] [--section-flip] [--peel <layers>] [--timeline <id>] [--at <seconds>] [--camera-yaw <deg>] [--camera-pitch <deg>] [--camera-zoom <factor>] [--screenshot <out.png>]");
             eprintln!("  Click picks a part, I isolates it, A shows all parts (and restores peeled layers).");
             eprintln!("  S cycles the section (off, across the axis, along the axis), [ and ] move the plane, F flips the kept side.");
             eprintln!("  P peels the outermost layer, R restores the last one, V cycles the named views, L toggles the light.");
+            eprintln!("  Timelines: Space plays and pauses, Left/Right scrub, , and . jump a beat, Home rewinds, T loads the next timeline. --at <s> shows that moment (with --screenshot, writes it).");
             eprintln!("  --view <id> starts in a named view; --camera-*, --section and --peel override that view's own values.");
             std::process::exit(2);
         }
@@ -858,7 +1057,7 @@ fn main() {
             match structure_view::StructureScene::load(config) {
                 Ok(scene) => {
                     eprintln!("{}", scene.summary());
-                    eprintln!("Keys: click = pick a part, I = isolate it, A = show all and restore layers, S = section (across, along, off), [ ] = move the plane, F = flip the kept side, P = peel a layer, R = restore a layer, V = next named view, L = light on/off.");
+                    eprintln!("Keys: click = pick a part, I = isolate it, A = show all and restore layers, S = section (across, along, off), [ ] = move the plane, F = flip the kept side, P = peel a layer, R = restore a layer, V = next named view, L = light on/off. Timelines: Space = play/pause, Left/Right = scrub, , . = previous/next beat, Home = rewind, T = next timeline.");
                     Some(scene)
                 }
                 Err(error) => {

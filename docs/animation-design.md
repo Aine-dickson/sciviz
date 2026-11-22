@@ -161,3 +161,24 @@ Built in `crates/svf-core/src/structure_animation.rs`, wired into `structure.rs`
   colour, camera from the start camera, captions, highlights, beat order, and refusal of bad input.
 - Not done and not claimed: `apply_pose` (A2), the Explorer clock and keys (A3), any fixture timeline (A4), particle verbs (B1).
 - Pivot note: `Grow` and `Turn` act about each part's own centre; the centre is chosen when the pose is applied (A2).
+
+## 14. Slice A2 and A3 result (2026-11-22)
+
+- **A2:** `StructureGeometry::apply_pose` (core). Scale about the bounding-box centre, then turns in order about the same
+  centre, then offset; a pose colour replaces the part colour; a highlighted part is lightened 45% towards white (the renderer
+  has no outline). Visibility is applied by building only the visible parts, not by `apply_pose`.
+- **A3:** Explorer clock (`apps/explorer`). `--timeline <id>` loads a timeline paused at 0; `--at <s>` shows that moment (first
+  timeline if none named) and, with `--screenshot`, writes it. Keys: Space play/pause (loads the first timeline if none),
+  Left/Right scrub 0.5 s, `,` and `.` previous/next beat start, Home rewind, `T` next timeline. The caption and
+  `paused|playing t/T s` are in the window title. The timeline camera is applied while a timeline moves (a mouse drag lasts until
+  the next frame while playing); explicit `--camera-*` flags or `--view` win at start-up.
+- Section, peel, isolate and view keys are refused while playing, and work on the paused pose (the section cuts the posed mesh).
+- Part geometry is rebuilt only when the set of visible parts changes (a Show/Hide instant); every other frame is `apply_pose`
+  on the cached geometry plus the upload.
+- **Measured (scratch probe, release, not committed):** the cockroach, 82,016 triangles, `set_time` (pose and clone, no section)
+  costs about 5.5 ms per call. The upload and the drawing were not timed by that probe; playing prints
+  `pose + upload` per frame when you pause or the timeline ends. The heart (denser) has not been timed.
+- Known limit: if a pose hides every visible part, the frame is refused ("no part with geometry would be visible") and the
+  previous frame stays.
+- Evidence: `docs/evidence/animation-a3-stem-at-5s.png` (stem, skin hidden, pith half-way up, from a scratch timeline).
+  Live playback with a real window has **not** been run by Claude; the user has not tried the keys.
