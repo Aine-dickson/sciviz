@@ -2617,3 +2617,19 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 **Done this session:** `datasets/` added to `.gitignore`; duplicate root scripts deleted; independent verification script added and run. All uncommitted at the time of writing.
 
 **Next action:** write the short "valuable output" bar and the item list (user to name the items and subjects), then pick the flower as the first new item unless the user redirects. Then split the branch into PRs.
+
+### Update 2026-11-22 (later) — item bar and flower proposal
+
+- Added `docs/item-output-bar.md`: the five-point "valuable output" bar, a register
+  scoring each existing item from recorded evidence (blank = not yet judged), and
+  the candidate list. It is a working draft; the user has not yet confirmed the
+  criteria or the candidate list.
+- Added `docs/flower-structure.md`: a design proposal for the flower. Key finding:
+  RQ-PRISMAL-030 mixes a structure need (SVF fits) with a process need (learner-set
+  pollen, growth over days, random outcomes: SVF has no time or state model).
+  Proposal: build the structure with stages as named views; leave the process to
+  Prismal. **Not decided; the user must confirm the scope before any implementation.**
+- Existing item not in earlier notes: `fixtures/structures/dicot-stem.ron` (authored
+  plant stem, schematic, `reference` citation still the user's to confirm).
+- Risk recorded: a `View` cannot change part size, so an ovary-to-fruit stage needs
+  separate parts per stage.
