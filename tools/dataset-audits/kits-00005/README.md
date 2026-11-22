@@ -171,3 +171,20 @@ have been explicitly reviewed.
 
 These scripts preserve the inspection procedures used during the audit.
 They do not replace the source DICOM files or the documented audit results.
+
+## Independent surface verification
+
+`verify_surface_exports.py` checks the SVF surface exports
+(`datasets/validation-exports/kits-00005/surface-inspection/*.vtk`) against the
+DICOM SEG. It does not use SVF's exported masks or metadata: it reads the SEG
+with pydicom, rebuilds each segment's voxel grid from the per-frame positions,
+and compares signed volume, bounding box, centroid, per-face inside/outside
+and winding, and the exposed-face count.
+
+```sh
+python -I tools/dataset-audits/kits-00005/verify_surface_exports.py \
+  <path to the SEG .dcm> datasets/validation-exports/kits-00005/surface-inspection
+```
+
+Requires pydicom and NumPy. The exports are in RAS (3D Slicer), and the
+script converts them back to the DICOM LPS frame.

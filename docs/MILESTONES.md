@@ -1174,3 +1174,26 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
   `a196726` (clarify exact-boundary topology limits), `fc6284d` (validate
   Kidney self-contact edges and volume), and `c153b99` (retain the strict
   manifold assertion for the Mass case).
+
+
+## KiTS-00005 independent surface verification (2026-11-22)
+
+- Script: `tools/dataset-audits/kits-00005/verify_surface_exports.py`. It reads
+  the DICOM SEG directly (pydicom), not SVF's mask export, and compares it with
+  the exported `kidney.vtk` and `mass.vtk` after converting RAS back to LPS.
+- Results, run by Claude on 2026-11-22 (Python 3.14.3, pydicom 3.0.2, NumPy 2.5.5):
+  - Kidney: signed surface volume 430,186.7485 mm³ equals mask volume (relative
+    difference 4e-14). Mass: 60,293.1976 mm³ equals mask volume (1e-13).
+  - Bounding boxes and volume centroids agree to 1.9e-5 mm in both, which is
+    the 6-decimal rounding of the DICOM position values.
+  - Every triangle (252,892 Kidney, 44,048 Mass) separates an inside voxel
+    behind it from an outside voxel in front, so winding is outward and no face
+    is misplaced.
+  - Triangle counts equal twice the exposed voxel faces counted independently
+    from the mask (126,446 and 22,024 faces).
+- Meaning: the surfaces are an exact, correctly placed and correctly oriented
+  boundary of the SEG masks. Not covered here: the SEG-to-CT correspondence
+  (recorded in the earlier audit) and a visual check in 3D Slicer, which would
+  only confirm the RAS conversion and viewer alignment.
+- Limit: these are blocky voxel-boundary surfaces. They are not yet smooth,
+  presentation-quality educational structures.
