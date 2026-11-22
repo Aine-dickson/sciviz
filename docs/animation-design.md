@@ -325,3 +325,23 @@ the old bonds fade out (`Fade`) while the oxygen atoms move apart (5 s); the hyd
   `Molecule`) would avoid hand-authoring and keep one source of truth for bond lengths and angles; it is a design decision (Opus), not started.
 - Offsets in the file are written to 9 decimals; with 4 the bond-length check failed at 1e-4. Keep the precision if the file is regenerated.
 - Evidence: `docs/evidence/water-reaction/at-{1,16,30}.png` (looked at). Not seen live by the user.
+
+## 24. The magnetic field of a bar magnet (2026-11-22)
+
+`fixtures/structures/bar-magnet.ron`: a bar magnet (two tube parts, north red at +x and south blue at -x), five field-line parts (each one line in the xy plane, copied six times round the x axis
+with a `Radial` repeat), a compass needle (a tapered tube) and eight compass needles placed round the magnet. Timeline `field`, 56 s, 5 beats: the magnet and its poles (lines and compasses hidden);
+a compass is moved from the north pole to the south pole and turns to stay along the field (14 `Move` and 14 `Turn` actions, one second each); the lines appear (`Show`); a caption about
+strength; the eight compasses appear. No new core code.
+- **The field is a model, stated in the file:** the magnet is two point poles (+1 at x = +3.6, -1 at x = -3.6 cm). Each line was traced by a fourth-order Runge-Kutta integration of the unit field direction
+  from the north pole until it re-entered the magnet; needles and the compass's turns come from the same function. The numbers in the file are the source (the generator is not kept). It is the textbook
+  picture, not a computed field of a real magnet, and the field inside the magnet is not drawn.
+- **Authoring finding (a use for `Turn`):** a needle that pivots about its own centre and is carried along by `Move` follows a field line well, because the compass needle is a single part
+  that is symmetric about its centre. This works for any "pointer that follows a path" (a compass, a wind vane). A needle with two coloured halves would not, because each part turns about its own centre.
+- **Camera lesson:** the field lines of a magnet reach far from it (a line leaving 20 degrees off the axis goes 40 cm out for a 8 cm magnet). The first set of start angles made the magnet a speck;
+  the file uses 62, 78, 95, 112 and 130 degrees, which keep the field to about 13 cm.
+- **Not built:** arrows on the lines (there is no arrow-head verb, so direction is shown by the compass and the pointed needles); two magnets attracting or repelling (a second timeline would need the
+  field of two magnets); iron filings; a legend (colours are named in the captions only).
+- Tests (`tests/bar_magnet_fixture.rs`, run by Claude, release): parts closed; each of the five lines leaves near the north pole, ends at the south pole, and its direction of travel agrees with the stated field
+  (every step cos > 0.9, mean > 0.99); the lines reach farther the shallower they start; the eight needles point along the field (cos > 0.9999); the moving compass is within 0.05 degrees of the field direction at every whole second
+  and within 12 degrees between, and stays outside the magnet; lines and compasses appear in the stated order; every drawn frame closed.
+- Evidence: `docs/evidence/bar-magnet/at-{3,14,28,56}.png` (looked at). Not seen live by the user.

@@ -2833,3 +2833,11 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   Left to Prismal by the boundary rule: acids/pH, motion and F = ma, waves, Ohm's law with measurements, reaction rates. Not possible yet: Moon phases (the renderer has no directional light).
 - Bridge between `chemistry.rs` molecules and structure files: wanted, undesigned (Opus).
 - Owed from the user: a live look at all seven timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction), caption wording, pacing, legibility, citations.
+
+### Update 2026-11-22 (magnetic field lines)
+
+- `fixtures/structures/bar-magnet.ron`, `tests/bar_magnet_fixture.rs` (7 tests), register row, design note section 24. No core code changed. Field lines and needles come from a stated two-point-pole model.
+- Workspace green (see the test totals in the commit check). Screenshots at 14, 28 and 56 s looked at. Owed from the user: a live look at all eight timelines (flower, beaker, stem, breathing, gas exchange, digestive,
+  water reaction, bar magnet), caption wording, pacing, legibility, citations.
+- Remaining chemistry/physics candidates: simple circuit with a switch, states of matter (needs a vibrate-in-place particle verb), convection currents, electron shells, NaCl lattice, two magnets attracting/repelling (field of two magnets).
+- Authoring chores list (unchanged, for a later Opus design): particle legends/labels, position-dependent particle colour, lines-and-arcs path helper for tubes, no hinge for `Turn`, no arrow-head/direction marker on tubes (new today), a bridge from `chemistry.rs` molecules to structure files.
