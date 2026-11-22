@@ -8,6 +8,7 @@ description = "wgpu-based rendering infrastructure for SVF"
 
 [dependencies]
 bytemuck.workspace = true
+fontdue = { version = "=0.9.5", default-features = false, features = ["hashbrown"] }
 svf-core = { path = "../svf-core" }
 wgpu.workspace = true
 winit.workspace = true

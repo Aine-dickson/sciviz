@@ -8,6 +8,9 @@
 use std::{error::Error, fmt, mem::size_of, num::NonZeroU64, sync::Arc};
 
 use bytemuck::{Pod, Zeroable};
+
+pub mod overlay;
+mod overlay_gpu;
 use svf_core::{
     boundary_axial_glyphs::BoundaryAxialGlyphSet3,
     camera::{Camera3, LookAtCamera, PerspectiveProjection, Projection3},
@@ -177,9 +180,23 @@ pub struct SceneRenderer {
     translucent_triangles: Vec<[u32; 3]>,
     _depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+    /// Labels, key and caption drawn over the scene; see `docs/labels.md`.
+    overlay: overlay_gpu::OverlayRenderer,
 }
 
 impl SceneRenderer {
+    /// Replace the 2D overlay (labels, key, caption) drawn over the scene. Its
+    /// pixel coordinates are for `overlay.size`; build it for the size you draw at.
+    pub fn set_overlay(&mut self, overlay: &overlay::Overlay, kit: &overlay::TextKit) {
+        self.overlay.set(&self.device, &self.queue, overlay, kit);
+    }
+
+    /// The window surface size in physical pixels.
+    #[must_use]
+    pub const fn surface_size(&self) -> [u32; 2] {
+        [self.config.width, self.config.height]
+    }
+
     /// The f64 camera state used for both rendering and CPU-side picking.
     #[must_use]
     pub const fn camera(&self) -> &Camera3 {
@@ -564,6 +581,7 @@ impl SceneRenderer {
         };
 
         tracing_adapter_info(&adapter);
+        let overlay = overlay_gpu::OverlayRenderer::new(&device, config.format, DEPTH_FORMAT);
 
         let renderer = Self {
             instance,
@@ -593,6 +611,7 @@ impl SceneRenderer {
             translucent_triangles: index_sets.translucent_triangles,
             _depth_texture: depth_texture,
             depth_view,
+            overlay,
         };
         renderer.sort_translucent();
         Ok(renderer)
@@ -799,6 +818,9 @@ impl SceneRenderer {
                 );
                 pass.draw_indexed(0..self.translucent_index_count, 0, 0..1);
             }
+
+            // The 2D overlay over everything, with no depth test.
+            self.overlay.draw(&mut pass);
         }
     }
 

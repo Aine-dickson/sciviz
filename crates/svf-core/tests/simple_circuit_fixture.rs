@@ -141,3 +141,23 @@ fn every_drawn_frame_is_a_closed_mesh() {
         assert_closed(drawn.mesh().indices());
     }
 }
+
+#[test]
+fn labels_build_up_with_the_parts_and_the_electron_key_shows_only_with_the_current() {
+    let s = load();
+    let t = &s.timelines()[0];
+    let texts = |time: f64| t.pose_at(time).labels.iter().map(|l| l.text.clone()).collect::<Vec<_>>();
+    assert_eq!(texts(0.5), ["Cell"]);
+    assert_eq!(texts(11.0).len(), 7, "{:?}", texts(11.0));
+    assert_eq!(texts(t.duration()), texts(11.0), "labels stay to the end");
+    let g = s.build_geometry().unwrap();
+    for label in t.pose_at(30.0).labels {
+        assert!(s.label_anchor(&g, &label, &t.pose_at(30.0)).is_some(), "{} has an anchor", label.text);
+    }
+    for step in 0..=655 {
+        let time = f64::from(step) * 0.1;
+        let pose = t.pose_at(time);
+        let keyed = pose.key.iter().any(|k| k.text == "Electron");
+        assert_eq!(keyed, !pose.particles.is_empty(), "electron key at {time}");
+    }
+}

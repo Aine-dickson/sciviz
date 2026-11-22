@@ -11,8 +11,11 @@ use svf_core::{
     ray::{intersect_mesh, Ray3},
     spatial::{WorldPoint3, WorldVector3},
     structure::{Structure, StructureGeometry},
+    structure_animation::Pose,
+    structure_labels::{KeyEntry, PartLabel},
     structure_section::{section_geometry, SectionPlane},
 };
+use svf_render::overlay::ScreenLabel;
 
 use crate::{
     camera_setup::{apply_camera_setup, CameraSetup},
@@ -46,6 +49,10 @@ pub struct ViewOptions {
 const AXIS_NAMES: [&str; 3] = ["x", "y", "z"];
 /// A part this faint (a finished fade-out) is left out altogether: not drawn, not pickable.
 const MIN_VISIBLE_OPACITY: f64 = 0.005;
+/// A label is not drawn on a part fainter than this (`docs/labels.md` section 4).
+const LABEL_MIN_OPACITY: f64 = 0.2;
+/// A hit this much nearer than the anchor (as a fraction of its distance) hides the label.
+const LABEL_OCCLUSION_TOLERANCE: f64 = 0.01;
 /// The section plane moves by this fraction of the extent per key press.
 const SECTION_STEPS: f64 = 50.0;
 
@@ -572,9 +579,67 @@ impl StructureScene {
         Ok(())
     }
 
-    /// Caption at the current time.
-    pub fn caption(&self) -> Option<String> {
-        self.pose().and_then(|p| p.caption)
+    /// What the overlay shows now, for a `size` target seen through `camera`
+    /// (whose aspect should match `size`): the caption, the colour key and the
+    /// labels with their anchors projected to pixels (`docs/labels.md`). With a
+    /// timeline the pose decides; otherwise the current named view does.
+    /// A label is left out when its part is hidden or nearly faded, has nothing
+    /// drawn, projects behind the camera, or its anchor is hidden behind another
+    /// opaque part (one ray test; a translucent part in front does not hide it).
+    pub fn overlay_items(&self, camera: &Camera3, size: [u32; 2]) -> (Option<String>, Vec<KeyEntry>, Vec<ScreenLabel>) {
+        let pose = self.pose();
+        let (labels, key): (Vec<PartLabel>, Vec<KeyEntry>) = match (&pose, self.view) {
+            (Some(p), _) => (p.labels.clone(), p.key.clone()),
+            (None, Some(v)) => {
+                let view = &self.structure.views()[v];
+                (view.labels().to_vec(), view.key().to_vec())
+            }
+            (None, None) => (Vec::new(), Vec::new()),
+        };
+        let identity = Pose {
+            time: 0.0,
+            parts: Vec::new(),
+            camera: None,
+            caption: None,
+            particles: Vec::new(),
+            labels: Vec::new(),
+            key: Vec::new(),
+        };
+        let pose_ref = pose.as_ref().unwrap_or(&identity);
+        let parts = self.structure.parts();
+        let opacity = |part: usize| pose_ref.parts.get(part).map_or(parts[part].opacity(), |p| p.opacity);
+        let within = |part: usize, root: usize| {
+            let mut current = Some(part);
+            while let Some(c) = current {
+                if c == root {
+                    return true;
+                }
+                current = parts[c].parent();
+            }
+            false
+        };
+        let mut screen = Vec::new();
+        for label in labels {
+            if pose_ref.parts.get(label.part).is_some_and(|p| !p.shown || p.opacity < LABEL_MIN_OPACITY) {
+                continue;
+            }
+            let Some(anchor) = self.structure.label_anchor(&self.unposed, &label, pose_ref) else { continue };
+            let Some(pixel) = camera.project_to_viewport(anchor, size[0], size[1]) else { continue };
+            if let Ok(ray) = camera.ray_from_viewport(pixel[0], pixel[1], size[0], size[1]) {
+                let to_anchor = WorldPoint3::new(anchor[0], anchor[1], anchor[2]).to_vector() - ray.origin().to_vector();
+                let anchor_distance = to_anchor.dot(ray.direction().to_vector());
+                if let Some(hit) = intersect_mesh(&ray, self.geometry.mesh()) {
+                    let blocker = self.geometry.part_of_triangle(hit.triangle_index());
+                    let hidden = hit.distance() < anchor_distance * (1.0 - LABEL_OCCLUSION_TOLERANCE)
+                        && blocker.is_some_and(|b| !within(b, label.part) && opacity(b) >= 0.99);
+                    if hidden {
+                        continue;
+                    }
+                }
+            }
+            screen.push(ScreenLabel { text: label.text, anchor: pixel, side: label.side });
+        }
+        (pose.and_then(|p| p.caption), key, screen)
     }
 
     fn pose(&self) -> Option<svf_core::structure_animation::Pose> {
@@ -654,9 +719,6 @@ impl StructureScene {
                     String::new()
                 }
             ));
-            if let Some(caption) = self.caption() {
-                parts.push(format!("\"{caption}\""));
-            }
         }
         if let Some(i) = self.view {
             parts.push(format!("view: {}", self.structure.views()[i].name()));
@@ -1119,6 +1181,67 @@ mod tests {
     }
 
     #[test]
+    fn the_overlay_shows_the_circuit_caption_key_and_labels_on_screen() {
+        let text = include_str!("../../../fixtures/structures/simple-circuit.ron");
+        let structure = Structure::from_ron_str(text).unwrap();
+        let mut scene =
+            StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap();
+        scene.next_timeline().unwrap();
+        scene.set_time(30.0).unwrap();
+        scene.follow_timeline_camera().unwrap();
+        let size = [1600, 1200];
+        let (caption, key, labels) = scene.overlay_items(&scene.camera, size);
+        assert!(caption.unwrap().starts_with("Now there is a current"));
+        assert_eq!(key.iter().map(|k| k.text.as_str()).collect::<Vec<_>>(), ["Electron"]);
+        assert_eq!(labels.len(), 7, "{labels:?}");
+        for l in &labels {
+            assert!(l.anchor[0] > 0.0 && l.anchor[0] < 1600.0 && l.anchor[1] > 0.0 && l.anchor[1] < 1200.0, "{l:?}");
+        }
+        // The filament's anchor is inside the translucent glass: a translucent part does not hide it.
+        assert!(labels.iter().any(|l| l.text == "Filament"));
+    }
+
+    /// Two balls on the z axis, seen from +z: the back one's label is anchored on its
+    /// front surface, straight behind the front ball.
+    fn labels_seen_past(front_opacity: f64) -> Vec<String> {
+        let ball = |id: &str, z: f64, opacity: f64| {
+            format!(
+                "Part(id: \"{id}\", name: \"{id}\", parent: None, description: \"d\", colour: (0.5, 0.5, 0.5), opacity: {opacity},                  geometry: Some(Ellipsoid(centre: (0.0, 0.0, {z}), radii: (1.0, 1.0, 1.0))))"
+            )
+        };
+        let text = format!(
+            "Structure(version: 1, name: \"S\", units: \"cm\", reference: \"r\", circle_segments: 24, parts: [{}, {}], layers: [],              views: [], timelines: [Timeline(id: \"t\", name: \"T\", scenes: [Scene(id: \"s\", beats: [Beat(id: \"b\", actions: [             Label(part: \"front\", at: Some((0.0, 0.0, 3.0))), Label(part: \"back\", at: Some((0.0, 0.0, -1.0))), Wait(for_s: 1.0)])])])])",
+            ball("front", 2.0, front_opacity),
+            ball("back", -2.0, 1.0)
+        );
+        let mut scene = StructureScene::from_structure(
+            Structure::from_ron_str(&text).unwrap(),
+            &CameraSetup::default(),
+            &ViewOptions::default(),
+            None,
+        )
+        .unwrap();
+        scene.next_timeline().unwrap();
+        let look = svf_core::camera::LookAtCamera::new(
+            WorldPoint3::new(0.0, 0.0, 20.0),
+            WorldPoint3::new(0.0, 0.0, 0.0),
+            WorldVector3::new(0.0, 1.0, 0.0),
+        )
+        .unwrap();
+        let projection = svf_core::camera::PerspectiveProjection::new(0.8, 1.0, 0.1, 100.0).unwrap();
+        let camera = Camera3::new(look, svf_core::camera::Projection3::Perspective(projection));
+        let mut names: Vec<String> = scene.overlay_items(&camera, [400, 400]).2.into_iter().map(|l| l.text).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_label_behind_an_opaque_part_is_dropped_but_not_behind_a_translucent_one() {
+        assert_eq!(labels_seen_past(1.0), ["front"], "the opaque front ball hides the back ball's anchor");
+        assert_eq!(labels_seen_past(0.4), ["back", "front"], "a translucent part in front does not hide a label");
+    }
+
+    #[test]
     fn parses_timeline_flags() {
         let c = parse_structure_args(&args(&["x", "--structure", "a.ron", "--timeline", "t", "--at", "2.5"]))
             .unwrap()
@@ -1144,11 +1267,14 @@ mod tests {
         assert_eq!(scene.duration(), Some(6.0));
         let whole = scene.mesh().clone();
         assert_eq!(above(&scene, 4.85, 50.0).as_deref(), Some("epidermis"));
-        assert!(scene.state_text().contains("paused 0.0/6.0s") && scene.state_text().contains("The whole stem"));
+        // The caption is drawn in the picture (overlay), not in the title.
+        let caption = |scene: &StructureScene| scene.overlay_items(&scene.camera, [800, 600]).0.unwrap_or_default();
+        assert!(scene.state_text().contains("paused 0.0/6.0s") && !scene.state_text().contains("The whole stem"));
+        assert!(caption(&scene).contains("The whole stem"));
 
         scene.set_time(3.0).unwrap();
         assert_eq!(above(&scene, 4.85, 50.0), None, "the skin is hidden at 3 s");
-        assert!(scene.state_text().contains("No skin"), "{}", scene.state_text());
+        assert!(caption(&scene).contains("No skin"), "{}", caption(&scene));
 
         // Moving the pith lifts it by half its travel at 5 s.
         scene.set_time(5.0).unwrap();

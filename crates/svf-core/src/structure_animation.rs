@@ -16,7 +16,8 @@ use serde::Deserialize;
 
 use crate::geometry::TriangleMesh3;
 use crate::spatial::WorldPoint3;
-use crate::structure::{Part, StructureError, StructureGeometry};
+use crate::structure::{Part, PartRange, StructureError, StructureGeometry};
+use crate::structure_labels::{key_entry, label_parts, KeyEntry, LabelSide, PartLabel};
 use crate::structure_lesson::ViewCamera;
 use crate::structure_particles::{Flow, FlowSpec, ParticleGroup, ShapeDocument, Spread, SpreadSpec};
 
@@ -133,6 +134,40 @@ pub enum ActionDocument {
         #[serde(default)]
         ease: Ease,
     },
+    /// Label a part (a group stands for its descendants) until `Unlabel` or a
+    /// later `Label` of the same part. `text` defaults to the part's name; `at`
+    /// is an authored anchor (default: on the part's surface). See `docs/labels.md`.
+    Label {
+        part: String,
+        #[serde(default)]
+        text: Option<String>,
+        #[serde(default)]
+        at: Option<(f64, f64, f64)>,
+        #[serde(default)]
+        side: Option<LabelSide>,
+        #[serde(default)]
+        at_s: f64,
+    },
+    /// Remove a part's label.
+    Unlabel {
+        part: String,
+        #[serde(default)]
+        at_s: f64,
+    },
+    /// Add a colour key entry, until `Unkey` with the same id.
+    Key {
+        id: String,
+        colour: (f64, f64, f64),
+        text: String,
+        #[serde(default)]
+        at_s: f64,
+    },
+    /// Remove a colour key entry.
+    Unkey {
+        id: String,
+        #[serde(default)]
+        at_s: f64,
+    },
     /// Diffusion: `count` particles start in a small ball and wander inside
     /// `inside` for `for_s` seconds, then stay where they ended. They appear when it starts.
     Spread {
@@ -155,6 +190,9 @@ pub enum ActionDocument {
         /// (the default), or disappear when it ends.
         #[serde(default = "stay_by_default")]
         stay: bool,
+        /// Key text shown, with the particles' colour, while the particles are shown.
+        #[serde(default)]
+        key: Option<String>,
     },
     /// Particles travelling along `path` at `speed` for `for_s` seconds, wrapping
     /// from the end to the start. Shown only while it runs.
@@ -171,6 +209,9 @@ pub enum ActionDocument {
         for_s: f64,
         #[serde(default)]
         at_s: f64,
+        /// Key text shown, with the particles' colour, while the particles are shown.
+        #[serde(default)]
+        key: Option<String>,
     },
     /// Move the camera, like a view's camera. Needs the timeline's `camera`.
     Camera {
@@ -294,6 +335,10 @@ pub struct Timeline {
     /// `(from, to, text)`.
     captions: Vec<(f64, f64, String)>,
     emitters: Vec<Emitter>,
+    /// `(time, part, label or None to remove)`, ascending in time, file order kept within a time.
+    label_events: Vec<(f64, usize, Option<PartLabel>)>,
+    /// `(time, key id, entry or None to remove)`, ascending in time, file order kept within a time.
+    key_events: Vec<(f64, String, Option<KeyEntry>)>,
 }
 
 /// How one part looks at one instant. `turns` are applied in order, each
@@ -323,6 +368,11 @@ pub struct Pose {
     pub caption: Option<String>,
     /// Particle groups running at this time, in the order they were written.
     pub particles: Vec<ParticleGroup>,
+    /// Labels shown at this time, in the order they were (last) set.
+    pub labels: Vec<PartLabel>,
+    /// Colour key: authored entries in the order they were (last) added, then
+    /// the keys of the particles shown, without repeats.
+    pub key: Vec<KeyEntry>,
 }
 
 /// A particle generator placed on the timeline.
@@ -336,6 +386,7 @@ struct Emitter {
     kind: EmitterKind,
     radius: f64,
     colour: [f64; 3],
+    key: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -398,6 +449,7 @@ impl Timeline {
             }
         }
         let mut particles = Vec::new();
+        let mut particle_keys: Vec<KeyEntry> = Vec::new();
         for e in &self.emitters {
             if t < e.start {
                 continue;
@@ -409,9 +461,48 @@ impl Timeline {
                 EmitterKind::Flow(flow) if t <= e.end => flow.positions_at(local),
                 EmitterKind::Flow(_) => continue,
             };
+            if let Some(text) = &e.key {
+                particle_keys.push(KeyEntry { colour: e.colour, text: text.clone() });
+            }
             particles.push(ParticleGroup { id: e.id.clone(), positions, radius: e.radius, colour: e.colour });
         }
-        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()), particles }
+
+        // The latest event at or before `t` wins for each part or key id; order by when it was set.
+        let mut latest: HashMap<usize, Option<usize>> = HashMap::new();
+        for (seq, (time, part, label)) in self.label_events.iter().enumerate() {
+            if *time <= t {
+                latest.insert(*part, label.as_ref().map(|_| seq));
+            }
+        }
+        let labels: Vec<PartLabel> = self
+            .label_events
+            .iter()
+            .enumerate()
+            .filter_map(|(seq, (_, part, label))| {
+                label.as_ref().filter(|_| latest.get(part) == Some(&Some(seq))).cloned()
+            })
+            .collect();
+        let mut latest_key: HashMap<&str, Option<usize>> = HashMap::new();
+        for (seq, (time, id, entry)) in self.key_events.iter().enumerate() {
+            if *time <= t {
+                latest_key.insert(id.as_str(), entry.as_ref().map(|_| seq));
+            }
+        }
+        let mut key: Vec<KeyEntry> = Vec::new();
+        for (seq, (_, id, entry)) in self.key_events.iter().enumerate() {
+            if let Some(entry) = entry {
+                if latest_key.get(id.as_str()) == Some(&Some(seq)) && !key.contains(entry) {
+                    key.push(entry.clone());
+                }
+            }
+        }
+        for entry in particle_keys {
+            if !key.contains(&entry) {
+                key.push(entry);
+            }
+        }
+
+        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()), particles, labels, key }
     }
 }
 
@@ -429,6 +520,39 @@ fn rotate(v: [f64; 3], axis: [f64; 3], degrees: f64) -> [f64; 3] {
         v[1] * c + cross[1] * s + axis[1] * dot * (1.0 - c),
         v[2] * c + cross[2] * s + axis[2] * dot * (1.0 - c),
     ]
+}
+
+/// The vertices a part's triangles use (ascending, no repeats) and the centre
+/// of their bounding box, which is what a pose scales and turns about.
+pub(crate) fn range_vertices_and_centre(points: &[[f64; 3]], indices: &[u32], range: &PartRange) -> (Vec<usize>, [f64; 3]) {
+    let mut used: Vec<usize> = indices[range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3]
+        .iter()
+        .map(|&i| i as usize)
+        .collect();
+    used.sort_unstable();
+    used.dedup();
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for &i in &used {
+        for axis in 0..3 {
+            lo[axis] = lo[axis].min(points[i][axis]);
+            hi[axis] = hi[axis].max(points[i][axis]);
+        }
+    }
+    (used, [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0])
+}
+
+/// One point of a part under its pose: scaled about `centre`, turned in order about it, then moved.
+pub(crate) fn pose_point(point: [f64; 3], centre: [f64; 3], part: &PartPose) -> [f64; 3] {
+    let mut rel = [
+        (point[0] - centre[0]) * part.scale,
+        (point[1] - centre[1]) * part.scale,
+        (point[2] - centre[2]) * part.scale,
+    ];
+    for &(axis, degrees) in &part.turns {
+        rel = rotate(rel, axis, degrees);
+    }
+    [centre[0] + rel[0] + part.offset[0], centre[1] + rel[1] + part.offset[1], centre[2] + rel[2] + part.offset[2]]
 }
 
 /// How far a highlighted part's colour moves towards white.
@@ -451,39 +575,9 @@ impl StructureGeometry {
 
         for range in self.ranges() {
             let Some(part) = pose.parts.get(range.part_index) else { continue };
-            let mut used: Vec<usize> = indices
-                [range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3]
-                .iter()
-                .map(|&i| i as usize)
-                .collect();
-            used.sort_unstable();
-            used.dedup();
-            if used.is_empty() {
-                continue;
-            }
-
-            let mut lo = [f64::INFINITY; 3];
-            let mut hi = [f64::NEG_INFINITY; 3];
+            let (used, centre) = range_vertices_and_centre(&points, indices, range);
             for &i in &used {
-                for axis in 0..3 {
-                    lo[axis] = lo[axis].min(points[i][axis]);
-                    hi[axis] = hi[axis].max(points[i][axis]);
-                }
-            }
-            let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
-
-            for &i in &used {
-                let mut rel = [
-                    (points[i][0] - centre[0]) * part.scale,
-                    (points[i][1] - centre[1]) * part.scale,
-                    (points[i][2] - centre[2]) * part.scale,
-                ];
-                for &(axis, degrees) in &part.turns {
-                    rel = rotate(rel, axis, degrees);
-                }
-                for axis in 0..3 {
-                    points[i][axis] = centre[axis] + rel[axis] + part.offset[axis];
-                }
+                points[i] = pose_point(points[i], centre, part);
                 if let Some(colour) = part.colour {
                     colours[i] = colour;
                 }
@@ -628,6 +722,8 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
     let mut cameras: Vec<(Span, ViewCamera)> = Vec::new();
     let mut captions: Vec<(f64, f64, String)> = Vec::new();
     let mut emitters: Vec<Emitter> = Vec::new();
+    let mut label_events: Vec<(f64, usize, Option<PartLabel>)> = Vec::new();
+    let mut key_events: Vec<(f64, String, Option<KeyEntry>)> = Vec::new();
     let mut beats: Vec<BeatSpan> = Vec::new();
     let mut scene_ids: HashSet<&str> = HashSet::new();
     let mut clock = 0.0_f64;
@@ -755,8 +851,39 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         }
                         length = length.max(at_s + for_s);
                     }
+                    ActionDocument::Label { part, text, at, side, at_s } => {
+                        let span = timing(*at_s, 0.0)?;
+                        let index = root_of(part)?;
+                        label_parts(text.as_ref(), *at).map_err(|e| bad(format!("beat '{}': {e}", beat.id)))?;
+                        let text = text.clone().unwrap_or_else(|| parts[index].name().to_owned());
+                        let at = at.map(|a| [a.0, a.1, a.2]);
+                        label_events.push((span.start, index, Some(PartLabel { part: index, text, at, side: *side })));
+                        length = length.max(*at_s);
+                    }
+                    ActionDocument::Unlabel { part, at_s } => {
+                        let span = timing(*at_s, 0.0)?;
+                        label_events.push((span.start, root_of(part)?, None));
+                        length = length.max(*at_s);
+                    }
+                    ActionDocument::Key { id, colour, text, at_s } => {
+                        let span = timing(*at_s, 0.0)?;
+                        if id.is_empty() {
+                            return Err(bad(format!("beat '{}': a key entry needs a non-empty id", beat.id)));
+                        }
+                        let entry = key_entry(*colour, text).map_err(|e| bad(format!("beat '{}': {e}", beat.id)))?;
+                        key_events.push((span.start, id.clone(), Some(entry)));
+                        length = length.max(*at_s);
+                    }
+                    ActionDocument::Unkey { id, at_s } => {
+                        let span = timing(*at_s, 0.0)?;
+                        if !key_events.iter().any(|(_, k, e)| k == id && e.is_some()) {
+                            return Err(bad(format!("beat '{}': Unkey '{id}' has no Key before it", beat.id)));
+                        }
+                        key_events.push((span.start, id.clone(), None));
+                        length = length.max(*at_s);
+                    }
                     ActionDocument::Spread {
-                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s, stay,
+                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s, stay, key,
                     } => {
                         let span = timing(*at_s, *for_s)?;
                         let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
@@ -782,10 +909,11 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                             kind: EmitterKind::Spread(walk),
                             radius: *particle_radius,
                             colour,
+                            key: particle_key(&bad, id, key.as_ref())?,
                         });
                         length = length.max(at_s + for_s);
                     }
-                    ActionDocument::Flow { id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s } => {
+                    ActionDocument::Flow { id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s, key } => {
                         let span = timing(*at_s, *for_s)?;
                         let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
                         let flow = Flow::new(&FlowSpec {
@@ -804,6 +932,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                             kind: EmitterKind::Flow(flow),
                             radius: *particle_radius,
                             colour,
+                            key: particle_key(&bad, id, key.as_ref())?,
                         });
                         length = length.max(at_s + for_s);
                     }
@@ -910,6 +1039,15 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
         cameras: chained,
         captions,
         emitters,
+        label_events: {
+            // Stable: events at the same time keep their file order.
+            label_events.sort_by(|a, b| a.0.total_cmp(&b.0));
+            label_events
+        },
+        key_events: {
+            key_events.sort_by(|a, b| a.0.total_cmp(&b.0));
+            key_events
+        },
     })
 }
 
@@ -917,6 +1055,17 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
 const SPREAD_STEPS_PER_SECOND: f64 = 20.0;
 
 /// Checks what every particle action shares; returns its colour.
+fn particle_key(
+    bad: &dyn Fn(String) -> StructureError,
+    id: &str,
+    key: Option<&String>,
+) -> Result<Option<String>, StructureError> {
+    match key {
+        Some(text) if text.trim().is_empty() => Err(bad(format!("particles '{id}': a key needs text"))),
+        other => Ok(other.cloned()),
+    }
+}
+
 fn emitter_colour(
     bad: &dyn Fn(String) -> StructureError,
     beat: &str,

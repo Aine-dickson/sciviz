@@ -186,6 +186,8 @@ struct Explorer {
     /// When the timeline clock last advanced (while playing).
     last_tick: Option<std::time::Instant>,
     frame_stats: FrameStats,
+    /// Font and glyph atlas for the overlay (labels, key, caption).
+    text_kit: svf_render::overlay::TextKit,
 }
 
 impl Default for Explorer {
@@ -224,7 +226,30 @@ impl Explorer {
             exit_code: 0,
             last_tick: None,
             frame_stats: FrameStats::default(),
+            text_kit: svf_render::overlay::TextKit::new(),
         }
+    }
+
+    /// Rebuild the overlay (caption, key, labels) of a structure scene for a
+    /// `size` target. The camera keeps the renderer's look-at with the target's aspect.
+    fn refresh_overlay(&mut self, size: [u32; 2]) {
+        let (Some(scene), Some(renderer)) = (self.structure_scene.as_ref(), self.renderer.as_mut()) else {
+            return;
+        };
+        let current = *renderer.camera();
+        let camera = match current.projection().with_aspect_ratio(f64::from(size[0]) / f64::from(size[1].max(1))) {
+            Ok(projection) => svf_core::camera::Camera3::new(*current.look_at(), projection),
+            Err(_) => current,
+        };
+        let (caption, key, labels) = scene.overlay_items(&camera, size);
+        let input = svf_render::overlay::OverlayInput {
+            size: [f64::from(size[0]), f64::from(size[1])],
+            caption: caption.as_deref(),
+            key: &key,
+            labels: &labels,
+        };
+        let (overlay, _) = svf_render::overlay::compose_overlay(&mut self.text_kit, &input);
+        renderer.set_overlay(&overlay, &self.text_kit);
     }
 
     fn inspect_cursor_position(&mut self, log_details: bool) {
@@ -847,6 +872,7 @@ impl ApplicationHandler for Explorer {
                 self.renderer = Some(renderer);
                 self.window = Some(window.clone());
                 if let Some(path) = self.screenshot_path.clone() {
+                    self.refresh_overlay([screenshot::CAPTURE_WIDTH, screenshot::CAPTURE_HEIGHT]);
                     let renderer = self.renderer.as_mut().expect("renderer was just stored");
                     match screenshot::capture_to_png(renderer, &path) {
                         Ok((width, height)) => {
@@ -1016,6 +1042,9 @@ impl ApplicationHandler for Explorer {
 
             WindowEvent::RedrawRequested => {
                 self.advance_clock();
+                if let Some(size) = self.renderer.as_ref().map(SceneRenderer::surface_size) {
+                    self.refresh_overlay(size);
+                }
                 if let Some(renderer) = self.renderer.as_mut() {
                     if let Err(error) = renderer.render() {
                         eprintln!("Render failed: {error}");

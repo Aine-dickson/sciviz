@@ -101,16 +101,24 @@ GLASS_ON, GLASS_OFF = (1.0, 0.95, 0.75), (0.80, 0.85, 0.90)
 FLOW_FOR = 23.5
 beats = []
 beats.append(("parts", [narr("A simple circuit. The cell (bottom) pushes charge round. Copper wires join it to a switch (left) and a lamp (top). Every part is joined into one loop.", 12.0),
-                        'Highlight(part: "cell")', 'Highlight(part: "wires", at_s: 3.0)', 'Highlight(part: "switch", at_s: 6.0)', 'Highlight(part: "lamp", at_s: 9.0)']))
+                        'Highlight(part: "cell")', 'Highlight(part: "wires", at_s: 3.0)', 'Highlight(part: "switch", at_s: 6.0)', 'Highlight(part: "lamp", at_s: 9.0)',
+                        # Labels stay for the whole timeline, as in a textbook diagram.
+                        f'Label(part: "cell", text: Some("Cell"), at: Some({v((-0.6, Y0 + 1.0, 0.0))}))',
+                        f'Label(part: "cell-nub", text: Some("Positive terminal (+)"), side: Some(Right), at_s: 1.0)',
+                        f'Label(part: "cell-body", text: Some("Negative terminal (−)"), at: Some({v((CELL_NEG, Y0, 0.0))}), side: Some(Left), at_s: 1.0)',
+                        f'Label(part: "wire-3", text: Some("Copper wire"), at: Some({v((X1, 0.0, WIRE_HW))}), at_s: 3.0)',
+                        'Label(part: "switch", text: Some("Switch"), at_s: 6.0)',
+                        f'Label(part: "lamp", text: Some("Lamp"), at: Some({v((-1.1, FIL_Y + 1.35, 0.0))}), side: Some(Left), at_s: 9.0)',
+                        f'Label(part: "filament", text: Some("Filament"), at: Some({v((0.0, FIL_Y + 0.15, 0.0))}), side: Some(Right), at_s: 9.0)']))
 beats.append(("open", [narr("The switch is open: its lever is up, leaving a gap. The loop is broken, so no charge flows round. There is no current, and the lamp is off.", 9.0),
                        'Highlight(part: "switch-lever")']))
 FLOW_AT = 1.5                      # the current starts the moment the lever arrives
 OPEN_AT = FLOW_AT + FLOW_FOR       # and stops the moment it starts to lift
 cur = [narr("Close the switch. The lever touches the contact and the loop is complete.", 3.0, 0.0)] + lever(+1, 0.0) + [
-       narr("Now there is a current. Electrons (blue) were already in all the metal. They all start to move at once, out of the negative terminal of the cell, round the loop and back into its positive terminal. So the lamp lights straight away.", 9.0, 3.0),
+       narr("Now there is a current. Electrons were already in all the metal. They all start to move at once, out of the negative terminal of the cell, round the loop and back into its positive terminal. So the lamp lights straight away.", 9.0, 3.0),
        narr("The current is the same everywhere in the loop: in every wire, through the switch, through the lamp's filament and through the cell. No charge is used up; it goes round and round.", 7.0, 12.0),
        narr("The cell gives the charge energy. In the thin filament that energy is transferred as heat and light. (Real electrons drift slowly, under a millimetre a second; here they are shown much faster.)", 6.0, 19.0),
-       f'Flow(id: "electrons", count: {electrons}, path: [' + ", ".join(v(p) for p in loop) + f'], speed: {E_SPEED}, lateral: 0.05, seed: 3, particle_radius: {E_RADIUS}, colour: (0.25, 0.55, 1.00), for_s: {FLOW_FOR:.1f}, at_s: {FLOW_AT:.1f})',
+       f'Flow(id: "electrons", count: {electrons}, path: [' + ", ".join(v(p) for p in loop) + f'], speed: {E_SPEED}, lateral: 0.05, seed: 3, particle_radius: {E_RADIUS}, colour: (0.25, 0.55, 1.00), for_s: {FLOW_FOR:.1f}, at_s: {FLOW_AT:.1f}, key: Some("Electron"))',
        f'Colour(part: "filament", to: {v(ON)}, for_s: 0.3, at_s: {FLOW_AT:.1f})', f'Colour(part: "glass", to: {v(GLASS_ON)}, for_s: 0.3, at_s: {FLOW_AT:.1f})', f'Show(part: "glow", at_s: {FLOW_AT:.1f})',
        f'Colour(part: "filament", to: {v(OFF)}, for_s: 0.3, at_s: {OPEN_AT:.1f})', f'Colour(part: "glass", to: {v(GLASS_OFF)}, for_s: 0.3, at_s: {OPEN_AT:.1f})',
        f'Hide(part: "glow", at_s: {OPEN_AT:.1f})'] + lever(-1, OPEN_AT)

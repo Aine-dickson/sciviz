@@ -322,6 +322,26 @@ impl Camera3 {
         self.projection_matrix() * self.view_matrix()
     }
 
+    /// Projects a world point to a physical-pixel position in a top-left-origin
+    /// viewport: the inverse of [`Self::ray_from_viewport`]. `None` when the point
+    /// is not in front of the camera, the viewport is empty or the input is not finite.
+    /// The result may lie outside the viewport.
+    #[must_use]
+    pub fn project_to_viewport(&self, point: [f64; 3], viewport_width: u32, viewport_height: u32) -> Option<[f64; 2]> {
+        if viewport_width == 0 || viewport_height == 0 || !point.iter().all(|c| c.is_finite()) {
+            return None;
+        }
+        let clip = self.view_projection_matrix() * glam::DVec4::new(point[0], point[1], point[2], 1.0);
+        if !(clip.w > 0.0) || clip.z < 0.0 {
+            return None;
+        }
+        let (x, y) = (clip.x / clip.w, clip.y / clip.w);
+        Some([
+            (x + 1.0) * 0.5 * f64::from(viewport_width),
+            (1.0 - y) * 0.5 * f64::from(viewport_height),
+        ])
+    }
+
     /// Constructs a world-space ray through a physical-pixel position in a
     /// top-left-origin viewport. Pixel coordinates are measured in the same
     /// physical pixels as the viewport dimensions (not logical DPI units).
@@ -612,6 +632,25 @@ mod tests {
                 .to_vector()
                 .abs_diff_eq(DVec3::NEG_Z, EPSILON)
         );
+    }
+
+    #[test]
+    fn projecting_to_the_viewport_inverts_the_viewport_ray() {
+        let projection = PerspectiveProjection::new(std::f64::consts::FRAC_PI_2, 1.6, 1.0, 50.0).unwrap();
+        let camera = Camera3::new(test_camera(), Projection3::Perspective(projection));
+        for p in [[0.0, 0.0, 0.0], [1.0, -0.5, 0.3], [-2.0, 1.5, -1.0]] {
+            let [x, y] = camera.project_to_viewport(p, 160, 100).expect("in front of the camera");
+            let ray = camera.ray_from_viewport(x, y, 160, 100).unwrap();
+            // The ray through the projected pixel passes through the point.
+            let to = DVec3::from_array(p) - ray.origin().to_vector();
+            let along = to.dot(ray.direction().to_vector());
+            assert!((to - ray.direction().to_vector() * along).length() < 1e-9, "{p:?}");
+        }
+        // Behind the camera, an empty viewport and non-finite input give nothing.
+        let behind = (camera.look_at().position().to_vector() * 2.0).to_array();
+        assert_eq!(camera.project_to_viewport(behind, 160, 100), None);
+        assert_eq!(camera.project_to_viewport([0.0; 3], 0, 100), None);
+        assert_eq!(camera.project_to_viewport([f64::NAN, 0.0, 0.0], 160, 100), None);
     }
 
     #[test]
