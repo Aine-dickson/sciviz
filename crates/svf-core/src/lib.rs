@@ -24,6 +24,7 @@ pub mod structure;
 pub mod structure_animation;
 pub mod structure_particles;
 pub mod structure_blocks;
+pub mod structure_label_layout;
 pub mod structure_labels;
 pub mod structure_lesson;
 pub mod structure_mesh;

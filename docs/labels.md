@@ -127,3 +127,8 @@ L1 and L2 need no new dependency. L3 adds `fontdue` and DejaVu Sans (user's deci
   Views gain `labels` and `key`. `apply_pose` and the anchors share `pose_point` and `range_vertices_and_centre`, so they cannot drift apart.
   7 unit tests: persistence, replacement, particle keys without repeats, refusals, views, default and group anchors, and anchors under Move/Turn/Grow.
   The Explorer does not use them yet (that is L4).
+- **L2 done (2026-11-22).** `crates/svf-core/src/structure_label_layout.rs`: `layout_labels(&LabelFrame, &[LabelRequest]) -> Vec<PlacedLabel>`, plus
+  `Camera3::project_to_viewport` (the inverse of `ray_from_viewport`, tested as a round trip). When a column overflows, the labels set last are dropped.
+  Hiding by another part (the anchor ray test) is left to the host, which has picking. 7 layout tests: placement, side override, push-apart order,
+  bands, rejects, overflow, and 500 random scenes checked against every guarantee and for determinism.
+
