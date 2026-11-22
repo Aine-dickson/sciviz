@@ -2453,3 +2453,23 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   `mesh_simplify`, quadric edge collapse of a patch with pinned boundary, no flips,
   link condition, error bound `epsilon`, tested on synthetic closed shapes and
   cut patches.
+
+
+## B2 step 5c — mesh simplifier (branch `b2-5c-simplify`, stacked on 5b / PR #73)
+
+- 5b (#73) was still open when 5c started, so 5c branches from it; merge #73 first
+  (needs the user's OK), then this PR.
+- Adds `svf-core::mesh_simplify`: `simplify`, `simplify_within`,
+  `sampled_deviation`, `SimplifyOptions`, `Simplified` (with `vertex_map`),
+  `SimplifyReport`, `SimplifyError`. Design/results: `docs/heart-structure.md` section 17.
+- Decision to keep: the quadric limit is an RMS plane heuristic (the sum stalls
+  early), so the deviation is measured; `simplify_within` searches `epsilon` until
+  the measured deviation meets the limit. Do not present `epsilon` as a bound.
+- Verified: `cargo test --workspace` passes (svf-core 354, cockroach fixture 7,
+  explorer 79, render 12). 12 new tests: sphere closure/volume/outward, measured
+  deviation search, tiny epsilon on a cube, flat patch (boundary, area, normals),
+  pinned vertices, two cut patches closing along the cut, torus genus and link
+  refusals, target, determinism, input errors, deviation measure, fallback.
+- NOT done: runs on case 01 (5e), format (5d). No formatter run (standing rule).
+- Next action: merge #73 then this PR (user's OK), then 5d on `b2-5d-mesh-format`:
+  `Geometry::Mesh`, `.svfmesh` container, resolver, provenance block, Explorer loading.
