@@ -2685,3 +2685,10 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   open question), `docs/flower-structure.md` findings 1 to 3 (stages need separate parts, no default view,
   views cannot target parts), and the user's examples: diffusion, water up a stem, atoms combining, growth
   stages. Start with a design note only; no implementation until the user reviews it.
+- **Animation design note written (2026-11-22): `docs/animation-design.md`, a proposal; nothing implemented.**
+  User's choices: first slice = poses and steps plus particle verbs; author words mirror Prismal's timeline
+  words (`timeline`, `scene`, `beat`, `narrate`, `wait`, `hide`, `camera`). Core idea: the picture is a pure
+  function of time, so pause, scrub and `--at` screenshots work. Five open questions are at the end of the note
+  (section while playing, scale-based hide, first particle item, captions only, RON vs a text syntax).
+  Per-frame cost is NOT measured. **Next action: the user reviews the note and answers the open questions; only then
+  start slice A1.**

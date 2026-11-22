@@ -86,10 +86,10 @@ SVF has no animation today: it is listed as out of scope in
 thing: **a fixed sequence of changes over a structure, written in a few steps,
 with the system doing the rest.**
 
-**Decision (Claude, for the user to confirm):** do not design it yet. Build the
-flower with stage views, then one or two more items that want a process
-(diffusion is a good candidate), and record what authors had to spell out by
-hand. That evidence decides the authoring form. The open question: *what is the
+**Status 2026-11-22:** designed, pending the user's review: `animation-design.md`
+(poses and steps plus particle verbs, in Prismal's timeline words). Earlier
+thinking, kept for the record: build more items first and let what authors had to
+spell out decide the form. The open question: *what is the
 smallest description of a fixed process over a structure that a non-engineer
 author can write?* This is a core SVF capability, not an optional extra, so it
 is scheduled by evidence, not skipped.
