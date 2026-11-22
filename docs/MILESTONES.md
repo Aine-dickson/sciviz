@@ -1119,3 +1119,81 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - Status: source/geometry/voxel audit complete for the recorded checks;
   no implementation authorized. Next: preserve scripts, inspect existing
   core APIs, then propose a reviewed volume/segmentation design contract.
+
+
+## KiTS-00005 real-mask surface validation (2026-11-18)
+
+- The real Mass mask initially exposed 20 voxel-grid edges with four incident
+  boundary faces each, while no boundary edges were present.
+- The extractor retains exposed-face voxel provenance and splits coincident
+  vertex occurrences into separate local surface fans. At a four-face
+  checkerboard edge, faces are paired by their foreground voxel owner.
+  Corner-only contacts remain disconnected because they share no surface edge.
+- Synthetic edge-contact and corner-contact regression tests passed locally,
+  requiring closed two-face edge incidence, opposite winding, and exact signed
+  volume.
+- The real KiTS-00005 Mass surface integration test passed locally:
+  22,028 vertices, 44,048 triangles, zero boundary edges, zero edges with more
+  than two incident faces, opposite winding across every shared edge, and
+  signed mesh volume equal to mask volume (60,293.197632 mm³; zero reported
+  relative error). Extraction took approximately 360 ms and topology analysis
+  approximately 414 ms on the user's Windows environment.
+- The real Kidney surface extraction produced a closed boundary with zero
+  boundary edges, but five edges have four incident faces. Each is a diagonal
+  foreground self-contact: the two foreground voxels around the edge reconnect
+  elsewhere in the mask, so the exact cubical boundary is not edge-manifold
+  there. The source mask and voxel-cell geometry are unchanged.
+- The revised real Kidney integration test passed locally:
+  126,482 vertices, 252,892 triangles, zero boundary edges, five edges with
+  four incident faces, balanced opposing face winding at every edge, and
+  signed mesh volume equal to mask volume (430,186.748505 mm³; zero reported
+  relative error). Extraction took approximately 2.55 s and topology analysis
+  approximately 3.05 s on the user's Windows environment.
+- The Mass strict-manifold regression was rerun after the Kidney test changes
+  and passed locally: 22,028 vertices, 44,048 triangles, zero boundary edges,
+  zero non-manifold edges, balanced opposing winding, and signed volume equal
+  to mask volume (60,293.197632 mm³; zero reported relative error). Extraction
+  took approximately 363 ms and topology analysis approximately 415 ms.
+- The five Kidney non-manifold self-contact edges remain explicitly reported;
+  this is not a claim that the Kidney mesh is edge-manifold. The exact
+  voxel-cell boundary, source mask, and volume are preserved.
+- Both real-mask surface tests now pass. This closes the current real-mask
+  extraction/topology/volume validation milestone, with geometric comparison
+  against an independent viewer/reference still outstanding.
+- Added an opt-in real-data export test that writes Kidney and Mass triangle
+  meshes as legacy VTK POLYDATA for independent inspection. Export coordinates
+  are converted from DICOM patient LPS to 3D Slicer's RAS convention. The
+  export test and visual comparison are pending local execution.
+- This is an important limitation, not a claim that the Kidney surface is a
+  manifold. Exact voxel-boundary extraction cannot always remove such
+  self-contacts through vertex splitting alone. A manifold reconstruction
+  would require an explicit geometric/topological resolution policy and must
+  be validated separately against the source volume.
+- Commits on `b2-5e-heart-tool`: `314cea6` (extractor), `2980773`
+  (regression tests), `97bc0b2` (initial milestone record),
+  `a196726` (clarify exact-boundary topology limits), `fc6284d` (validate
+  Kidney self-contact edges and volume), and `c153b99` (retain the strict
+  manifold assertion for the Mass case).
+
+
+## KiTS-00005 independent surface verification (2026-11-22)
+
+- Script: `tools/dataset-audits/kits-00005/verify_surface_exports.py`. It reads
+  the DICOM SEG directly (pydicom), not SVF's mask export, and compares it with
+  the exported `kidney.vtk` and `mass.vtk` after converting RAS back to LPS.
+- Results, run by Claude on 2026-11-22 (Python 3.14.3, pydicom 3.0.2, NumPy 2.5.5):
+  - Kidney: signed surface volume 430,186.7485 mm³ equals mask volume (relative
+    difference 4e-14). Mass: 60,293.1976 mm³ equals mask volume (1e-13).
+  - Bounding boxes and volume centroids agree to 1.9e-5 mm in both, which is
+    the 6-decimal rounding of the DICOM position values.
+  - Every triangle (252,892 Kidney, 44,048 Mass) separates an inside voxel
+    behind it from an outside voxel in front, so winding is outward and no face
+    is misplaced.
+  - Triangle counts equal twice the exposed voxel faces counted independently
+    from the mask (126,446 and 22,024 faces).
+- Meaning: the surfaces are an exact, correctly placed and correctly oriented
+  boundary of the SEG masks. Not covered here: the SEG-to-CT correspondence
+  (recorded in the earlier audit) and a visual check in 3D Slicer, which would
+  only confirm the RAS conversion and viewer alignment.
+- Limit: these are blocky voxel-boundary surfaces. They are not yet smooth,
+  presentation-quality educational structures.

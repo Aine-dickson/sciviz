@@ -5,3 +5,6 @@ Cargo.lock
 *.suo
 .vs/
 .idea/
+
+# Local patient/imaging datasets and exports (never commit)
+/datasets/

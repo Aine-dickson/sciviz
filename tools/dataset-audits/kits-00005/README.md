@@ -62,6 +62,69 @@ Run individual scripts from the repository root:
     python tools/dataset-audits/kits-00005/inspect_kidney_mask_adjacency.py
     python tools/dataset-audits/kits-00005/inspect_kidney_mass_distance.py
 
+Export the audited SEG masks into SVF-compatible local validation inputs:
+
+    python tools/dataset-audits/kits-00005/export_svf_masks.py
+
+The exporter writes `segment-1.raw`, `segment-2.raw`, and `metadata.json`
+under `datasets/validation-exports/kits-00005/` by default. Each raw file is
+one byte per voxel (0 or 1), stored in NumPy `(k, j, i)` C-order, which is the
+same i-fastest linear order used by `ImageVolumeGeometry3`. The metadata
+records the affine origin and basis vectors. Use `--dataset-root` and
+`--output-dir` to override the defaults.
+
+After exporting, run the opt-in Rust integration test from the workspace root
+(Git Bash). Relative `SVF_KITS_MASK_DIR` paths are resolved from the workspace
+root even though Cargo runs the integration test from the package directory:
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks -- --ignored --nocapture
+
+The test loads both raw masks into `BinaryMask3` and `SegmentationVolume3`,
+then checks foreground counts and inclusive voxel-index bounds against the
+audited dataset. It is ignored during ordinary test runs because it requires
+the external local dataset export.
+
+Surface extraction is a separate opt-in test. Start with the smaller Mass
+segment before attempting the much larger Kidney segment:
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks extracts_real_kits_mass_surface_and_checks_topology -- --ignored --nocapture
+
+This reports mesh size and timings, checks edge incidence and consistent
+orientation, and compares signed mesh volume with the mask-derived physical
+volume. The topology checks are diagnostics for this extracted mesh; they are
+not a general certification of anatomical or clinical validity.
+
+## Exporting surfaces for independent inspection
+
+Generate legacy VTK PolyData files for both real segments:
+
+    SVF_KITS_MASK_DIR=datasets/validation-exports/kits-00005 cargo test -p svf-core --test kits_real_masks exports_real_kits_surfaces_for_external_inspection -- --ignored --nocapture
+
+The test writes these local files:
+
+- `datasets/validation-exports/kits-00005/surface-inspection/kidney.vtk`
+- `datasets/validation-exports/kits-00005/surface-inspection/mass.vtk`
+- `datasets/validation-exports/kits-00005/surface-inspection/README.txt`
+
+The VTK files contain the exact extracted triangle meshes, without smoothing
+or coordinate perturbation. The audited DICOM geometry is patient LPS; the
+exporter converts it to 3D Slicer's RAS convention (negate X and Y, preserve Z)
+so the models can be overlaid with the source images.
+
+In 3D Slicer:
+
+1. Load the original arterial CT series and matching DICOM SEG through the
+   DICOM module/browser, preserving their source geometry.
+2. Load `kidney.vtk` and `mass.vtk` as model files.
+3. Show the models alongside the SEG and CT. Adjust model opacity and segment
+   visibility to compare boundaries on axial, coronal and sagittal slices.
+4. Inspect the five documented Kidney self-contact locations as well as the
+   overall renal contour and Mass boundary.
+
+The meshes are geometric derivatives for engineering inspection, not clinical
+models or validated anatomical surfaces. Keep the exports and original data
+outside Git.
+
 The scripts print diagnostic results to the terminal. Run them individually
 when investigating a particular aspect of the dataset.
 
@@ -108,3 +171,20 @@ have been explicitly reviewed.
 
 These scripts preserve the inspection procedures used during the audit.
 They do not replace the source DICOM files or the documented audit results.
+
+## Independent surface verification
+
+`verify_surface_exports.py` checks the SVF surface exports
+(`datasets/validation-exports/kits-00005/surface-inspection/*.vtk`) against the
+DICOM SEG. It does not use SVF's exported masks or metadata: it reads the SEG
+with pydicom, rebuilds each segment's voxel grid from the per-frame positions,
+and compares signed volume, bounding box, centroid, per-face inside/outside
+and winding, and the exposed-face count.
+
+```sh
+python -I tools/dataset-audits/kits-00005/verify_surface_exports.py \
+  <path to the SEG .dcm> datasets/validation-exports/kits-00005/surface-inspection
+```
+
+Requires pydicom and NumPy. The exports are in RAS (3D Slicer), and the
+script converts them back to the DICOM LPS frame.

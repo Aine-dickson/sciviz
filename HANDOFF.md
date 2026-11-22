@@ -2595,3 +2595,25 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - No volume API or kidney-specific implementation is authorized yet. Next:
   audit one actual case and define the learning objective, then write/review a
   design contract before implementation.
+
+
+## Current state (2026-11-22) — read this first; it supersedes the 2026-11-18 section above
+
+**Objective (user, restated 2026-11-22):** by January 2027, about 75% confidence that SVF can produce *valuable output* (scientifically correct, legible, explorable, with clear provenance) for lesson content across several subjects. This is not yet about building lessons, Mava integration or an author-facing API. Those come after the way we build items has settled into a convention. Build a range of items first; the convention and the author surface follow from them.
+
+**Items so far, by build method:** cockroach (authored), heart (adapted source mesh, validated), VSEPR molecules (rule-driven), heat diffusion and fibres (fields), kidney (voxel segmentation, probe only).
+
+**Kidney track:** `image_volume.rs` and `segmentation.rs` exist with real-mask tests. Independent verification against the DICOM SEG passed on 2026-11-22 (see `docs/MILESTONES.md`). It was not done in 3D Slicer. Kidney work is paused here. The surfaces are blocky voxel boundaries and the licence is unresolved, so nothing is lesson-ready. No design contract was written for these modules; write one before extending them.
+
+**Curriculum input:** the lessons repo is `C:\Users\USER\Bitcraft\Math + Scie\science-math` (172 written lessons for ages 9–13). The written lessons are almost entirely 2D Prismal simulations, and were written before SVF existed, so they will change as SVF proves out. The syllabus (`curriculum/syllabus.yaml`) is the better guide for SVF items: BOD (human body systems), CEL (cells), TRN (transport and breathing), PRP (flowers), bonding and structure, particle views. First candidate from a real lesson requirement: RQ-PRISMAL-030, a flower cut in half, with change over time.
+
+**Decisions not to revisit:** SVF is built standalone (Mava embeds its output; Prismal may never need it). Authors never see the engineering. No new organ just to add an organ. Do not reopen heart camera work.
+
+**Known issues:**
+- The branch `b2-5e-heart-tool` is 79 commits ahead of main and holds the open stacked PRs #73–75, the heart work and the kidney track. It needs splitting before any merge.
+- Kidney handoff `docs/kidney-volume-investigation-handoff.md` is partly stale (scripts are now committed under `tools/dataset-audits/kits-00005/`).
+- The KiTS licence is unresolved (CC BY-NC-SA vs CC BY 3.0 by distribution).
+
+**Done this session:** `datasets/` added to `.gitignore`; duplicate root scripts deleted; independent verification script added and run. All uncommitted at the time of writing.
+
+**Next action:** write the short "valuable output" bar and the item list (user to name the items and subjects), then pick the flower as the first new item unless the user redirects. Then split the branch into PRs.
