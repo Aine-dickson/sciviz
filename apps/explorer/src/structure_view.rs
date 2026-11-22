@@ -232,8 +232,24 @@ impl StructureScene {
     pub fn load(config: &StructureConfig) -> Result<Self, String> {
         let text = fs::read_to_string(&config.path)
             .map_err(|e| format!("cannot read structure '{}': {e}", config.path.display()))?;
-        let structure = Structure::from_ron_str(&text)
+        // Mesh files are looked up next to the structure file; a name may not
+        // leave that folder.
+        let folder = config.path.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+        let resolver = |name: &str| -> Result<Vec<u8>, String> {
+            let relative = std::path::Path::new(name);
+            let plain = relative.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+            if !plain {
+                return Err("the file name must be a plain relative path".to_owned());
+            }
+            fs::read(folder.join(relative)).map_err(|e| e.to_string())
+        };
+        let structure = Structure::from_ron_with(&text, &resolver)
             .map_err(|e| format!("invalid structure '{}': {e}", config.path.display()))?;
+        if let Some(provenance) = structure.provenance() {
+            for line in provenance.summary() {
+                eprintln!("{line}");
+            }
+        }
         Self::from_structure(structure, &config.camera, &config.view, config.view_id.as_deref())
     }
 

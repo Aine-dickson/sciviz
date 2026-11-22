@@ -2473,3 +2473,22 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - NOT done: runs on case 01 (5e), format (5d). No formatter run (standing rule).
 - Next action: merge #73 then this PR (user's OK), then 5d on `b2-5d-mesh-format`:
   `Geometry::Mesh`, `.svfmesh` container, resolver, provenance block, Explorer loading.
+
+
+## B2 step 5d — mesh container, `Geometry::Mesh`, provenance (branch `b2-5d-mesh-format`, stacked on 5c)
+
+- Stack: #73 (5b) -> #74 (5c) -> this PR. Merge in order (user's OK); retarget bases to `main`.
+- Adds `svf-core::structure_mesh` (`MeshContainer`, `MeshBody`, `MeshError`,
+  `Provenance`), `Geometry::Mesh`, `Structure::{from_ron_with, from_document_with,
+  provenance}`, new `StructureError` variants, and Explorer loading with a plain-name
+  resolver and a provenance printout. Details: `docs/heart-structure.md` section 18.
+- Verified: `cargo test --workspace` passes (svf-core 365, cockroach fixture 7,
+  explorer 79, render 12). 11 new tests (round trip, determinism, damage and
+  truncation, hostile counts, validation, structure integration, mirror on a mesh
+  part, resolver errors, provenance).
+- NOT verified: the Explorer resolver's path-escape refusal has no test; nothing was
+  run in the live Explorer (no mesh file exists until 5e).
+- Next action: 5e on `b2-5e-heart-tool`: the adaptation tool (re-frame, relabel,
+  patches, `simplify_within` per patch at 0.4 mm, parts by union of patches, repair,
+  write `.svfmesh`, `.ron` with provenance), run it on case 01 (needs the user's
+  260 MB file), commit the fixture, fixture tests, screenshots, user's live check.

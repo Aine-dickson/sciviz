@@ -336,3 +336,28 @@ s, face map 4 s, the whole run well under a minute).
   source unchanged. 5e uses this per patch with 0.4 mm, as section 11 requires.
 - Deterministic (ties by vertex index). Not done: any use on the heart (5e), the
   file format (5d). Budget is still decided on the real data in 5e.
+
+## 18. 5d as built (`svf-core::structure_mesh`, `Geometry::Mesh`)
+
+- **`.svfmesh`** (little endian): `SVFMESH1`, body count, then per body name,
+  point count, triangle count, `f32` points, `u32` triangles; last an FNV-1a 64-bit
+  checksum of everything before it. `MeshContainer::to_bytes` and `from_bytes` both
+  validate: finite points, indices in range, every body a closed 2-manifold with
+  positive volume (outward), unique body names; the reader verifies the checksum
+  first and checks counts against the remaining length before allocating.
+  Bytes are deterministic.
+- **`Geometry::Mesh { file, body }`** is an ordinary geometry: `repeat`, `mirror`,
+  layers, views, relations, sections and picking all apply unchanged. Points are
+  used as stored (no welding).
+- **Loading.** `Structure::from_ron_with(text, resolver)` reads each distinct file
+  once through `resolver: &dyn Fn(&str) -> Result<Vec<u8>, String>`; svf-core does
+  no file IO. `from_ron_str` is unchanged for recipe files and refuses a mesh part
+  (`MeshNeedsResolver`). Errors name the file or the part and body.
+- **Provenance** is an optional `provenance: Some(Provenance(...))` block: dataset,
+  DOI, licence, required attribution, source SHA-256 (64 hex), tool, tool commit,
+  parameters, optional frame transform (3x4), per-body source volumes, `modified`.
+  `Structure::provenance()` returns it; `Provenance::summary()` gives the startup lines.
+- **Explorer** resolves files next to the structure file (plain relative names only,
+  no `..` or absolute paths) and prints the provenance summary to stderr at load.
+- Not done: the container writer's use on real data (5e), any capability to read
+  the container elsewhere (imports are a later route).

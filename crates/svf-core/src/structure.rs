@@ -12,6 +12,7 @@ use crate::{
     geometry::{GeometryError, TriangleMesh3},
     spatial::WorldPoint3,
     structure_lesson::{validate_relations, validate_views},
+    structure_mesh::{MeshContainer, Provenance},
     structure_blocks::{
         build_ellipsoid, build_tube, check_copies, check_ellipsoid, check_tube, expand_copies,
         BlockError, EllipsoidParams, TubeParams,
@@ -64,6 +65,9 @@ pub struct StructureDocument {
     /// Named lesson views. Optional.
     #[serde(default)]
     pub views: Vec<ViewDocument>,
+    /// Where derived geometry came from. Optional; see `docs/heart-structure.md` section 18.
+    #[serde(default)]
+    pub provenance: Option<Provenance>,
 }
 
 /// File representation of one layer: a named group of parts for peeling.
@@ -125,6 +129,9 @@ pub enum Geometry {
         #[serde(default)]
         wall: Option<f64>,
     },
+    /// One named body of a `.svfmesh` container, resolved when the structure is
+    /// loaded with [`Structure::from_ron_with`].
+    Mesh { file: String, body: String },
 }
 
 /// The 2D cross-section of an extrusion, in the XZ plane about the Y axis.
@@ -181,6 +188,12 @@ pub enum StructureError {
     DuplicateViewId(String),
     UnknownViewPart { view: String, part: String },
     InvalidView { view: String, reason: &'static str },
+    /// A `Mesh` part in a structure read without a resolver.
+    MeshNeedsResolver { part: String },
+    /// The resolver or the container reader failed for this file.
+    MeshFile { file: String, reason: String },
+    UnknownMeshBody { part: String, file: String, body: String },
+    InvalidProvenance(&'static str),
     Geometry(GeometryError),
 }
 
@@ -233,6 +246,14 @@ impl fmt::Display for StructureError {
                 write!(f, "view '{view}' shows unknown part '{part}'")
             }
             Self::InvalidView { view, reason } => write!(f, "view '{view}': {reason}"),
+            Self::MeshNeedsResolver { part } => {
+                write!(f, "part '{part}' uses a mesh file; load the structure with a resolver")
+            }
+            Self::MeshFile { file, reason } => write!(f, "mesh file '{file}': {reason}"),
+            Self::UnknownMeshBody { part, file, body } => {
+                write!(f, "part '{part}' names body '{body}' which mesh file '{file}' does not contain")
+            }
+            Self::InvalidProvenance(reason) => write!(f, "provenance: {reason}"),
             Self::Geometry(error) => write!(f, "generated geometry is invalid: {error}"),
         }
     }
@@ -331,6 +352,8 @@ pub struct Structure {
     layers: Vec<Layer>,
     relations: Vec<Relation>,
     views: Vec<View>,
+    provenance: Option<Provenance>,
+    meshes: HashMap<String, MeshContainer>,
 }
 
 /// The triangles of one part inside a [`StructureGeometry`] mesh.
@@ -376,14 +399,46 @@ impl StructureGeometry {
 
 impl Structure {
     /// Parses and validates a RON structure file.
+    /// Parts that use a mesh file are refused; see [`Self::from_ron_with`].
     pub fn from_ron_str(text: &str) -> Result<Self, StructureError> {
         let document: StructureDocument =
             ron::de::from_str(text).map_err(|error| StructureError::Parse(error.to_string()))?;
         Self::from_document(document)
     }
 
-    /// Validates a parsed document.
+    /// Parses and validates a RON structure file whose parts may use mesh
+    /// files. `resolver` turns a file name from the structure into bytes; this
+    /// crate does no file IO itself.
+    pub fn from_ron_with(
+        text: &str,
+        resolver: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Self, StructureError> {
+        let document: StructureDocument =
+            ron::de::from_str(text).map_err(|error| StructureError::Parse(error.to_string()))?;
+        let mut meshes: HashMap<String, MeshContainer> = HashMap::new();
+        for part in &document.parts {
+            let Some(Geometry::Mesh { file, .. }) = &part.geometry else { continue };
+            if meshes.contains_key(file) {
+                continue;
+            }
+            let file_error = |reason: String| StructureError::MeshFile { file: file.clone(), reason };
+            let bytes = resolver(file).map_err(file_error)?;
+            let container = MeshContainer::from_bytes(&bytes).map_err(|e| file_error(e.to_string()))?;
+            meshes.insert(file.clone(), container);
+        }
+        Self::from_document_with(document, meshes)
+    }
+
+    /// Validates a parsed document that uses no mesh files.
     pub fn from_document(document: StructureDocument) -> Result<Self, StructureError> {
+        Self::from_document_with(document, HashMap::new())
+    }
+
+    /// Validates a parsed document against already-read mesh containers.
+    pub fn from_document_with(
+        document: StructureDocument,
+        meshes: HashMap<String, MeshContainer>,
+    ) -> Result<Self, StructureError> {
         if document.version != SUPPORTED_VERSION {
             return Err(StructureError::UnsupportedVersion(document.version));
         }
@@ -417,7 +472,7 @@ impl Structure {
                 return Err(StructureError::InvalidColour(part.id.clone()));
             }
             if let Some(geometry) = &part.geometry {
-                validate_geometry(&part.id, geometry)?;
+                validate_geometry(&part.id, geometry, &meshes)?;
             } else if part.repeat.is_some() || part.mirror.is_some() {
                 return Err(StructureError::InvalidCopy {
                     part: part.id.clone(),
@@ -450,6 +505,9 @@ impl Structure {
             }
         }
 
+        if let Some(provenance) = &document.provenance {
+            provenance.check().map_err(StructureError::InvalidProvenance)?;
+        }
         let layers = validate_layers(&document.layers, &parts, &by_id)?;
         let relations = validate_relations(&document.relations, &by_id)?;
         let views = validate_views(&document.views, &parts, &by_id, layers.len())?;
@@ -463,6 +521,8 @@ impl Structure {
             layers,
             relations,
             views,
+            provenance: document.provenance,
+            meshes,
         })
     }
 
@@ -481,6 +541,12 @@ impl Structure {
     #[must_use]
     pub fn parts(&self) -> &[Part] {
         &self.parts
+    }
+
+    /// Where derived geometry came from, if the file says.
+    #[must_use]
+    pub const fn provenance(&self) -> Option<&Provenance> {
+        self.provenance.as_ref()
     }
 
     /// Layers, outermost first (the order of removal when peeling).
@@ -555,7 +621,7 @@ impl Structure {
                 continue;
             };
             let mut builder = MeshBuilder::default();
-            build_body(&mut builder, &part.id, geometry, self.circle_segments)?;
+            build_body(&mut builder, &part.id, geometry, self.circle_segments, &self.meshes)?;
             let (body_points, body_indices) =
                 expand_copies(builder.positions, builder.indices, part.repeat.as_ref(), part.mirror);
 
@@ -672,8 +738,23 @@ fn build_body(
     part: &str,
     geometry: &Geometry,
     circle_segments: usize,
+    meshes: &HashMap<String, MeshContainer>,
 ) -> Result<(), StructureError> {
     match geometry {
+        Geometry::Mesh { file, body } => {
+            // Validated at load: the body exists. Points are used as stored.
+            let found = meshes
+                .get(file)
+                .and_then(|c| c.body(body))
+                .ok_or_else(|| StructureError::UnknownMeshBody {
+                    part: part.to_owned(),
+                    file: file.clone(),
+                    body: body.clone(),
+                })?;
+            builder.positions = found.points.clone();
+            builder.indices = found.triangles.iter().flatten().copied().collect();
+            Ok(())
+        }
         Geometry::Extrusion { axis_length, profile } => {
             build_extrusion(builder, *profile, *axis_length, circle_segments);
             Ok(())
@@ -694,8 +775,25 @@ fn build_body(
     }
 }
 
-fn validate_geometry(part: &str, geometry: &Geometry) -> Result<(), StructureError> {
+fn validate_geometry(
+    part: &str,
+    geometry: &Geometry,
+    meshes: &HashMap<String, MeshContainer>,
+) -> Result<(), StructureError> {
     let (axis_length, profile) = match geometry {
+        Geometry::Mesh { file, body } => {
+            let Some(container) = meshes.get(file) else {
+                return Err(StructureError::MeshNeedsResolver { part: part.to_owned() });
+            };
+            return match container.body(body) {
+                Some(_) => Ok(()),
+                None => Err(StructureError::UnknownMeshBody {
+                    part: part.to_owned(),
+                    file: file.clone(),
+                    body: body.clone(),
+                }),
+            };
+        }
         Geometry::Extrusion { axis_length, profile } => (axis_length, profile),
         Geometry::Tube { path, half_widths, up, steps_per_span, wall, arc_deg } => {
             let params = tube_params(path, half_widths, *up, *steps_per_span, *wall, *arc_deg);
