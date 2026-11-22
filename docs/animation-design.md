@@ -423,3 +423,27 @@ arcs. Module `structure_route` (`rounded_route(points, radius, spacing)`) does t
 - **Tests:** arcs at the exact radius, even spacing, 3D bends in one plane, a rounded rectangle's length (1e-2), bad input, a
   closed rounded pipe, and a flow that avoids the cut corner.
 - Not retrofitted: the generated items keep their sampled paths; the circuit is re-authored in C3.
+
+## 29. Group transforms (C2.4, 2026-11-23)
+
+`Grow` and `Turn` now act on groups. Before, they needed a part with geometry and a salt crystal took 64 `Grow` actions.
+
+- **As one body (default).** On a part that has parts below it (or a group), every part with geometry in the subtree is
+  scaled or turned together about the centre of their combined bounding box. The parts keep their places relative to one
+  another: a molecule turns as a molecule, a crystal grows as a crystal.
+- **Each in place (`each: true`).** Every part with geometry in the subtree is scaled or turned about its own centre
+  (one action instead of one per part).
+- **A single part** (no geometry below it) is unchanged: about its own centre, or about `about` for a `Turn`.
+- **`about` on a group** is one hinge point for the whole body.
+- **The body centre** is taken from the authored (unposed) geometry, so it does not move while the parts move; a `Move`
+  on the group carries the body along as before.
+- **One way per part.** All `Grow` and `Turn` actions that touch one part must agree on the body (own centre, or the same
+  group). Mixed use is refused with a message; use `each: true` on the group to make them agree.
+- **Pose type.** `PartPose.body` names the group a part scales and turns with; `Pose.bodies` lists each group's members.
+  `pose_centre` (used by `apply_pose` and by label anchors) turns that into a centre, so a label on a member follows the body.
+- **Behaviour change and a limit:** a `Grow` or `Turn` on a part that has children used to affect only that part; it now
+  takes the children with it (as a body, or each in place with `each: true`). No existing fixture did this (all fixture
+  suites pass). There is no way to scale only a parent that owns geometry and has children; if that is ever needed, split
+  the parent's own geometry into a child part.
+- **Tests:** group grow about an off-origin centre, rigid group turn (distance preserved), `each`, a group hinge, the
+  conflict error, a label anchor following a body turn.

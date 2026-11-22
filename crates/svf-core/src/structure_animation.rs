@@ -92,10 +92,16 @@ pub enum ActionDocument {
         #[serde(default)]
         ease: Ease,
     },
-    /// Scale a part, about its own centre, to `to` times its authored size.
+    /// Scale a part to `to` times its authored size, about its own centre. On a
+    /// group (or a part with parts below it) the whole group scales as one body
+    /// about the centre of its combined bounding box, so the parts keep their
+    /// places relative to one another; with `each: true` every part with geometry
+    /// scales about its own centre instead.
     Grow {
         part: String,
         to: f64,
+        #[serde(default)]
+        each: bool,
         for_s: f64,
         #[serde(default)]
         at_s: f64,
@@ -112,6 +118,10 @@ pub enum ActionDocument {
         deg: f64,
         #[serde(default)]
         about: Option<(f64, f64, f64)>,
+        /// On a group: turn every part about its own centre (default: turn the
+        /// whole group as one rigid body).
+        #[serde(default)]
+        each: bool,
         for_s: f64,
         #[serde(default)]
         at_s: f64,
@@ -306,6 +316,9 @@ struct PartTrack {
     fades: Vec<(Span, f64, f64)>,
     /// `[from, to)` ranges.
     highlights: Vec<(f64, f64)>,
+    /// The group this part scales and turns with as one body, once a `Grow` or
+    /// `Turn` has set it (`Some(None)`: about its own centre).
+    body: Option<Option<usize>>,
 }
 
 impl PartTrack {
@@ -320,6 +333,7 @@ impl PartTrack {
             base_opacity: 1.0,
             fades: Vec::new(),
             highlights: Vec::new(),
+            body: None,
         }
     }
 }
@@ -351,6 +365,8 @@ pub struct Timeline {
     label_events: Vec<(f64, usize, Option<PartLabel>)>,
     /// `(time, key id, entry or None to remove)`, ascending in time, file order kept within a time.
     key_events: Vec<(f64, String, Option<KeyEntry>)>,
+    /// `(group part, the parts with geometry in it)` for every group scaled or turned as one body.
+    bodies: Vec<(usize, Vec<usize>)>,
 }
 
 /// How one part looks at one instant. `turns` are applied in order, each
@@ -365,6 +381,9 @@ pub struct PartPose {
     /// One entry per entry of `turns`: the hinge point it swings about, or
     /// `None` for a turn about the part's own centre.
     pub turn_pivots: Vec<Option<[f64; 3]>>,
+    /// The group whose combined centre this part scales and turns about (see
+    /// `Pose::bodies`), or `None` for its own centre.
+    pub body: Option<usize>,
     /// `None` keeps the part's authored colour.
     pub colour: Option<[f64; 3]>,
     /// Opacity, 0 to 1: the authored opacity, changed by any `Fade`.
@@ -381,6 +400,9 @@ pub struct Pose {
     /// `None` when the timeline has no camera.
     pub camera: Option<ViewCamera>,
     pub caption: Option<String>,
+    /// `(group part, parts with geometry in it)` for each group that scales or
+    /// turns as one body; a part's `body` names one of these groups.
+    pub bodies: Vec<(usize, Vec<usize>)>,
     /// Particle groups running at this time, in the order they were written.
     pub particles: Vec<ParticleGroup>,
     /// Labels shown at this time, in the order they were (last) set.
@@ -517,7 +539,7 @@ impl Timeline {
             }
         }
 
-        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()), particles, labels, key }
+        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()), bodies: self.bodies.clone(), particles, labels, key }
     }
 }
 
@@ -555,6 +577,32 @@ pub(crate) fn range_vertices_and_centre(points: &[[f64; 3]], indices: &[u32], ra
         }
     }
     (used, [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0])
+}
+
+/// The centre `range`'s part is scaled and turned about under `pose`: its own
+/// bounding-box centre, or, for a part in a body (a `Grow` or `Turn` on a
+/// group), the centre of the bounding box of every part in that body.
+/// `points` are the authored (unposed) vertices and `ranges` all the geometry's ranges.
+pub(crate) fn pose_centre(points: &[[f64; 3]], indices: &[u32], ranges: &[PartRange], pose: &Pose, range: &PartRange) -> [f64; 3] {
+    let own = range_vertices_and_centre(points, indices, range).1;
+    let Some(group) = pose.parts.get(range.part_index).and_then(|p| p.body) else { return own };
+    let Some((_, members)) = pose.bodies.iter().find(|(g, _)| *g == group) else { return own };
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for r in ranges.iter().filter(|r| members.contains(&r.part_index)) {
+        let (used, _) = range_vertices_and_centre(points, indices, r);
+        for &i in &used {
+            for axis in 0..3 {
+                lo[axis] = lo[axis].min(points[i][axis]);
+                hi[axis] = hi[axis].max(points[i][axis]);
+            }
+        }
+    }
+    if lo[0].is_finite() {
+        [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0]
+    } else {
+        own
+    }
 }
 
 /// One point of a part under its pose: scaled about `centre`, turned in order about it, then moved.
@@ -595,10 +643,13 @@ impl StructureGeometry {
             self.mesh().vertices().iter().map(|p| p.to_array()).collect();
         let mut colours = self.colours().to_vec();
         let indices = self.mesh().indices();
+        // Centres come from the authored points, before any part has moved.
+        let centres: Vec<[f64; 3]> =
+            self.ranges().iter().map(|r| pose_centre(&points, indices, self.ranges(), pose, r)).collect();
 
-        for range in self.ranges() {
+        for (range, centre) in self.ranges().iter().zip(centres) {
             let Some(part) = pose.parts.get(range.part_index) else { continue };
-            let (used, centre) = range_vertices_and_centre(&points, indices, range);
+            let (used, _) = range_vertices_and_centre(&points, indices, range);
             for &i in &used {
                 points[i] = pose_point(points[i], centre, part);
                 if let Some(colour) = part.colour {
@@ -670,7 +721,7 @@ fn part_pose(track: &PartTrack, t: f64) -> PartPose {
     }
 
     let highlighted = track.highlights.iter().any(|&(from, to)| t >= from && t < to);
-    PartPose { shown, offset, scale, turns, turn_pivots, colour, opacity, highlighted }
+    PartPose { shown, offset, scale, turns, turn_pivots, body: track.body.flatten(), colour, opacity, highlighted }
 }
 
 fn positive_finite(x: f64) -> bool {
@@ -733,15 +784,19 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
             })
             .collect()
     };
-    let with_geometry = |part_id: &str, what: &str| -> Result<usize, StructureError> {
-        let index = root_of(part_id)?;
-        if parts[index].geometry().is_none() {
-            return Err(bad(format!(
-                "{what} needs a part with geometry; '{part_id}' is a grouping part"
-            )));
+    // The parts a Grow or Turn acts on, and the group they act as one body about (None: each about
+    // its own centre, which is also the case for a single part).
+    let transform_targets = |part_id: &str, what: &str, each: bool| -> Result<(Vec<usize>, Option<usize>), StructureError> {
+        let root = root_of(part_id)?;
+        let members: Vec<usize> =
+            with_descendants(root).into_iter().filter(|&i| parts[i].geometry().is_some()).collect();
+        if members.is_empty() {
+            return Err(bad(format!("{what} needs geometry in '{part_id}' or below it")));
         }
-        Ok(index)
+        let body = if each || members == [root] { None } else { Some(root) };
+        Ok((members, body))
     };
+    let mut bodies: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
 
     let mut tracks: Vec<PartTrack> = (0..parts.len()).map(|_| PartTrack::new()).collect();
     let mut cameras: Vec<(Span, ViewCamera)> = Vec::new();
@@ -826,17 +881,23 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         }
                         length = length.max(at_s + for_s);
                     }
-                    ActionDocument::Grow { part, to, for_s, at_s, ease } => {
+                    ActionDocument::Grow { part, to, each, for_s, at_s, ease } => {
                         let mut span = timing(*at_s, *for_s)?;
                         span.ease = *ease;
                         if !positive_finite(*to) {
                             return Err(bad(format!("beat '{}': a size must be finite and positive", beat.id)));
                         }
-                        let i = with_geometry(part, "Grow")?;
-                        tracks[i].scales.push((span, 1.0, *to));
+                        let (members, body) = transform_targets(part, "Grow", *each)?;
+                        for &i in &members {
+                            set_body(&mut tracks[i], body, parts[i].id()).map_err(&bad)?;
+                            tracks[i].scales.push((span, 1.0, *to));
+                        }
+                        if let Some(group) = body {
+                            bodies.insert(group, members);
+                        }
                         length = length.max(at_s + for_s);
                     }
-                    ActionDocument::Turn { part, axis, deg, about, for_s, at_s, ease } => {
+                    ActionDocument::Turn { part, axis, deg, about, each, for_s, at_s, ease } => {
                         let mut span = timing(*at_s, *for_s)?;
                         span.ease = *ease;
                         let norm = (axis.0 * axis.0 + axis.1 * axis.1 + axis.2 * axis.2).sqrt();
@@ -854,9 +915,15 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                                 return Err(bad(format!("beat '{}': a hinge point must be finite", beat.id)));
                             }
                         }
-                        let i = with_geometry(part, "Turn")?;
+                        let (members, body) = transform_targets(part, "Turn", *each)?;
                         let pivot = about.map(|p| [p.0, p.1, p.2]);
-                        tracks[i].turns.push((span, [axis.0 / norm, axis.1 / norm, axis.2 / norm], *deg, pivot));
+                        for &i in &members {
+                            set_body(&mut tracks[i], body, parts[i].id()).map_err(&bad)?;
+                            tracks[i].turns.push((span, [axis.0 / norm, axis.1 / norm, axis.2 / norm], *deg, pivot));
+                        }
+                        if let Some(group) = body {
+                            bodies.insert(group, members);
+                        }
                         length = length.max(at_s + for_s);
                     }
                     ActionDocument::Fade { part, to, for_s, at_s, ease } => {
@@ -1090,6 +1157,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
             label_events.sort_by(|a, b| a.0.total_cmp(&b.0));
             label_events
         },
+        bodies: bodies.into_iter().collect(),
         key_events: {
             key_events.sort_by(|a, b| a.0.total_cmp(&b.0));
             key_events
@@ -1099,6 +1167,20 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
 
 /// Time steps per second of a `Spread` walk.
 const SPREAD_STEPS_PER_SECOND: f64 = 20.0;
+
+/// Records the body a part scales and turns with. All the Grow and Turn actions on one part must agree.
+fn set_body(track: &mut PartTrack, body: Option<usize>, part_id: &str) -> Result<(), String> {
+    match track.body {
+        Some(existing) if existing != body => Err(format!(
+            "'{part_id}' is grown or turned both as part of a group and on its own (or in another group); \
+             use one way for each part, or `each: true` on the group"
+        )),
+        _ => {
+            track.body = Some(body);
+            Ok(())
+        }
+    }
+}
 
 /// Checks what every particle action shares; returns its colour.
 fn particle_key(
@@ -1315,6 +1397,93 @@ mod tests {
         assert_eq!(plain.mesh().vertices(), none.mesh().vertices());
     }
 
+    /// A group `root` holding two balls (radius 1) at x = 10 and x = 2, so the group's centre is x = 6.
+    fn two_balls(actions: &str) -> (crate::structure::StructureGeometry, crate::structure::StructureGeometry) {
+        let ball = |id: &str, x: f64| {
+            format!(
+                "Part(id: \"{id}\", name: \"{id}\", parent: Some(\"root\"), description: \"d\", colour: (0.5, 0.5, 0.5), \
+                 geometry: Some(Ellipsoid(centre: ({x}, 0.0, 0.0), radii: (1.0, 1.0, 1.0))))"
+            )
+        };
+        let text = format!(
+            "Structure(version: 1, name: \"t\", units: \"mm\", reference: \"r\", circle_segments: 16, parts: [\
+             Part(id: \"root\", name: \"root\", parent: None, description: \"d\", colour: (0.5, 0.5, 0.5), geometry: None), \
+             {}, {}]{})",
+            ball("a", 10.0),
+            ball("b", 2.0),
+            one(actions)
+        );
+        let s = Structure::from_ron_str(&text).unwrap();
+        let base = s.build_geometry().unwrap();
+        let after = base.apply_pose(&s.timelines()[0].pose_at(1.0));
+        (base, after)
+    }
+
+    /// Mean of the vertices of part range `r`; for a ball this is its centre.
+    fn ball_centre(g: &crate::structure::StructureGeometry, r: usize) -> [f64; 3] {
+        let pts = range_one_points_of(g, r);
+        let n = pts.len() as f64;
+        [
+            pts.iter().map(|p| p[0]).sum::<f64>() / n,
+            pts.iter().map(|p| p[1]).sum::<f64>() / n,
+            pts.iter().map(|p| p[2]).sum::<f64>() / n,
+        ]
+    }
+
+    fn range_one_points_of(g: &crate::structure::StructureGeometry, r: usize) -> Vec<[f64; 3]> {
+        let range = g.ranges()[r];
+        let mut used: Vec<usize> = g.mesh().indices()
+            [range.first_triangle * 3..(range.first_triangle + range.triangle_count) * 3]
+            .iter()
+            .map(|&i| i as usize)
+            .collect();
+        used.sort_unstable();
+        used.dedup();
+        used.iter().map(|&i| g.mesh().vertices()[i].to_array()).collect()
+    }
+
+    fn close(a: [f64; 3], b: [f64; 3]) -> bool {
+        (0..3).all(|k| (a[k] - b[k]).abs() < 1e-9)
+    }
+
+    #[test]
+    fn a_group_grows_as_one_body_about_its_combined_centre() {
+        // Group centre x = 6. Doubling about it sends the balls from 10 and 2 to 14 and -2.
+        let (_, after) = two_balls("Grow(part: \"root\", to: 2.0, for_s: 1.0)");
+        assert!(close(ball_centre(&after, 0), [14.0, 0.0, 0.0]), "{:?}", ball_centre(&after, 0));
+        assert!(close(ball_centre(&after, 1), [-2.0, 0.0, 0.0]), "{:?}", ball_centre(&after, 1));
+        // The balls doubled in size too: the farthest vertex is 2 from the centre.
+        let far = range_one_points_of(&after, 0).iter().map(|p| (p[0] - 14.0).abs()).fold(0.0, f64::max);
+        assert!((far - 2.0).abs() < 1e-9);
+        // With `each: true` every ball grows about itself and stays where it is.
+        let (_, each) = two_balls("Grow(part: \"root\", to: 2.0, each: true, for_s: 1.0)");
+        assert!(close(ball_centre(&each, 0), [10.0, 0.0, 0.0]));
+        assert!(close(ball_centre(&each, 1), [2.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn a_group_turns_as_one_rigid_body_and_each_turns_the_parts_in_place() {
+        // A quarter turn about z through the group centre (6, 0, 0): (10, 0, 0) -> (6, 4, 0), (2, 0, 0) -> (6, -4, 0).
+        let (base, after) = two_balls("Turn(part: \"root\", axis: (0.0, 0.0, 1.0), deg: 90.0, for_s: 1.0)");
+        assert!(close(ball_centre(&after, 0), [6.0, 4.0, 0.0]), "{:?}", ball_centre(&after, 0));
+        assert!(close(ball_centre(&after, 1), [6.0, -4.0, 0.0]), "{:?}", ball_centre(&after, 1));
+        // Rigid: the distance between the two balls is unchanged.
+        let d = |g: &crate::structure::StructureGeometry| {
+            let (a, b) = (ball_centre(g, 0), ball_centre(g, 1));
+            ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt()
+        };
+        assert!((d(&base) - d(&after)).abs() < 1e-9);
+        let (_, each) = two_balls("Turn(part: \"root\", axis: (0.0, 0.0, 1.0), deg: 90.0, each: true, for_s: 1.0)");
+        assert!(close(ball_centre(&each, 0), [10.0, 0.0, 0.0]));
+        assert!(close(ball_centre(&each, 1), [2.0, 0.0, 0.0]));
+        // An explicit hinge point applies to the whole group: about (0, 0, 0), (10, 0, 0) goes to (0, 10, 0).
+        let (_, hinged) = two_balls(
+            "Turn(part: \"root\", axis: (0.0, 0.0, 1.0), deg: 90.0, about: Some((0.0, 0.0, 0.0)), for_s: 1.0)",
+        );
+        assert!(close(ball_centre(&hinged, 0), [0.0, 10.0, 0.0]), "{:?}", ball_centre(&hinged, 0));
+        assert!(close(ball_centre(&hinged, 1), [0.0, 2.0, 0.0]), "{:?}", ball_centre(&hinged, 1));
+    }
+
     #[test]
     fn a_pose_at_time_zero_equals_the_unposed_geometry() {
         let (base, after) = posed(
@@ -1514,16 +1683,38 @@ mod tests {
     }
 
     #[test]
-    fn a_group_stands_for_its_descendants_in_moves_but_not_in_grow() {
+    fn a_group_stands_for_its_descendants_in_moves_grows_and_turns() {
         let t = timeline("Move(part: \"root\", by: (0.0, 1.0, 0.0), for_s: 1.0)");
         let p = t.pose_at(1.0);
         assert!(p.parts.iter().all(|part| part.offset == [0.0, 1.0, 0.0]));
-        assert!(invalid("Grow(part: \"root\", to: 2.0, for_s: 1.0)").contains("grouping part"));
-        // A part that has children still grows alone.
+        // Grow on the group scales every part with geometry in it, as one body about the group.
+        let t = timeline("Grow(part: \"root\", to: 2.0, for_s: 1.0)");
+        let p = t.pose_at(1.0);
+        assert_eq!(p.parts[0].scale, 1.0);
+        assert!([1, 2, 3].iter().all(|&i| p.parts[i].scale == 2.0 && p.parts[i].body == Some(0)));
+        assert_eq!(p.bodies, vec![(0, vec![1, 2, 3])]);
+        // A part that has children grows with them (it is a group too)...
         let t = timeline("Grow(part: \"a\", to: 2.0, for_s: 1.0)");
         let p = t.pose_at(1.0);
-        assert_eq!(p.parts[1].scale, 2.0);
-        assert_eq!(p.parts[3].scale, 1.0);
+        assert_eq!((p.parts[1].scale, p.parts[3].scale, p.parts[2].scale), (2.0, 2.0, 1.0));
+        assert_eq!(p.parts[1].body, Some(1));
+        // ...unless `each: true` says every part grows about its own centre.
+        let t = timeline("Grow(part: \"a\", to: 2.0, each: true, for_s: 1.0)");
+        let p = t.pose_at(1.0);
+        assert_eq!((p.parts[1].scale, p.parts[3].scale), (2.0, 2.0));
+        assert_eq!((p.parts[1].body, p.parts[3].body), (None, None));
+        assert!(p.bodies.is_empty());
+    }
+
+    #[test]
+    fn one_part_cannot_be_grown_two_ways() {
+        let both = invalid("Grow(part: \"root\", to: 2.0, for_s: 1.0), Grow(part: \"b\", to: 3.0, for_s: 1.0, at_s: 2.0)");
+        assert!(both.contains("both as part of a group and on its own"), "{both}");
+        // Using `each: true` on the group makes the two agree.
+        assert!(structure(&one(
+            "Grow(part: \"root\", to: 2.0, each: true, for_s: 1.0), Grow(part: \"b\", to: 3.0, for_s: 1.0, at_s: 2.0)"
+        ))
+        .is_ok());
     }
 
     #[test]

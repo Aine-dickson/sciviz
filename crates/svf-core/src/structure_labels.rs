@@ -10,7 +10,7 @@
 use serde::Deserialize;
 
 use crate::structure::{Structure, StructureGeometry};
-use crate::structure_animation::{pose_point, range_vertices_and_centre, Pose};
+use crate::structure_animation::{pose_centre, pose_point, range_vertices_and_centre, Pose};
 
 /// Which column a label is placed in. Without one, the layout chooses by the
 /// anchor's side of the picture.
@@ -102,7 +102,7 @@ impl Structure {
         if let Some(at) = label.at {
             // On a part with geometry the anchor turns and scales with it; on a group it only moves.
             if let Some(own) = ranges.iter().find(|r| r.part_index == label.part) {
-                let (_, centre) = range_vertices_and_centre(&points, indices, own);
+                let centre = pose_centre(&points, indices, geometry.ranges(), pose, own);
                 return Some(posed(label.part, at, centre));
             }
             let offset = pose.parts.get(label.part).map_or([0.0; 3], |p| p.offset);
@@ -113,8 +113,8 @@ impl Structure {
         let per_range: Vec<(usize, Vec<usize>, [f64; 3])> = ranges
             .iter()
             .map(|r| {
-                let (used, centre) = range_vertices_and_centre(&points, indices, r);
-                (r.part_index, used, centre)
+                let (used, _) = range_vertices_and_centre(&points, indices, r);
+                (r.part_index, used, pose_centre(&points, indices, geometry.ranges(), pose, r))
             })
             .filter(|(_, used, _)| !used.is_empty())
             .collect();
@@ -270,6 +270,25 @@ mod tests {
         assert!(r[0].abs() > 2.9 && r[0].abs() < 3.1, "{r:?}");
         // A group with nothing built under it has no anchor.
         assert_eq!(s.label_anchor(&g, &label(3), &pose), None);
+    }
+
+    #[test]
+    fn an_anchor_follows_its_group_when_the_group_turns_as_one_body() {
+        let s = structure(
+            &timeline("Turn(part: \"root\", axis: (0.0, 0.0, 1.0), deg: 90.0, for_s: 1.0)"),
+            "",
+        )
+        .unwrap();
+        let g = s.build_geometry().unwrap();
+        let t = &s.timelines()[0];
+        // Ball A is at x = 4, the group's centre is the origin: a quarter turn carries A to (0, 4, 0).
+        let a = s.label_anchor(&g, &label(1), &t.pose_at(1.0)).unwrap();
+        assert!((dist(a, [0.0, 4.0, 0.0]) - 1.0).abs() < 0.05, "on A's surface near (0, 4, 0): {a:?}");
+        // A group with no geometry anywhere in it cannot be grown or turned.
+        assert!(structure(&timeline("Grow(part: \"c\", to: 2.0, for_s: 1.0)"), "").is_err());
+        // An authored anchor on ball B at (-3, 0, 0) turns with the group about the origin: (0, -3, 0).
+        let at = PartLabel { at: Some([-3.0, 0.0, 0.0]), ..label(2) };
+        assert!(dist(s.label_anchor(&g, &at, &t.pose_at(1.0)).unwrap(), [0.0, -3.0, 0.0]) < 1e-9);
     }
 
     #[test]

@@ -35,3 +35,14 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
   the engine only rounds corners. A tube with `corner_radius` takes exactly one `half_widths` entry (a varying width along a
   routed tube is not supported; say if you want it).
 - **Decision:** a radius too big for its straight run is an error, never silently shrunk.
+
+## C2.4 Group transforms (done, committed)
+
+- `Grow` / `Turn` on a group scale or turn the whole group as one body about its combined centre; `each: true` does each
+  part about its own centre. Spec: `docs/animation-design.md` section 29.
+- **Behaviour change to know about:** `Grow`/`Turn` on a part that has children now takes the children too (before, only the
+  part itself). No fixture was affected; one old unit test that asserted the old rule was rewritten.
+- **Decision:** one part may not be grown/turned both inside a group and on its own in the same timeline (refused with a
+  message), because one part has a single scale and a single centre.
+- The salt item still has its 64 separate grows; it is re-authored in C4.
+- **Limit:** a parent that owns geometry cannot be scaled without its children (split its own geometry into a child part).
