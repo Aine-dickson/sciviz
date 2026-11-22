@@ -7,13 +7,19 @@ an item or lesson step should be explored in.
 
 ## What Prismal is (read from its repo, 2026-11-22)
 
-A modelling language. An author writes a `model` (parameters with units, state,
+A modelling language whose pictures are **geometric primitives driven by
+equations**: lines, dots, circles, arcs, graphs and numbers. Even its 3D
+examples are of this kind: the tilted planet orbit is a sphere and an arc moved
+by a phase equation, with a slider for the tilt; the circumference of a circle
+is a circle unrolling onto a line, as a narrated geometric argument. An author writes a `model` (parameters with units, state,
 `flow` equations, events), a `presentation` (plots, sliders, buttons, figures)
 and optional `run` cases that check the result. The learner changes inputs and
 watches the outcome, usually as a graph, counts or a moving figure. Its
 examples are a projectile, a chain, heat in a spoon, and few versus many
 molecules in a reaction. It has 3D views of simple bodies, but not anatomical
 meshes, sections or peeling. The author needs to understand rules and variables.
+(Examples read: `docs/guide/20-three-dimensions.md` tilted orbit,
+`docs/guide/08-lessons.md` circumference.)
 
 ## What SVF is
 
@@ -67,20 +73,26 @@ So SVF items will mostly come from areas **not yet written** (body systems,
 cells, transport and breathing, bonding and structure), not from the current
 requirements. The user already expects those areas to change as the tools prove out.
 
-## The gap this reveals in SVF
+## Animation is an SVF capability too
 
-The "predictable process" cases (water up a stem, atoms combining, growth
-stages) all want the same thing: **a fixed sequence of changes over a
-structure, written in a few steps, with the system doing the rest.** SVF has
-named views but no time, sequence or per-part change of state. This is not one
-lesson's need anymore.
+User, 2026-11-22: SVF needs animation as well; diffusion is the example. A fixed
+process shown over a structure or particles (water up a stem, atoms combining,
+diffusion, growth stages) is SVF. The same process with variables to vary and a
+graph to read is Prismal. So animation is not what separates the tools. What
+separates them is whether the learner is running an experiment.
 
-**Decision (Claude, for the user to confirm):** do not design a sequence
-capability yet. Build the flower with stage views, then one or two more items
-that want a process, and record what authors had to spell out by hand. That
-evidence decides what a "few steps" authoring surface must contain. The
-question is open: *what is the smallest description of a fixed process over a
-structure that a non-engineer author can write?*
+SVF has no animation today: it is listed as out of scope in
+`explorable-structures.md` and no code supports it. These cases want the same
+thing: **a fixed sequence of changes over a structure, written in a few steps,
+with the system doing the rest.**
+
+**Decision (Claude, for the user to confirm):** do not design it yet. Build the
+flower with stage views, then one or two more items that want a process
+(diffusion is a good candidate), and record what authors had to spell out by
+hand. That evidence decides the authoring form. The open question: *what is the
+smallest description of a fixed process over a structure that a non-engineer
+author can write?* This is a core SVF capability, not an optional extra, so it
+is scheduled by evidence, not skipped.
 
 ## Overlap to watch
 

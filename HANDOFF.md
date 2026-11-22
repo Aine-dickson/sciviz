@@ -2649,3 +2649,21 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - **Open question for future sessions:** SVF has no time or sequence. Fixed processes over a
   structure need "a few steps, the system does the rest". Do not design it yet; collect evidence
   from the flower and one or two later items first.
+
+### Update 2026-11-22 (flower built)
+
+- User corrections: animation IS an SVF capability (diffusion is the example); the tools differ by
+  whether the learner runs an experiment. Prismal's pictures are primitives (lines, dots, circles,
+  arcs, graphs) driven by equations (read: tilted orbit and circle circumference examples), not
+  structures. Items now being built are throw-away proofs of concept; a generic flower is enough.
+- Built `fixtures/structures/flower.ron` + `crates/svf-core/tests/flower_fixture.rs` (5 tests passed in
+  a release build, run by Claude) + screenshots in `docs/evidence/flower-poc/`. No core code changed.
+  The user has NOT yet judged legibility by looking. Run: `cargo run --release -p svf-explorer --
+  --structure fixtures/structures/flower.ron --view flower` (views: flower, carpel-only, fruit).
+- Findings (details in `docs/flower-structure.md`): stages that change size need separate parts; no
+  default view (both stages overlap; peel 1 layer); a view cannot target its own parts (camera
+  centres on the whole bounding box); vertical `Tube` needs explicit `up`.
+- Animation: now a wanted capability, still undesigned. Candidate next items that need it: diffusion,
+  water up a stem. Collect what an author must spell out before designing it.
+- Next action: user looks at the flower and says if it is legible enough; then choose the next item
+  (digestive system, cell or diffusion) from `docs/item-output-bar.md`.

@@ -89,3 +89,37 @@ The mirror feature is not needed (radial symmetry uses `Radial` repeat).
 1. Is the structure-only scope right, with the process left to Prismal?
 2. Which flower, if any, should it be based on, or generic?
 3. Which stages matter for the lesson (the three above, or fewer)?
+
+## Result (2026-11-22): proof of concept built
+
+Scope as agreed with the user: a **generic, throw-away proof of concept**, not lesson material. The user
+said generic is enough and did not pick stages, so I chose two stages (flower, then fruit) with three views.
+
+- Fixture: `fixtures/structures/flower.ron` (peduncle, receptacle, sepals, petals, filaments, anthers,
+  stigma, style, hollow ovary with six ovules, and a fruit stage with a hollow fruit and six seeds). Only
+  existing blocks were used: `Tube`, `Ellipsoid`, `Radial` repeat. No core code changed.
+- Tests: `crates/svf-core/tests/flower_fixture.rs`. 5 passed, run by Claude in a release build on
+  2026-11-22: the fixture parses, every body is closed, plane cuts on all three axes stay closed, the
+  lengthwise cut shows ovary, ovules, style, stigma, fruit and seeds.
+- Screenshots (Explorer, captured by Claude with PrintWindow): `docs/evidence/flower-poc/`.
+  `carpel.png` predates a camera change to the carpel view.
+- Legibility: from the screenshots the parts are distinguishable and the lengthwise cut shows the hollow
+  ovary with ovules. **The user has not yet judged this by looking.**
+
+### What building it taught (inputs to the convention and to the register's cost column)
+
+1. **A stage that changes size needs separate parts.** The ovary became `fruit` and the ovules became
+   `seeds`: four parts to show two stages. Views only show, hide and move the camera.
+2. **No default view.** With no view chosen both stages show at once, the orange fruit hiding the ovary
+   (`default.png`). Peeling one layer (`fruit-stage` is the outermost layer) removes it, a workaround.
+3. **A view cannot frame its own parts.** The camera centres on the whole structure's bounding box, so a
+   view of the carpel was off-centre while a long stalk was in the scene. Worked around by shortening
+   the stalk to 10 mm. A view needs a camera target.
+4. **A `Tube` along the Y axis needs an explicit `up`.** The default `up` is +Y, so a vertical tube is
+   refused. Easy to hit; an author would not know why.
+5. **View syntax is easy to get wrong** (`section: Some((axis: Z, offset: 0.0, flip: false))`). Two parse
+   errors cost two rebuilds.
+6. **Effort:** about one working session including tests and screenshots, for 14 parts with copies.
+   Cheaper than the cockroach, since the blocks already existed; no core change was needed.
+7. **Animation** (pollen tube growth, the ovary swelling) is not shown. Under the user's rule that is the
+   SVF animation question in `svf-prismal-boundary.md`, still open.
