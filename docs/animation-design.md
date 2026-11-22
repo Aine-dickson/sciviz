@@ -218,3 +218,22 @@ New `crates/svf-core/src/structure_particles.rs`. **Core only: no timeline actio
 - Design changes from section 5: none to the verbs. `Spread` takes a start ball and a container shape instead of "a point or part" and "a closed
   part"; connecting it to parts (a container taken from a part's own geometry, a path taken from a `Tube` part) is B2's job.
 - Decision for B2 (not needing Opus): particles are drawn as merged low-poly spheres in one extra mesh per frame, as section 6 says.
+
+## 17. Slice B2 result: particles in timelines, and the diffusion beaker (2026-11-22)
+
+- **Two new actions** in `structure_animation.rs`: `Spread(id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s)`
+  and `Flow(id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s)`. `inside` is an explicit shape written in the action
+  (`Cylinder`, `Box` or `Ball`), as proposed in the handoff: no part geometry is read, so the author states the water region. `Pose.particles` lists
+  the groups running at time `t`. A `Spread` appears when it starts and rests where it ended; a `Flow` is shown only while it runs. Ids must be unique
+  within a timeline; bad input is refused with a reason (count, start outside the container, colours, radii, path, negative times).
+- **Drawing:** `StructureGeometry::with_particles` adds each particle as a closed 20-triangle sphere after the parts (and after any section cut, so a
+  cut does not slice them). Particle triangles belong to no part, so they are not pickable. The Explorer shows them with no other change.
+- **Fixture:** `fixtures/structures/diffusion-beaker.ron`: base and back wall of a beaker (front half left out; water is not drawn because the
+  renderer is opaque), a 28 s timeline `spreading` (3 s intro, then 150 dye particles for 25 s with three captions). Schematic; says so in the file.
+- **Tests (run by Claude, release):** core particles 14, timeline particle actions 3 new, `tests/diffusion_fixture.rs` 2 (inside the water at 281 times, tight
+  drop then spread, every drawn frame closed), Explorer 1 (particles drawn, not parts, gone after scrubbing back).
+- **Cost:** about 0.15 ms per `set_time` for the beaker with 150 particles (scratch probe, release; no section, no upload).
+- Screenshots: `docs/evidence/animation-b2-beaker/at-{0,4,12,28}.png`; I looked at 4 and 12. A first attempt put the half wall on the camera side
+  (angles run from +x towards -z in `Sector`); the fixture uses `first_angle_deg: 225.0` for the back.
+- **Not done:** water up the dicot stem (needs a longitudinal xylem path in the stem fixture; the `Flow` action exists and is tested only on a plain path),
+  atoms combining (`Meet`), fade or opacity (water and glass are both opaque; the front half is simply absent). The user has not seen any of it live.

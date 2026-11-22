@@ -18,6 +18,7 @@ use crate::geometry::TriangleMesh3;
 use crate::spatial::WorldPoint3;
 use crate::structure::{Part, StructureError, StructureGeometry};
 use crate::structure_lesson::ViewCamera;
+use crate::structure_particles::{Flow, FlowSpec, ParticleGroup, ShapeDocument, Spread, SpreadSpec};
 
 const EPS: f64 = 1e-9;
 
@@ -116,6 +117,41 @@ pub enum ActionDocument {
         at_s: f64,
         #[serde(default)]
         ease: Ease,
+    },
+    /// Diffusion: `count` particles start in a small ball and wander inside
+    /// `inside` for `for_s` seconds, then stay where they ended. They appear when it starts.
+    Spread {
+        id: String,
+        count: usize,
+        from: (f64, f64, f64),
+        /// Radius of the start ball.
+        radius: f64,
+        inside: ShapeDocument,
+        /// Distance moved per step (20 steps a second).
+        step: f64,
+        seed: u64,
+        /// Radius of each drawn particle.
+        particle_radius: f64,
+        colour: (f64, f64, f64),
+        for_s: f64,
+        #[serde(default)]
+        at_s: f64,
+    },
+    /// Particles travelling along `path` at `speed` for `for_s` seconds, wrapping
+    /// from the end to the start. Shown only while it runs.
+    Flow {
+        id: String,
+        count: usize,
+        path: Vec<(f64, f64, f64)>,
+        speed: f64,
+        /// How far from the path a particle may sit.
+        lateral: f64,
+        seed: u64,
+        particle_radius: f64,
+        colour: (f64, f64, f64),
+        for_s: f64,
+        #[serde(default)]
+        at_s: f64,
     },
     /// Move the camera, like a view's camera. Needs the timeline's `camera`.
     Camera {
@@ -232,6 +268,7 @@ pub struct Timeline {
     cameras: Vec<(Span, ViewCamera, ViewCamera)>,
     /// `(from, to, text)`.
     captions: Vec<(f64, f64, String)>,
+    emitters: Vec<Emitter>,
 }
 
 /// How one part looks at one instant. `turns` are applied in order, each
@@ -257,6 +294,27 @@ pub struct Pose {
     /// `None` when the timeline has no camera.
     pub camera: Option<ViewCamera>,
     pub caption: Option<String>,
+    /// Particle groups running at this time, in the order they were written.
+    pub particles: Vec<ParticleGroup>,
+}
+
+/// A particle generator placed on the timeline.
+#[derive(Clone, Debug, PartialEq)]
+struct Emitter {
+    id: String,
+    start: f64,
+    end: f64,
+    kind: EmitterKind,
+    radius: f64,
+    colour: [f64; 3],
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum EmitterKind {
+    /// Shown from `start` on, resting where the walk ended.
+    Spread(Spread),
+    /// Shown from `start` to `end` only.
+    Flow(Flow),
 }
 
 fn lerp(a: f64, b: f64, p: f64) -> f64 {
@@ -309,7 +367,20 @@ impl Timeline {
                 caption = Some((from, text));
             }
         }
-        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()) }
+        let mut particles = Vec::new();
+        for e in &self.emitters {
+            if t < e.start {
+                continue;
+            }
+            let local = t - e.start;
+            let positions = match &e.kind {
+                EmitterKind::Spread(spread) => spread.positions_at(local),
+                EmitterKind::Flow(flow) if t <= e.end => flow.positions_at(local),
+                EmitterKind::Flow(_) => continue,
+            };
+            particles.push(ParticleGroup { id: e.id.clone(), positions, radius: e.radius, colour: e.colour });
+        }
+        Pose { time: t, parts, camera, caption: caption.map(|(_, text)| text.clone()), particles }
     }
 }
 
@@ -517,6 +588,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
     let mut tracks: Vec<PartTrack> = (0..parts.len()).map(|_| PartTrack::new()).collect();
     let mut cameras: Vec<(Span, ViewCamera)> = Vec::new();
     let mut captions: Vec<(f64, f64, String)> = Vec::new();
+    let mut emitters: Vec<Emitter> = Vec::new();
     let mut beats: Vec<BeatSpan> = Vec::new();
     let mut scene_ids: HashSet<&str> = HashSet::new();
     let mut clock = 0.0_f64;
@@ -633,6 +705,56 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                         }
                         length = length.max(at_s + for_s);
                     }
+                    ActionDocument::Spread {
+                        id, count, from, radius, inside, step, seed, particle_radius, colour, for_s, at_s,
+                    } => {
+                        let span = timing(*at_s, *for_s)?;
+                        let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
+                        let container = inside.container().map_err(|e| bad(format!("Spread '{id}': {e}")))?;
+                        let walk = Spread::new(
+                            &SpreadSpec {
+                                count: *count,
+                                start: [from.0, from.1, from.2],
+                                start_radius: *radius,
+                                step_length: *step,
+                                steps_per_second: SPREAD_STEPS_PER_SECOND,
+                                duration_s: *for_s,
+                                seed: *seed,
+                            },
+                            container.as_ref(),
+                        )
+                        .map_err(|e| bad(format!("Spread '{id}': {e}")))?;
+                        emitters.push(Emitter {
+                            id: id.clone(),
+                            start: span.start,
+                            end: span.end,
+                            kind: EmitterKind::Spread(walk),
+                            radius: *particle_radius,
+                            colour,
+                        });
+                        length = length.max(at_s + for_s);
+                    }
+                    ActionDocument::Flow { id, count, path, speed, lateral, seed, particle_radius, colour, for_s, at_s } => {
+                        let span = timing(*at_s, *for_s)?;
+                        let colour = emitter_colour(&bad, &beat.id, id, &emitters, *particle_radius, *colour, *for_s)?;
+                        let flow = Flow::new(&FlowSpec {
+                            count: *count,
+                            speed: *speed,
+                            path: path.iter().map(|p| [p.0, p.1, p.2]).collect(),
+                            lateral_radius: *lateral,
+                            seed: *seed,
+                        })
+                        .map_err(|e| bad(format!("Flow '{id}': {e}")))?;
+                        emitters.push(Emitter {
+                            id: id.clone(),
+                            start: span.start,
+                            end: span.end,
+                            kind: EmitterKind::Flow(flow),
+                            radius: *particle_radius,
+                            colour,
+                        });
+                        length = length.max(at_s + for_s);
+                    }
                     ActionDocument::Camera { yaw_deg, pitch_deg, zoom, for_s, at_s, ease } => {
                         let mut span = timing(*at_s, *for_s)?;
                         span.ease = *ease;
@@ -722,7 +844,34 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
         start_camera: d.camera,
         cameras: chained,
         captions,
+        emitters,
     })
+}
+
+/// Time steps per second of a `Spread` walk.
+const SPREAD_STEPS_PER_SECOND: f64 = 20.0;
+
+/// Checks what every particle action shares; returns its colour.
+fn emitter_colour(
+    bad: &dyn Fn(String) -> StructureError,
+    beat: &str,
+    id: &str,
+    existing: &[Emitter],
+    particle_radius: f64,
+    colour: (f64, f64, f64),
+    for_s: f64,
+) -> Result<[f64; 3], StructureError> {
+    if id.is_empty() || existing.iter().any(|e| e.id == id) {
+        return Err(bad(format!("beat '{beat}': a particle action needs a unique, non-empty id ('{id}')")));
+    }
+    if !positive_finite(particle_radius) || !positive_finite(for_s) {
+        return Err(bad(format!("particles '{id}': the particle radius and the duration must be positive")));
+    }
+    let c = [colour.0, colour.1, colour.2];
+    if !c.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)) {
+        return Err(bad(format!("particles '{id}': colour values must be in 0 to 1")));
+    }
+    Ok(c)
 }
 
 #[cfg(test)]
@@ -872,6 +1021,61 @@ mod tests {
         let b = base.mesh().indices()[r.first_triangle * 3] as usize;
         assert_eq!(after.colours()[b], [1.0, 0.0, 0.0]);
         assert_eq!(after.colours()[0], base.colours()[0]);
+    }
+
+    const DIFFUSION: &str = "Spread(id: \"dye\", count: 30, from: (0.0, 0.5, 0.0), radius: 0.2, \
+        inside: Cylinder(base: (0.0, 0.0, 0.0), radius: 1.0, height: 2.0), step: 0.1, seed: 3, \
+        particle_radius: 0.05, colour: (1.0, 0.0, 0.0), for_s: 5.0, at_s: 1.0)";
+
+    #[test]
+    fn a_spread_appears_when_it_starts_and_rests_where_it_ended() {
+        let t = timeline(DIFFUSION);
+        assert_eq!(t.duration(), 6.0);
+        assert!(t.pose_at(0.5).particles.is_empty());
+        let begun = t.pose_at(1.0);
+        assert_eq!(begun.particles.len(), 1);
+        assert_eq!(begun.particles[0].positions.len(), 30);
+        assert_eq!(begun.particles[0].id, "dye");
+        assert_ne!(t.pose_at(2.0).particles, begun.particles);
+        // At the end the particles rest where the walk ended, and the answer is repeatable.
+        assert_eq!(t.pose_at(6.0).particles, t.pose_at(6.0).particles);
+        assert_eq!(t.pose_at(6.0).particles, t.pose_at(100.0).particles);
+    }
+
+    #[test]
+    fn a_flow_is_shown_only_while_it_runs() {
+        let t = timeline(
+            "Flow(id: \"sap\", count: 10, path: [(0.0, 0.0, 0.0), (0.0, 4.0, 0.0)], speed: 1.0, lateral: 0.1, \
+             seed: 1, particle_radius: 0.05, colour: (0.2, 0.4, 1.0), for_s: 3.0, at_s: 1.0), Wait(for_s: 6.0)",
+        );
+        assert!(t.pose_at(0.9).particles.is_empty());
+        assert_eq!(t.pose_at(2.0).particles[0].positions.len(), 10);
+        assert!(t.pose_at(4.5).particles.is_empty());
+        assert_eq!(t.pose_at(2.0).particles, t.pose_at(2.0).particles);
+    }
+
+    #[test]
+    fn bad_particle_actions_are_refused_with_a_reason() {
+        let spread = |extra: &str| {
+            format!(
+                "Spread(id: \"d\", count: 5, from: (0.0, 0.5, 0.0), radius: 0.2, \
+                 inside: Cylinder(base: (0.0, 0.0, 0.0), radius: 1.0, height: 2.0), step: 0.1, seed: 1, \
+                 particle_radius: 0.05, colour: (1.0, 0.0, 0.0), for_s: 2.0{extra})"
+            )
+        };
+        assert!(invalid(&spread(", at_s: -1.0")).contains("not negative"));
+        assert!(invalid(&spread("").replace("count: 5", "count: 0")).contains("count 0"));
+        assert!(invalid(&spread("").replace("from: (0.0, 0.5, 0.0)", "from: (9.0, 0.5, 0.0)")).contains("inside the container"));
+        assert!(invalid(&spread("").replace("colour: (1.0, 0.0, 0.0)", "colour: (2.0, 0.0, 0.0)")).contains("0 to 1"));
+        assert!(invalid(&spread("").replace("particle_radius: 0.05", "particle_radius: 0.0")).contains("radius"));
+        assert!(invalid(&spread("").replace("radius: 1.0, height", "radius: -1.0, height")).contains("container radius"));
+        let twice = format!("{}, {}", spread(""), spread(""));
+        assert!(invalid(&twice).contains("unique"));
+        assert!(invalid(
+            "Flow(id: \"f\", count: 3, path: [(0.0, 0.0, 0.0)], speed: 1.0, lateral: 0.1, seed: 1, \
+             particle_radius: 0.05, colour: (0.0, 0.0, 1.0), for_s: 1.0)"
+        )
+        .contains("path"));
     }
 
     #[test]

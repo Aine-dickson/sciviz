@@ -15,7 +15,11 @@
 
 use std::{error::Error, fmt};
 
+use serde::Deserialize;
+
 use crate::geometry::TriangleMesh3;
+use crate::spatial::WorldPoint3;
+use crate::structure::{PartRange, StructureGeometry};
 
 /// Most particles in one generator (the first cut draws them as merged low-poly spheres).
 pub const MAX_PARTICLES: usize = 2000;
@@ -173,6 +177,112 @@ fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
 
 fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+}
+
+/// A container shape as written in a structure file.
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum ShapeDocument {
+    /// Stands on its base centre and rises along +Y.
+    Cylinder { base: (f64, f64, f64), radius: f64, height: f64 },
+    Box { min: (f64, f64, f64), max: (f64, f64, f64) },
+    Ball { centre: (f64, f64, f64), radius: f64 },
+}
+
+impl ShapeDocument {
+    /// The shape as a container, or why it is not a proper one.
+    pub fn container(&self) -> Result<Box<dyn Container>, ParticleError> {
+        let arr = |t: &(f64, f64, f64)| [t.0, t.1, t.2];
+        Ok(match self {
+            Self::Cylinder { base, radius, height } => {
+                finite3("container", arr(base))?;
+                positive("container radius", *radius)?;
+                positive("container height", *height)?;
+                Box::new(Cylinder { base_centre: arr(base), radius: *radius, height: *height })
+            }
+            Self::Box { min, max } => {
+                finite3("container", arr(min))?;
+                finite3("container", arr(max))?;
+                if !(0..3).all(|a| arr(min)[a] < arr(max)[a]) {
+                    return Err(ParticleError::NotPositive("container size"));
+                }
+                Box::new(Box3 { min: arr(min), max: arr(max) })
+            }
+            Self::Ball { centre, radius } => {
+                finite3("container", arr(centre))?;
+                positive("container radius", *radius)?;
+                Box::new(Ball { centre: arr(centre), radius: *radius })
+            }
+        })
+    }
+}
+
+/// One group of particles at one instant, ready to draw.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParticleGroup {
+    pub id: String,
+    pub positions: Vec<[f64; 3]>,
+    /// Radius of each drawn sphere.
+    pub radius: f64,
+    pub colour: [f64; 3],
+}
+
+/// Unit icosahedron faces (outward, counter-clockwise) over [`icosahedron`].
+const ICOSAHEDRON_FACES: [[u32; 3]; 20] = [
+    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
+    [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+    [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
+    [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+];
+
+fn icosahedron() -> [[f64; 3]; 12] {
+    let t = (1.0 + 5.0_f64.sqrt()) / 2.0;
+    let raw = [
+        [-1.0, t, 0.0], [1.0, t, 0.0], [-1.0, -t, 0.0], [1.0, -t, 0.0],
+        [0.0, -1.0, t], [0.0, 1.0, t], [0.0, -1.0, -t], [0.0, 1.0, -t],
+        [t, 0.0, -1.0], [t, 0.0, 1.0], [-t, 0.0, -1.0], [-t, 0.0, 1.0],
+    ];
+    raw.map(|v| {
+        let n = dot(v, v).sqrt();
+        [v[0] / n, v[1] / n, v[2] / n]
+    })
+}
+
+impl StructureGeometry {
+    /// This geometry with every particle drawn as a small closed 20-triangle
+    /// sphere, after the parts. The part ranges are unchanged, so a triangle
+    /// of a particle belongs to no part (picking passes through to `None`).
+    /// Returns a plain copy when there are no particles.
+    #[must_use]
+    pub fn with_particles(&self, groups: &[ParticleGroup]) -> Self {
+        if groups.iter().all(|g| g.positions.is_empty()) {
+            return self.clone();
+        }
+        let sphere = icosahedron();
+        let mut points: Vec<WorldPoint3> = self.mesh().vertices().to_vec();
+        let mut indices: Vec<u32> = self.mesh().indices().to_vec();
+        let mut colours = self.colours().to_vec();
+        for group in groups {
+            for centre in &group.positions {
+                #[allow(clippy::cast_possible_truncation)]
+                let base = points.len() as u32;
+                for v in &sphere {
+                    points.push(WorldPoint3::new(
+                        centre[0] + v[0] * group.radius,
+                        centre[1] + v[1] * group.radius,
+                        centre[2] + v[2] * group.radius,
+                    ));
+                    colours.push(group.colour);
+                }
+                for f in &ICOSAHEDRON_FACES {
+                    indices.extend(f.iter().map(|i| base + i));
+                }
+            }
+        }
+        let ranges: Vec<PartRange> = self.ranges().to_vec();
+        let mesh = TriangleMesh3::new(points, indices).expect("particle spheres are finite closed meshes");
+        Self::from_parts(mesh, colours, ranges)
+    }
 }
 
 /// SplitMix64: tiny, fast, and identical everywhere.
@@ -522,6 +632,53 @@ mod tests {
             1, 2, 6, 1, 6, 5, // x = high
         ];
         TriangleMesh3::new(vertices, indices).unwrap()
+    }
+
+    #[test]
+    fn drawn_particles_are_closed_outward_spheres_and_leave_the_parts_alone() {
+        let base = StructureGeometry::from_parts(
+            TriangleMesh3::new(vec![], vec![]).unwrap(),
+            vec![],
+            vec![],
+        );
+        let group = ParticleGroup { id: "g".into(), positions: vec![[1.0, 2.0, 3.0], [-4.0, 0.0, 0.0]], radius: 0.5, colour: [1.0, 0.0, 0.0] };
+        let drawn = base.with_particles(&[group.clone()]);
+        assert_eq!(drawn.mesh().indices().len(), 2 * 20 * 3);
+        assert_eq!(drawn.colours().len(), drawn.mesh().vertices().len());
+        assert!(drawn.ranges().is_empty());
+        // Every edge is used once each way, and the volume is positive and near a sphere's.
+        let mut edges = std::collections::HashMap::new();
+        for t in drawn.mesh().indices().chunks_exact(3) {
+            for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+                *edges.entry((a, b)).or_insert(0) += 1;
+            }
+        }
+        assert!(edges.iter().all(|(&(a, b), &n)| n == 1 && edges.get(&(b, a)) == Some(&1)));
+        let v = drawn.mesh().vertices();
+        let volume: f64 = drawn
+            .mesh()
+            .indices()
+            .chunks_exact(3)
+            .map(|t| {
+                let (a, b, c) = (v[t[0] as usize].to_array(), v[t[1] as usize].to_array(), v[t[2] as usize].to_array());
+                dot(a, cross(b, c)) / 6.0
+            })
+            .sum();
+        let sphere = 4.0 / 3.0 * std::f64::consts::PI * 0.125 * 2.0;
+        assert!(volume > 0.6 * sphere && volume < sphere, "{volume} vs {sphere}");
+        // No particles: a plain copy.
+        assert_eq!(base.with_particles(&[]), base);
+    }
+
+    #[test]
+    fn shapes_become_containers_and_bad_ones_are_refused() {
+        let cyl = ShapeDocument::Cylinder { base: (0.0, 0.0, 0.0), radius: 3.0, height: 8.0 };
+        let c = cyl.container().unwrap();
+        assert!(c.contains([0.0, 4.0, 0.0]) && !c.contains([4.0, 4.0, 0.0]));
+        assert!(ShapeDocument::Cylinder { base: (0.0, 0.0, 0.0), radius: 0.0, height: 1.0 }.container().is_err());
+        assert!(ShapeDocument::Box { min: (0.0, 0.0, 0.0), max: (1.0, 0.0, 1.0) }.container().is_err());
+        assert!(ShapeDocument::Ball { centre: (f64::NAN, 0.0, 0.0), radius: 1.0 }.container().is_err());
+        assert!(ShapeDocument::Ball { centre: (0.0, 0.0, 0.0), radius: 1.0 }.container().is_ok());
     }
 
     #[test]

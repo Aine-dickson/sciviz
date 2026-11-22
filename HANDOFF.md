@@ -2766,3 +2766,11 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   seed, for_s)`), with the container taken from a part and a sphere-mesh builder for drawing, then the diffusion-in-a-beaker fixture. Needs a
   small decision first: how an action names a container (a cylinder-like part, or an explicit shape); proposal is an explicit shape in the action,
   so no mesh test is needed for the first item. Present that to the user before building if they are reachable; otherwise take the explicit shape.
+
+### Update 2026-11-22 (animation slice B2 done: particles in timelines, diffusion beaker)
+
+- `Spread` and `Flow` actions, `Pose.particles`, `StructureGeometry::with_particles`, `fixtures/structures/diffusion-beaker.ron` (+ test), Explorer shows them.
+  Design note section 17. Run: `cargo run --release -p svf-explorer -- --structure fixtures/structures/diffusion-beaker.ron --timeline spreading`.
+- Owed, because the user is away: live look at the flower (A4) and beaker (B2) timelines, caption wording and pacing, and whether 150 particles read as diffusion.
+- **Next options (pick with the user):** (1) water up the dicot stem with `Flow` (needs a xylem path in `dicot-stem.ron`); (2) a digestive-system or cell item
+  using timelines; (3) opacity in the renderer (to-do); (4) split `b2-5e-heart-tool` into PRs (still blocking any merge). Do not start 4 without the user.

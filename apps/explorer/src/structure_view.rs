@@ -446,6 +446,10 @@ impl StructureScene {
                 return Err("the section would remove everything; move or flip the plane".to_owned());
             }
         }
+        // Particles are drawn after any cut, so a section does not slice them.
+        if let Some(pose) = &pose {
+            geometry = geometry.with_particles(&pose.particles);
+        }
         if let Some(built) = rebuilt {
             self.unposed = built;
             self.unposed_key = visible;
@@ -1165,5 +1169,35 @@ mod tests {
         assert_eq!(scene.relation_lines(crop), ["Oesophagus opens into Crop", "Crop opens into Gizzard"]);
         let root = scene.structure.part_index("cockroach").unwrap();
         assert!(scene.relation_lines(root).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod particle_scene_tests {
+    use super::*;
+
+    const BEAKER: &str = include_str!("../../../fixtures/structures/diffusion-beaker.ron");
+
+    fn scene() -> StructureScene {
+        let structure = Structure::from_ron_str(BEAKER).unwrap();
+        StructureScene::from_structure(structure, &CameraSetup::default(), &ViewOptions::default(), None).unwrap()
+    }
+
+    #[test]
+    fn particles_are_drawn_while_a_timeline_runs_and_are_not_parts() {
+        let mut scene = scene();
+        let beaker_triangles = scene.mesh().indices().len() / 3;
+        scene.next_timeline().unwrap();
+        scene.set_time(1.0).unwrap();
+        assert_eq!(scene.mesh().indices().len() / 3, beaker_triangles, "no dye yet");
+        scene.set_time(10.0).unwrap();
+        assert_eq!(scene.mesh().indices().len() / 3, beaker_triangles + 150 * 20);
+        assert_eq!(scene.colours().len(), scene.mesh().vertices().len());
+        // A particle triangle belongs to no part, so a pick on it reports nothing.
+        let last = scene.mesh().indices().len() / 3 - 1;
+        assert_eq!(scene.geometry.part_of_triangle(last), None);
+        // Scrubbing back removes them again.
+        scene.set_time(0.0).unwrap();
+        assert_eq!(scene.mesh().indices().len() / 3, beaker_triangles);
     }
 }
