@@ -156,7 +156,13 @@ fn section_with(
             None => blocked_until = Some(high),
             Some(end) if low <= end => blocked_until = Some(end.max(high)),
             Some(end) => {
-                shift = (end + low) * 0.5;
+                // Stay as close to the requested plane as the gap allows: just
+                // clear of the blocked run (`end` is already `eps` past its last
+                // vertex), or the middle of the gap when it is too narrow for that.
+                // The middle of a wide gap would move the cut by up to half a ring
+                // spacing on a coarse mesh.
+                let near = end + eps;
+                shift = if near < low { near } else { (end + low) * 0.5 };
                 break;
             }
         }
