@@ -1054,3 +1054,68 @@ Design contract: [biology-heart-anatomy-challenge.md](biology-heart-anatomy-chal
 - **Local audit pending.** No dataset has been downloaded; no fixture or production implementation has been created.
 - Next: accept revised source choice, then audit one case before fixture preparation or SVF changes.
 
+## Educational direction and January 2027 lesson target (2026-11-18)
+
+- Product direction clarified: SVF is primarily an anatomy and educational
+  visualization framework, handling arbitrary scientific datasets where they
+  serve teaching and learning. This is not a pivot to a general-purpose
+  visualization, CAD, medical diagnosis, or 3D editing product.
+- Immediate delivery target: begin building lessons in January 2027. Prioritize
+  a small number of scientifically sound, genuinely explorable models over
+  broad feature completeness.
+- SVF remains independently usable; no architectural dependency on Mava,
+  Prismal, or a particular lesson-authoring application.
+- Dataset strategy: audited public data, SVF-authored educational models when
+  needed, and synthetic fixtures with known ground truth for engineering tests.
+  Provenance, licensing, coordinate conventions, labels, assumptions and
+  limitations must be documented.
+- Next investigation: kidney anatomy, with emphasis on volumetric images,
+  segmentation semantics, reconstruction and source-volume-consistent
+  sectioning. This is a proposed investigation only; first audit repository
+  capabilities and a manageable dataset, then write and review a design
+  contract before implementation.
+- Full decision and acceptance guidance: `docs/EDUCATIONAL-DIRECTION.md`.
+
+## Kidney data and volume capability audit (2026-11-18)
+
+- Added `docs/kidney-data-audit.md` to record the current SVF capability gap
+  and compare KiTS19/TCIA with KiTS23.
+- Existing SVF supports ASCII legacy VTK unstructured grids and tetrahedral
+  point-scalar isosurfaces, but not voxel/image volumes, NIfTI/DICOM/VTK
+  image-data readers, segmentation label maps, structured-volume extraction,
+  or source-volume slice display.
+- Licence caution: original KiTS19 challenge terms state CC BY-NC-SA, while
+  the harmonized TCIA C4KC-KiTS record lists CC BY 3.0. These distribution
+  contexts must be reconciled for the exact files before lesson redistribution.
+  KiTS23 has explicit kidney/tumour/cyst labels and CC BY-NC-SA 4.0 terms.
+  No dataset is approved for distributable lesson assets yet.
+- No implementation approved. Next action is a single-case source audit and
+  an explicit learning objective, followed by a reviewed design contract.
+
+
+## Kidney case-level source audit — KiTS-00005 (2026-11-18)
+
+- Completed a local audit of one TCIA C4KC-KiTS harmonized case: arterial CT
+  (834 DICOM instances) and its matching multi-frame binary DICOM SEG
+  (1,668 frames: 834 Kidney and 834 Mass).
+- CT dimensions are 512 × 512 × 834; in-plane spacing is 0.9765625 mm and
+  measured slice-centre spacing is 0.5 mm. CT/SEG references and spatial
+  alignment were verified: 0 missing references, 0 position mismatches,
+  0 orientation mismatches; maximum separately measured position difference
+  approximately 0.00001875 mm.
+- Kidney mask: 902,167 foreground voxels, 283 non-empty frames, one dominant
+  26-connected component (902,158 voxels) plus components of 5, 3 and 1 voxels.
+- Mass mask: 126,444 foreground voxels, 119 non-empty frames, one
+  26-connected component.
+- Masks have zero overlapping voxels. 3,652 Mass voxels have 6-neighbour
+  Kidney contact; 6,203 have 26-neighbour contact. An anisotropic voxel-centre
+  distance transform was recorded; it is not a mesh-surface distance.
+- Preserve Kidney and Mass as separate source segments. Their mask relationship
+  does not establish the tumour's full anatomical relationship to the kidney.
+- Full measured results, DICOM identifiers, paths, limitations and next steps:
+  docs/kidney-data-audit.md, section “Case-level audit — KiTS-00005”.
+- Local data remains outside the repository. Diagnostic scripts were created
+  and run locally but have not yet been versioned.
+- Status: source/geometry/voxel audit complete for the recorded checks;
+  no implementation authorized. Next: preserve scripts, inspect existing
+  core APIs, then propose a reviewed volume/segmentation design contract.

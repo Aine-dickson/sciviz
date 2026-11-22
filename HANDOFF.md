@@ -2492,3 +2492,106 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   patches, `simplify_within` per patch at 0.4 mm, parts by union of patches, repair,
   write `.svfmesh`, `.ron` with provenance), run it on case 01 (needs the user's
   260 MB file), commit the fixture, fixture tests, screenshots, user's live check.
+
+## Current state (2026-11-18) — read this after the B2 history
+
+### Product direction and delivery target
+
+- The user's immediate goal is to use SVF to build educational lessons starting
+  in January 2027. SVF is primarily an anatomy and educational visualization
+  framework; arbitrary scientific datasets are supported insofar as they serve
+  teaching and learning. Do not optimize for general-purpose adoption or
+  feature parity ahead of the immediate educational requirement.
+- Priorities: scientifically correct representation; meaningful learner and
+  teacher exploration; validated source data and transparent limitations;
+  lesson usefulness. Support teacher-guided demonstration, guided exploration,
+  and independent investigation when appropriate to the learning objective.
+- SVF must remain independently usable. Do not couple its architecture to
+  Mava, Prismal, or a specific lesson-authoring application.
+- Dataset strategy: use audited public datasets where appropriate; author
+  original educational models when suitable open data is unavailable or
+  insufficient; create synthetic fixtures with known ground truth for
+  reproducible engineering tests. Never present schematic or synthetic models
+  as patient-derived anatomical evidence.
+- Full direction and dataset documentation: `docs/EDUCATIONAL-DIRECTION.md`.
+  Architecture product definition updated accordingly.
+
+### B2 step 5e — Rodero heart adaptation and Explorer validation
+
+- The adapted heart fixture is committed on this branch:
+  `fixtures/structures/heart-case01.ron` and
+  `fixtures/structures/heart-case01.svfmesh`. Source: Rodero et al. 2021,
+  case 01; attribution and processing provenance are embedded in the fixture.
+- User-reported release adaptation validation: 369,806 source surface faces
+  reduced to 51,456 adapted surface triangles; worst measured deviation
+  0.396 mm against a 0.4 mm target; no duplicate labelled face keys after
+  assembly; all 21 parts closed; final 80,786 part triangles; container about
+  1.46 MB. Right atrium wall and cavity volume differences were +0.05% and
+  -0.17%, respectively; all stated acceptance tolerances passed.
+- User-reported fixture integration tests: 9 passed, 0 failed. Plane-cut
+  regression: 98 cuts across all three axes succeeded and remained closed.
+- User live Explorer check: heart loads and attribution is printed; camera
+  rotation/zoom, picking, isolation, layer peeling, and section interaction
+  were exercised. The terminal log records all four peel events and full
+  across/along sweeps. The user specifically reports slicing now traverses
+  the previously limiting ranges on both Y and X and reverses at the endpoints.
+- The user has supplied screenshots of the four-chamber view and fully peeled
+  states. The peeled view's current camera does not make all four cavities
+  independently legible; this is a presentation/educational-framing limitation,
+  not evidence of a mesh or topology failure. The user chose not to spend more
+  time polishing that camera now. Do not reopen heart geometry or camera work
+  unless a concrete educational requirement justifies it.
+- The heart work is a validated technical baseline, not a claim that every
+  educational acceptance criterion has been met.
+
+### Next work — kidney dataset audit (proposal, not yet an implementation spec)
+
+- Investigate kidney anatomy as the next candidate, particularly to exercise
+  volumetric images and segmentation rather than simply repeating the heart's
+  tetrahedral-mesh pipeline.
+- First inspect the existing repository capabilities and gaps: VTK/image-volume
+  reading, point/cell fields, segmentation labels, isosurfaces, surface
+  reconstruction, source-to-derived mapping, spatial calibration, and sectioning.
+- Then compare candidate public datasets by actual contents, source quality,
+  licence/attribution, format, size, segmentation semantics, and relevance to
+  an explicit educational objective. Select and audit one manageable case.
+- Do not start kidney-specific production code before this audit and a reviewed
+  design contract. Do not assume a kidney dataset represents the whole urinary
+  system.
+- Also consider SVF-authored procedural or manually authored educational
+  models where public data is missing or unsuitable, and synthetic datasets
+  for tests with known geometric/scientific ground truth.
+- January 2027 target: begin building lessons with a small number of accurate,
+  validated and genuinely explorable models. December work should remove
+  blockers to that target, not attempt to make SVF feature-complete.
+
+### Kidney data and volume capability audit (2026-11-18)
+
+- Repository inspection confirms SVF currently has unstructured-grid VTK
+  ASCII import, tetrahedral point-scalar isosurfaces, and semantic closed-mesh
+  structure operations. It does **not** have a 3D image/voxel-volume type,
+  NIfTI/DICOM/VTK image-data reader, segmentation label-map type, structured
+  volume isosurface extraction, or source-CT slice viewer.
+- The current structure sectioner cuts reconstructed closed meshes; it does
+  not display the corresponding source image slice. Do not confuse existing
+  tetrahedral/unstructured data support with voxel-volume support.
+- Audit: `docs/kidney-data-audit.md`. Candidate A is KiTS19/TCIA (210 CT/SEG studies). Important correction:
+  the original KiTS19 challenge page states CC BY-NC-SA terms, while the
+  harmonized TCIA C4KC-KiTS record lists CC BY 3.0 and commercial/scientific/
+  educational use. These distribution contexts must not be conflated; verify
+  exact file provenance and applicable licence before lesson redistribution.
+  Original challenge volumes are NIfTI with background/kidney/tumour labels.
+  Candidate B is KiTS23 (599 cases; labels kidney/tumour/cyst;
+  CC BY-NC-SA 4.0).
+- No challenge dataset is yet approved for distributable lesson assets.
+  Select one case for a technical audit only after identifying the exact
+  distribution and licence; otherwise find a separately licensed source or
+  create a validated schematic.
+- Neither dataset provides detailed normal-kidney structures such as cortex,
+  medulla, pyramids, calyces, pelvis, vessels and ureter as separate labels.
+  The first CT/SEG learning objective must stay within the labels actually
+  present; detailed anatomy may need a separately licensed model or a clearly
+  labelled SVF-authored schematic.
+- No volume API or kidney-specific implementation is authorized yet. Next:
+  audit one actual case and define the learning objective, then write/review a
+  design contract before implementation.
