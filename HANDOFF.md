@@ -2633,3 +2633,19 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   plant stem, schematic, `reference` citation still the user's to confirm).
 - Risk recorded: a `View` cannot change part size, so an ovary-to-fruit stage needs
   separate parts per stage.
+
+### Update 2026-11-22 (later still) — SVF/Prismal boundary
+
+- User confirmed the flower is **structure only**; the process goes to Prismal.
+- User stated the working rule (recorded in `docs/svf-prismal-boundary.md`): mostly predictable,
+  fixed accounts (water moving from roots to leaves, H and O making H₂O, growth stages) are SVF;
+  anything where the learner varies inputs and compares outcomes, usually shown as a graph, is
+  Prismal. Integration of SVF, Prismal and Mava waits until each tool's capabilities are locked.
+- Prismal lives at `C:\Users\USER\Prismal` (a modelling language with models, presentations
+  and checked run cases; examples in `examples/`; state in `docs/PROJECT-STATE.md`). I read its
+  README, brief and examples only; I did not run it.
+- Of the 44 written Prismal requirements, only RQ-030 (structure half) and possibly RQ-016 are SVF
+  by this rule. I read 9 in full, so treat the rest of that count as from titles only.
+- **Open question for future sessions:** SVF has no time or sequence. Fixed processes over a
+  structure need "a few steps, the system does the rest". Do not design it yet; collect evidence
+  from the flower and one or two later items first.

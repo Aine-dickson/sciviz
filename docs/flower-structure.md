@@ -30,6 +30,12 @@ stage. Leave (2) to Prismal, or revisit it once SVF has a justified time
 model. Do not invent a time or state model for one lesson. This keeps the
 test honest: does the structure convention cover a staged item?
 
+**Update 2026-11-22: the user confirmed the structure-only scope.** The process
+(learner-chosen pollen, growth, random seeds) belongs to Prismal under the rule
+in `svf-prismal-boundary.md`. The flower's stages double as the first evidence
+for the open question there: what a fixed process over a structure needs.
+Questions 2 and 3 below are still open.
+
 ## Lesson content (to be confirmed by the user)
 
 Not yet confirmed, unlike the cockroach. A proposal from the primary syllabus
