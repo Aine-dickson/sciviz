@@ -1180,6 +1180,28 @@ mod tests {
     }
 
     #[test]
+    fn a_later_fade_grow_or_colour_starts_where_the_previous_one_ended() {
+        let t = timeline(
+            "Fade(part: \"b\", to: 0.2, for_s: 1.0), Grow(part: \"b\", to: 0.5, for_s: 1.0), \
+             Colour(part: \"b\", to: (1.0, 0.0, 0.0), for_s: 1.0), \
+             Fade(part: \"b\", to: 1.0, for_s: 2.0, at_s: 2.0), Grow(part: \"b\", to: 1.5, for_s: 2.0, at_s: 2.0), \
+             Colour(part: \"b\", to: (0.0, 0.0, 1.0), for_s: 2.0, at_s: 2.0)",
+        );
+        let b = 2; // root, a, b, c
+        // Between the two: held at the first one's end.
+        let held = &t.pose_at(1.5).parts[b];
+        assert!((held.opacity - 0.2).abs() < 1e-12 && (held.scale - 0.5).abs() < 1e-12);
+        assert_eq!(held.colour, Some([1.0, 0.0, 0.0]));
+        // Half-way through the second one: half-way from the first one's end, with no jump back.
+        let mid = &t.pose_at(3.0).parts[b];
+        assert!((mid.opacity - 0.6).abs() < 1e-12);
+        assert!((mid.scale - 1.0).abs() < 1e-12);
+        assert_eq!(mid.colour, Some([0.5, 0.0, 0.5]));
+        let end = &t.pose_at(4.0).parts[b];
+        assert!((end.opacity - 1.0).abs() < 1e-12 && (end.scale - 1.5).abs() < 1e-12);
+    }
+
+    #[test]
     fn bad_and_overlapping_fades_are_refused() {
         assert!(invalid("Fade(part: \"a\", to: 1.5, for_s: 1.0)").contains("0 to 1"));
         assert!(invalid("Fade(part: \"a\", to: -0.1, for_s: 1.0)").contains("0 to 1"));
