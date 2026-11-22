@@ -2617,3 +2617,78 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 **Done this session:** `datasets/` added to `.gitignore`; duplicate root scripts deleted; independent verification script added and run. All uncommitted at the time of writing.
 
 **Next action:** write the short "valuable output" bar and the item list (user to name the items and subjects), then pick the flower as the first new item unless the user redirects. Then split the branch into PRs.
+
+### Update 2026-11-22 (later) — item bar and flower proposal
+
+- Added `docs/item-output-bar.md`: the five-point "valuable output" bar, a register
+  scoring each existing item from recorded evidence (blank = not yet judged), and
+  the candidate list. It is a working draft; the user has not yet confirmed the
+  criteria or the candidate list.
+- Added `docs/flower-structure.md`: a design proposal for the flower. Key finding:
+  RQ-PRISMAL-030 mixes a structure need (SVF fits) with a process need (learner-set
+  pollen, growth over days, random outcomes: SVF has no time or state model).
+  Proposal: build the structure with stages as named views; leave the process to
+  Prismal. **Not decided; the user must confirm the scope before any implementation.**
+- Existing item not in earlier notes: `fixtures/structures/dicot-stem.ron` (authored
+  plant stem, schematic, `reference` citation still the user's to confirm).
+- Risk recorded: a `View` cannot change part size, so an ovary-to-fruit stage needs
+  separate parts per stage.
+
+### Update 2026-11-22 (later still) — SVF/Prismal boundary
+
+- User confirmed the flower is **structure only**; the process goes to Prismal.
+- User stated the working rule (recorded in `docs/svf-prismal-boundary.md`): mostly predictable,
+  fixed accounts (water moving from roots to leaves, H and O making H₂O, growth stages) are SVF;
+  anything where the learner varies inputs and compares outcomes, usually shown as a graph, is
+  Prismal. Integration of SVF, Prismal and Mava waits until each tool's capabilities are locked.
+- Prismal lives at `C:\Users\USER\Prismal` (a modelling language with models, presentations
+  and checked run cases; examples in `examples/`; state in `docs/PROJECT-STATE.md`). I read its
+  README, brief and examples only; I did not run it.
+- Of the 44 written Prismal requirements, only RQ-030 (structure half) and possibly RQ-016 are SVF
+  by this rule. I read 9 in full, so treat the rest of that count as from titles only.
+- **Open question for future sessions:** SVF has no time or sequence. Fixed processes over a
+  structure need "a few steps, the system does the rest". Do not design it yet; collect evidence
+  from the flower and one or two later items first.
+
+### Update 2026-11-22 (flower built)
+
+- User corrections: animation IS an SVF capability (diffusion is the example); the tools differ by
+  whether the learner runs an experiment. Prismal's pictures are primitives (lines, dots, circles,
+  arcs, graphs) driven by equations (read: tilted orbit and circle circumference examples), not
+  structures. Items now being built are throw-away proofs of concept; a generic flower is enough.
+- Built `fixtures/structures/flower.ron` + `crates/svf-core/tests/flower_fixture.rs` (5 tests passed in
+  a release build, run by Claude) + screenshots in `docs/evidence/flower-poc/`. No core code changed.
+  The user has NOT yet judged legibility by looking. Run: `cargo run --release -p svf-explorer --
+  --structure fixtures/structures/flower.ron --view flower` (views: flower, carpel-only, fruit).
+- Findings (details in `docs/flower-structure.md`): stages that change size need separate parts; no
+  default view (both stages overlap; peel 1 layer); a view cannot target its own parts (camera
+  centres on the whole bounding box); vertical `Tube` needs explicit `up`.
+- Animation: now a wanted capability, still undesigned. Candidate next items that need it: diffusion,
+  water up a stem. Collect what an author must spell out before designing it.
+- Next action: user looks at the flower and says if it is legible enough; then choose the next item
+  (digestive system, cell or diffusion) from `docs/item-output-bar.md`.
+
+### Update 2026-11-22 (plant cell built)
+
+- Built `fixtures/structures/plant-cell.ron` (wall, membrane, vacuole, chloroplasts, mitochondria,
+  nucleus with nucleolus; units um; 3 views: whole, inside, cut) and
+  `crates/svf-core/tests/plant_cell_fixture.rs`: 6 tests passed in a release build, run by Claude.
+  Screenshots in `docs/evidence/plant-cell-poc/`. No core code changed. Registered as a proof of
+  concept; the user has not judged legibility (the user did judge the flower: enough for a PoC).
+- Cytoplasm is not drawn (it would hide the organelles). Rings of chloroplasts and mitochondria are
+  hand-placed; only nucleus vs vacuole is checked for overlap.
+- Observation: a second authored item cost less than the first, as the blocks and the test pattern
+  are reusable. That is evidence for a stable authoring convention, but also for a template or
+  generator, which is the author-surface question deferred by the user.
+- **Next: animation design needs an Opus session** (per the working policy: it is an architecture decision
+  with long-term consequences). Inputs already gathered: `docs/svf-prismal-boundary.md` (the rule and the
+  open question), `docs/flower-structure.md` findings 1 to 3 (stages need separate parts, no default view,
+  views cannot target parts), and the user's examples: diffusion, water up a stem, atoms combining, growth
+  stages. Start with a design note only; no implementation until the user reviews it.
+- **Animation design note written (2026-11-22): `docs/animation-design.md`, a proposal; nothing implemented.**
+  User's choices: first slice = poses and steps plus particle verbs; author words mirror Prismal's timeline
+  words (`timeline`, `scene`, `beat`, `narrate`, `wait`, `hide`, `camera`). Core idea: the picture is a pure
+  function of time, so pause, scrub and `--at` screenshots work. Five open questions are at the end of the note
+  (section while playing, scale-based hide, first particle item, captions only, RON vs a text syntax).
+  Per-frame cost is NOT measured. **Next action: the user reviews the note and answers the open questions; only then
+  start slice A1.**
