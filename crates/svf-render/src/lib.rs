@@ -115,6 +115,9 @@ struct LineVertex {
 struct MeshVertex {
     position: [f32; 3],
     color: [f32; 4],
+    /// Unit surface normal, or zero when unknown (the shader then falls back
+    /// to the per-triangle normal). See `with_smooth_normals`.
+    normal: [f32; 3],
 }
 
 #[repr(C)]
@@ -252,7 +255,8 @@ impl SceneRenderer {
     /// Initialize wgpu and create the reference-scene pipeline.
     pub async fn new(window: Arc<Window>, mesh: &TriangleMesh3) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
+        // Flat on purpose: `update_mesh` needs the vertex count to stay fixed.
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true, false).await
     }
 
     /// Initialize the renderer with a mesh whose vertices carry authored
@@ -264,7 +268,7 @@ impl SceneRenderer {
         colours: &[[f64; 3]],
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_coloured_mesh(mesh, colours)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true, true).await
     }
 
     /// Like [`Self::new_with_coloured_mesh`], with an opacity per vertex
@@ -275,7 +279,7 @@ impl SceneRenderer {
         colours: &[[f64; 4]],
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_coloured_mesh_rgba(mesh, colours)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), true, true).await
     }
 
     /// Initialize the renderer with a mesh and prepared vector glyphs from svf-core.
@@ -286,7 +290,7 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mesh(mesh)?;
         let vector_vertices = convert_vector_glyphs(glyphs)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, true).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, true, true).await
     }
 
     /// Initialize the renderer with a scalar-mapped surface and prepared vector glyphs.
@@ -298,7 +302,7 @@ impl SceneRenderer {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
         let vector_vertices = convert_vector_glyphs(glyphs)?;
         // Colour encodes a value here, so the headlight starts off.
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, false).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, vector_vertices, false, true).await
     }
 
     /// Initialize the renderer with a surface (optionally scalar-mapped) and
@@ -322,6 +326,7 @@ impl SceneRenderer {
             mesh_indices,
             vector_vertices,
             mapped.is_none(),
+            true,
         )
         .await
     }
@@ -332,7 +337,7 @@ impl SceneRenderer {
         surface: &svf_core::scalar_visualization::MappedSurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_surface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false, true).await
     }
 
     /// Initialize the renderer with a provenance-preserving mapped isosurface.
@@ -341,7 +346,7 @@ impl SceneRenderer {
         surface: &svf_core::isosurface_field_transfer::MappedIsosurface3,
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, Vec::new(), false, true).await
     }
 
     /// Initialize a mapped isosurface with a depth-tested overlay of unique mesh edges.
@@ -351,7 +356,7 @@ impl SceneRenderer {
     ) -> Result<Self, RenderError> {
         let (mesh_vertices, mesh_indices) = convert_mapped_isosurface(surface)?;
         let edge_vertices = convert_isosurface_edges(surface)?;
-        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, edge_vertices, false).await
+        Self::new_with_mesh_data(window, mesh_vertices, mesh_indices, edge_vertices, false, true).await
     }
 
     async fn new_with_mesh_data(
@@ -360,7 +365,13 @@ impl SceneRenderer {
         mesh_indices: Vec<u32>,
         vector_vertices: Vec<LineVertex>,
         shaded: bool,
+        smooth: bool,
     ) -> Result<Self, RenderError> {
+        let (mesh_vertices, mesh_indices) = if smooth && shaded {
+            with_smooth_normals(&mesh_vertices, &mesh_indices)
+        } else {
+            (mesh_vertices, mesh_indices)
+        };
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -488,8 +499,8 @@ impl SceneRenderer {
             label: Some("svf-indexed-mesh-shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("mesh.wgsl").into()),
         });
-        const MESH_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
+        const MESH_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x3];
         let mesh_layout = wgpu::VertexBufferLayout {
             array_stride: size_of::<MeshVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -666,6 +677,7 @@ impl SceneRenderer {
         colours: &[[f64; 4]],
     ) -> Result<(), RenderError> {
         let (vertices, indices) = convert_coloured_mesh_rgba(mesh, colours)?;
+        let (vertices, indices) = with_smooth_normals(&vertices, &indices);
         if vertices.is_empty() || indices.is_empty() {
             return Err(RenderError::MeshConversion);
         }
@@ -1002,10 +1014,116 @@ fn convert_mesh(mesh: &TriangleMesh3) -> Result<(Vec<MeshVertex>, Vec<u32>), Ren
             Ok(MeshVertex {
                 position,
                 color: [0.18, 0.62, 0.88, 1.0],
+                normal: [0.0; 3],
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((vertices, mesh.indices().to_vec()))
+}
+
+/// Corners whose faces differ by more than this angle keep a sharp edge.
+const CREASE_ANGLE_DEGREES: f32 = 40.0;
+
+/// Gives every vertex a smooth normal and returns the vertex and index lists to
+/// draw. A vertex is split into one copy per group of incident faces that lie
+/// within the crease angle of the group's first face, so a sphere shades
+/// smoothly while a box keeps its edges. Face orientation is ignored (winding
+/// may be inconsistent; the shader is two-sided), and zero-area faces are left
+/// out of every average. A vertex with no usable face keeps a zero normal.
+/// Colour and position are copied, so per-vertex colour and opacity survive.
+fn with_smooth_normals(vertices: &[MeshVertex], indices: &[u32]) -> (Vec<MeshVertex>, Vec<u32>) {
+    let triangle_count = indices.len() / 3;
+    let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let cross = |a: [f32; 3], b: [f32; 3]| {
+        [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+    };
+    let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    // Area-weighted (unnormalised) and unit face normals; None for degenerate faces.
+    let mut weighted: Vec<Option<[f32; 3]>> = Vec::with_capacity(triangle_count);
+    let mut unit: Vec<[f32; 3]> = Vec::with_capacity(triangle_count);
+    for t in indices.chunks_exact(3) {
+        let (a, b, c) = (
+            vertices[t[0] as usize].position,
+            vertices[t[1] as usize].position,
+            vertices[t[2] as usize].position,
+        );
+        let n = cross(sub(b, a), sub(c, a));
+        let length = dot(n, n).sqrt();
+        if length > 0.0 && length.is_finite() {
+            weighted.push(Some(n));
+            unit.push([n[0] / length, n[1] / length, n[2] / length]);
+        } else {
+            weighted.push(None);
+            unit.push([0.0; 3]);
+        }
+    }
+    let mut incident: Vec<Vec<usize>> = vec![Vec::new(); vertices.len()];
+    for (face, t) in indices.chunks_exact(3).enumerate() {
+        for &v in t {
+            incident[v as usize].push(face);
+        }
+    }
+    let crease_cos = CREASE_ANGLE_DEGREES.to_radians().cos();
+    let mut out: Vec<MeshVertex> = Vec::with_capacity(vertices.len());
+    // First copy of vertex v is its original slot; later copies are appended.
+    let mut copy_of: Vec<Vec<(usize, u32)>> = vec![Vec::new(); vertices.len()]; // (cluster, new index)
+    let mut new_indices = vec![0u32; indices.len()];
+    for (v, vertex) in vertices.iter().enumerate() {
+        // Greedy clusters: (reference unit normal, summed normal).
+        let mut clusters: Vec<([f32; 3], [f32; 3])> = Vec::new();
+        let mut face_cluster: Vec<(usize, usize)> = Vec::new();
+        for &face in &incident[v] {
+            let Some(w) = weighted[face] else { continue };
+            let reference = unit[face];
+            let found = clusters.iter().position(|(r, _)| dot(*r, reference).abs() >= crease_cos);
+            let k = found.unwrap_or_else(|| {
+                clusters.push((reference, [0.0; 3]));
+                clusters.len() - 1
+            });
+            // Flip to agree with the cluster's reference so winding does not matter.
+            let sign = if dot(clusters[k].0, reference) < 0.0 { -1.0 } else { 1.0 };
+            for axis in 0..3 {
+                clusters[k].1[axis] += sign * w[axis];
+            }
+            face_cluster.push((face, k));
+        }
+        let make = |sum: [f32; 3]| {
+            let length = dot(sum, sum).sqrt();
+            let normal = if length > 0.0 && length.is_finite() {
+                [sum[0] / length, sum[1] / length, sum[2] / length]
+            } else {
+                [0.0; 3]
+            };
+            MeshVertex { normal, ..*vertex }
+        };
+        if clusters.is_empty() {
+            copy_of[v].push((0, out.len() as u32));
+            out.push(make([0.0; 3]));
+        } else {
+            for (k, (_, sum)) in clusters.iter().enumerate() {
+                copy_of[v].push((k, out.len() as u32));
+                out.push(make(*sum));
+            }
+        }
+        for (face, k) in face_cluster {
+            let slot = copy_of[v].iter().find(|(c, _)| *c == k).map(|(_, i)| *i).unwrap_or(0);
+            for corner in 0..3 {
+                if indices[face * 3 + corner] as usize == v {
+                    new_indices[face * 3 + corner] = slot;
+                }
+            }
+        }
+    }
+    // Degenerate faces: keep them pointing at the first copy of each vertex.
+    for face in 0..triangle_count {
+        if weighted[face].is_none() {
+            for corner in 0..3 {
+                let v = indices[face * 3 + corner] as usize;
+                new_indices[face * 3 + corner] = copy_of[v].first().map(|(_, i)| *i).unwrap_or(0);
+            }
+        }
+    }
+    (out, new_indices)
 }
 
 /// sRGB display value to linear light, as the sRGB surface re-encodes on write.
@@ -1136,7 +1254,7 @@ fn convert_mapped_surface(
         {
             return Err(RenderError::MeshConversion);
         }
-        Ok(MeshVertex { position, color })
+        Ok(MeshVertex { position, color, normal: [0.0; 3] })
     }).collect::<Result<Vec<_>, _>>()?;
 
     Ok((vertices, surface.indices().to_vec()))
@@ -1161,7 +1279,7 @@ fn convert_mapped_isosurface(
         {
             return Err(RenderError::IsosurfaceConversion);
         }
-        Ok(MeshVertex { position, color })
+        Ok(MeshVertex { position, color, normal: [0.0; 3] })
     }).collect::<Result<Vec<_>, _>>()?;
     Ok((vertices, mesh.indices().to_vec()))
 }
@@ -1619,7 +1737,7 @@ mod tests {
     }
 
     fn vertex(x: f32, y: f32, z: f32, alpha: f32) -> MeshVertex {
-        MeshVertex { position: [x, y, z], color: [0.5, 0.5, 0.5, alpha] }
+        MeshVertex { position: [x, y, z], color: [0.5, 0.5, 0.5, alpha], normal: [0.0; 3] }
     }
 
     /// Three triangles along +Z at depths 1, 2 and 3 (vertices 0-8); the middle one is opaque.
@@ -1667,5 +1785,114 @@ mod tests {
         assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, 1.5]; 3]).is_err());
         assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, f64::NAN]; 3]).is_err());
         assert!(convert_coloured_mesh_rgba(&mesh, &[[1.0, 0.0, 0.0, 1.0]; 2]).is_err());
+    }
+
+    fn mv(p: [f32; 3]) -> MeshVertex {
+        MeshVertex { position: p, color: [0.2, 0.4, 0.6, 1.0], normal: [0.0; 3] }
+    }
+
+    /// Unit cube, outward triangles, 8 shared vertices.
+    fn cube() -> (Vec<MeshVertex>, Vec<u32>) {
+        let v = [
+            [0., 0., 0.], [1., 0., 0.], [1., 1., 0.], [0., 1., 0.],
+            [0., 0., 1.], [1., 0., 1.], [1., 1., 1.], [0., 1., 1.],
+        ];
+        let f: [u32; 36] = [
+            0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4,
+            2, 3, 7, 2, 7, 6, 1, 2, 6, 1, 6, 5, 3, 0, 4, 3, 4, 7,
+        ];
+        (v.iter().map(|p| mv(*p)).collect(), f.to_vec())
+    }
+
+    /// Latitude-longitude sphere of radius 2 with shared vertices.
+    fn sphere() -> (Vec<MeshVertex>, Vec<u32>) {
+        let (rows, cols) = (12u32, 16u32);
+        let mut v = Vec::new();
+        for r in 0..=rows {
+            let phi = std::f32::consts::PI * r as f32 / rows as f32;
+            for c in 0..cols {
+                let theta = 2.0 * std::f32::consts::PI * c as f32 / cols as f32;
+                v.push(mv([2.0 * phi.sin() * theta.cos(), 2.0 * phi.sin() * theta.sin(), 2.0 * phi.cos()]));
+            }
+        }
+        let mut f = Vec::new();
+        for r in 0..rows {
+            for c in 0..cols {
+                let (a, b) = (r * cols + c, r * cols + (c + 1) % cols);
+                let (d, e) = ((r + 1) * cols + c, (r + 1) * cols + (c + 1) % cols);
+                f.extend_from_slice(&[a, b, d, b, e, d]);
+            }
+        }
+        (v, f)
+    }
+
+    #[test]
+    fn smooth_normals_keep_a_cube_sharp() {
+        let (v, i) = cube();
+        let (out, idx) = with_smooth_normals(&v, &i);
+        assert_eq!(idx.len(), i.len());
+        // Each corner touches three mutually perpendicular faces: three copies.
+        assert_eq!(out.len(), 8 * 3);
+        for t in idx.chunks_exact(3) {
+            let (a, b, c) = (out[t[0] as usize], out[t[1] as usize], out[t[2] as usize]);
+            // All three corners of a face share the face normal exactly.
+            for n in [a.normal, b.normal, c.normal] {
+                assert!((n.iter().map(|x| x * x).sum::<f32>() - 1.0).abs() < 1e-5);
+                assert_eq!(n.map(|x| x.abs().round()), a.normal.map(|x| x.abs().round()));
+                assert!(n.iter().filter(|x| x.abs() > 0.99).count() == 1);
+            }
+        }
+    }
+
+    #[test]
+    fn smooth_normals_point_outward_on_a_sphere_without_splitting() {
+        let (v, i) = sphere();
+        let (out, idx) = with_smooth_normals(&v, &i);
+        // Smooth surface: every original vertex is one copy at most (poles share many faces).
+        assert_eq!(out.len(), v.len());
+        for t in idx.chunks_exact(3) {
+            for &k in t {
+                let vertex = out[k as usize];
+                let p = vertex.position;
+                let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+                let radial = [p[0] / r, p[1] / r, p[2] / r];
+                let d: f32 = (0..3).map(|a| radial[a] * vertex.normal[a]).sum();
+                // Normals agree with the radial direction, within the facet error of a coarse sphere.
+                assert!(d.abs() > 0.97, "vertex normal off the radial by dot {d}");
+            }
+        }
+    }
+
+    #[test]
+    fn smooth_normals_ignore_winding_and_degenerate_faces_and_keep_colour() {
+        let (mut v, mut i) = sphere();
+        // Flip every other triangle.
+        for (n, t) in i.chunks_exact_mut(3).enumerate() {
+            if n % 2 == 1 {
+                t.swap(1, 2);
+            }
+        }
+        // Add a zero-area face and a vertex that no face uses.
+        v.push(mv([9.0, 9.0, 9.0]));
+        v[20].color = [1.0, 0.0, 0.0, 0.5];
+        let unused = (v.len() - 1) as u32;
+        i.extend_from_slice(&[20, 20, 21]);
+        let (out, idx) = with_smooth_normals(&v, &i);
+        assert_eq!(idx.len(), i.len());
+        assert!(idx.iter().all(|&k| (k as usize) < out.len()));
+        for t in idx.chunks_exact(3).take(idx.len() / 3 - 1) {
+            for &k in t {
+                let vertex = out[k as usize];
+                let p = vertex.position;
+                let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+                let d: f32 = (0..3).map(|a| p[a] / r * vertex.normal[a]).sum();
+                assert!(d.abs() > 0.97, "mixed winding gave dot {d}");
+            }
+        }
+        // Colour and opacity are copied to every copy of a vertex.
+        assert!(out.iter().filter(|o| o.position == v[20].position).all(|o| o.color == v[20].color));
+        // The unused vertex has no normal and is still present.
+        let lone = out.iter().find(|o| o.position == v[unused as usize].position).unwrap();
+        assert_eq!(lone.normal, [0.0; 3]);
     }
 }
