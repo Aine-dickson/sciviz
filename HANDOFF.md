@@ -23,9 +23,10 @@ with about 75% confidence that SVF produces valuable output across several subje
   - twelve proof-of-concept items in biology, chemistry and physics.
 - The proof-of-concept items have done their job: the **authoring convention is agreed** (`docs/authoring-convention.md`,
   decisions in section 9). Items are now polished towards reality through kits, one fidelity level at a time.
-- Branch `b2-5e-heart-tool` was split on 2026-11-23 into a stack of PRs on `main` (#73 to #75 plus the new ones listed in
-  `docs/archive/branch-split-2026-11-23.md`). **Nothing is merged without the user's explicit OK.** Merge bottom-up:
-  retarget the next PR's base to `main`, merge `origin/main` into its head, then squash. Never force-push.
+- Branch `b2-5e-heart-tool` was split on 2026-11-23 into the PR stack #73 to #83 (`docs/archive/branch-split-2026-11-23.md`).
+  The top is `split/11-authoring-convention` (#83). **Start new work on a new branch off that top**, not off `b2-5e-heart-tool`, which is
+  kept unchanged as a reference only. **Nothing is merged without the user's explicit OK.** Merge bottom-up: retarget the next PR's base
+  to `main`, merge `origin/main` into its head, then squash. Never force-push.
 
 ## Decisions not to revisit
 
