@@ -2748,3 +2748,11 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Frame cost: about 5.5 ms per pose on 82k triangles (scratch probe); heart not timed; real per-frame figure prints on pause.
 - **Next action: A4**, add a `pollination` timeline to `fixtures/structures/flower.ron` (stage parts are separate parts, shown/hidden
   by Hide/Show), a test for it, screenshots at chosen `--at`, and record the saving vs stage views in `docs/item-output-bar.md`.
+
+### Update 2026-11-22 (animation slice A4 done)
+
+- `fixtures/structures/flower.ron` now has the `pollination` timeline (5 beats, 20 s, captions); test added; screenshots in
+  `docs/evidence/animation-a4-flower/`; register row updated; design note section 15. Camera pitch in timelines is an offset from the fitted camera.
+- **Next action: B1** (particles: `Flow` and `Spread`, seeded and deterministic; tests for determinism, particles inside the container, count
+  conserved), then B2 diffusion in a beaker. **Before B1 the user should look at the flower timeline live (Space, arrows, `,` `.`)** and
+  say whether the captions and pacing are legible; B1 touches the design note (particle verbs), so check section 5 and the open decisions first.

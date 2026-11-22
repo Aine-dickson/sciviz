@@ -182,3 +182,16 @@ Built in `crates/svf-core/src/structure_animation.rs`, wired into `structure.rs`
   previous frame stays.
 - Evidence: `docs/evidence/animation-a3-stem-at-5s.png` (stem, skin hidden, pith half-way up, from a scratch timeline).
   Live playback with a real window has **not** been run by Claude; the user has not tried the keys.
+
+## 15. Slice A4 result: the flower's `pollination` timeline (2026-11-22)
+
+- Added to `fixtures/structures/flower.ron`: 5 beats of 4 s (20 s): flower (anthers highlighted), pollen lands (stigma highlighted,
+  camera moves in), pollen tube (style and ovules highlighted), petals and stamens fall while the ovary and ovules swell, the fruit
+  stage replaces the carpel (Hide/Show, camera to the fruit). One new test, `the_pollination_timeline_swaps_the_flower_for_the_fruit`
+  (poses at start, middle and end; all 41 poses built at 0.5 s steps are closed meshes). Run by Claude, release build, passing.
+- Screenshots: `docs/evidence/animation-a4-flower/at-{1,6,10,15,20}.png` (via `--timeline pollination --at <s>`). I looked at 1, 15 and 20.
+- **Saving versus stage views:** the three views of the flower still exist, but the story needed no extra parts and no new fixture:
+  about 45 lines of RON on top of the existing parts. The "stages need separate parts" limit remains: the fruit is a second set of parts.
+  The ovary swell hides the swap only roughly (ovary 1.7x against the fruit's 1.6x/1.8x radii), so the swap is a small jump.
+- Camera values in a timeline are offsets from the fitted camera (as in views), so `pitch_deg: 0` is the default elevation, not level.
+- Not judged by the user: legibility, wording of captions, and live playback.

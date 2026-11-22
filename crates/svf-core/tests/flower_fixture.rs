@@ -96,3 +96,44 @@ fn the_lengthwise_cut_shows_the_inside_of_the_carpel() {
         assert!(names.contains(part), "{part} missing from the lengthwise cut");
     }
 }
+
+#[test]
+fn the_pollination_timeline_swaps_the_flower_for_the_fruit() {
+    let (s, g) = load();
+    let t = &s.timelines()[0];
+    assert_eq!(t.id(), "pollination");
+    assert_eq!(t.beats().len(), 5);
+    assert_eq!(t.duration(), 20.0);
+    let index = |id: &str| s.part_index(id).unwrap();
+
+    // Start: the flower is whole and the fruit stage is not drawn.
+    let start = t.pose_at(0.0);
+    assert!(start.parts[index("petals")].shown && start.parts[index("ovary")].shown);
+    assert!(!start.parts[index("fruit")].shown && !start.parts[index("seeds")].shown);
+    assert!(start.parts[index("anthers")].highlighted);
+    assert!(start.caption.as_deref().unwrap().contains("pollen"));
+
+    // The ovary swells before the swap, the petals fall.
+    let mid = t.pose_at(15.0);
+    assert!(mid.parts[index("ovary")].scale > 1.0 && mid.parts[index("ovary")].scale < 1.7);
+    assert!(mid.parts[index("petals")].offset[1] < 0.0);
+    assert!(mid.parts[index("ovary")].shown && !mid.parts[index("fruit")].shown);
+
+    // End: the fruit and seeds replace the carpel, petals and stamens; the sepals stay.
+    let end = t.pose_at(t.duration());
+    for gone in ["petals", "filaments", "anthers", "stigma", "style", "ovary", "ovules"] {
+        assert!(!end.parts[index(gone)].shown, "{gone} should be hidden at the end");
+    }
+    for kept in ["fruit", "seeds", "sepals", "receptacle", "peduncle"] {
+        assert!(end.parts[index(kept)].shown, "{kept} should be shown at the end");
+    }
+
+    // Every pose builds a closed mesh with the visible parts only.
+    for step in 0..=40 {
+        let pose = t.pose_at(f64::from(step) * 0.5);
+        let visible: Vec<usize> = (0..s.parts().len()).filter(|&p| pose.parts[p].shown).collect();
+        let posed = s.build_geometry_for(&visible).unwrap().apply_pose(&pose);
+        assert_closed(posed.mesh().indices());
+    }
+    assert!(g.mesh().indices().len() > 0);
+}
