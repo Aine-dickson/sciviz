@@ -2667,3 +2667,16 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   water up a stem. Collect what an author must spell out before designing it.
 - Next action: user looks at the flower and says if it is legible enough; then choose the next item
   (digestive system, cell or diffusion) from `docs/item-output-bar.md`.
+
+### Update 2026-11-22 (plant cell built)
+
+- Built `fixtures/structures/plant-cell.ron` (wall, membrane, vacuole, chloroplasts, mitochondria,
+  nucleus with nucleolus; units um; 3 views: whole, inside, cut) and
+  `crates/svf-core/tests/plant_cell_fixture.rs`: 6 tests passed in a release build, run by Claude.
+  Screenshots in `docs/evidence/plant-cell-poc/`. No core code changed. Registered as a proof of
+  concept; the user has not judged legibility (the user did judge the flower: enough for a PoC).
+- Cytoplasm is not drawn (it would hide the organelles). Rings of chloroplasts and mitochondria are
+  hand-placed; only nucleus vs vacuole is checked for overlap.
+- Observation: a second authored item cost less than the first, as the blocks and the test pattern
+  are reusable. That is evidence for a stable authoring convention, but also for a template or
+  generator, which is the author-surface question deferred by the user.

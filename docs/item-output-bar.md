@@ -44,6 +44,7 @@ Blank means not yet judged, not failed.
 | Heart (Rodero case 01) | Biology | adapted source mesh | yes: worst deviation 0.396 mm vs 0.4 mm target, all 21 parts closed (user-reported) | partly: peeled view does not show all four cavities independently; user chose not to polish | pick, isolate, peel, section all exercised by the user | attribution embedded in the fixture; licence not re-checked for redistribution | high (several PRs) | `docs/evidence/b2-5e-heart-adaptation-validation.md` |
 | Cockroach | Biology | authored, procedural | schematic, not measured | | views, peeling, relations implemented | `reference` citation is still the user's to confirm | medium | `docs/cockroach-structure.md` |
 | Generic flower and fruit | Biology | authored, existing blocks | schematic, not measured; says so in the file | looks distinguishable in screenshots; the user has not judged | pick, isolate, peel, section, three views; no animation | citation to be confirmed by the user; no source data | low: one session, no core change | `docs/flower-structure.md`, `docs/evidence/flower-poc/`; proof of concept, throw-away |
+| Generic plant cell | Biology (CEL) | authored, existing blocks | schematic, not measured; says so in the file | the cut view looks like a textbook diagram (Claude's look); the user has not judged | pick, isolate, peel, section, three views | citation to be confirmed by the user; no source data | low: under one session, no core change | `docs/evidence/plant-cell-poc/`, `crates/svf-core/tests/plant_cell_fixture.rs`; proof of concept, throw-away |
 | Dicot stem | Biology | authored, extrusion | schematic, not measured | | section, peel | `reference` citation is still the user's to confirm | low | `fixtures/structures/dicot-stem.ron` |
 | VSEPR molecules | Chemistry | rule-driven | | | | | | `docs/upper-secondary-chemistry-vsepr-learning-case.md` (proposal) |
 | Heat diffusion, fibres | Physics, biology | scalar and vector fields | validated against an analytical solution | | | | | analytic fixtures in `fixtures/analytical-heat-diffusion/` |
@@ -62,7 +63,7 @@ SVF comes out. The user confirms the list.
 | ~~Flower cut in half~~ | PRP | Built as a proof of concept (structure only); see the register. Its process half stays with Prismal. |
 | Digestive system | BOD | Authored (no suitable open data), tube-like organs, systems |
 | Breathing and circulation | TRN | Linked systems and flow |
-| Plant and animal cell | CEL | A different scale, the same structure convention |
+| ~~Plant cell~~ | CEL | Built as a proof of concept; an animal cell would add little. Cytoplasm is not drawn (it fills the space), a limit to remember. |
 | Water and particle view | PAR | A zoom between an everyday view and a particle view (RQ-PRISMAL-016) |
 | Molecular and crystal structure | Bonding | Beyond VSEPR: giant structures |
 
