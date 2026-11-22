@@ -2873,3 +2873,8 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - The caption is no longer in the window title; every item's screenshots now show it in the picture.
 - **Next action: L5**, keys and labels on the particle items and the salt item (drop "(blue)"-style colour names from captions), then one heart view with labels.
 
+
+### Update 2026-11-22 (authoring convention proposed)
+
+- `docs/authoring-convention.md`: the convention derived from the proof-of-concept items (five layers per item, rules, fidelity F0 to F3 per part on form, behaviour and appearance), the author surface (engine, kits, item document that compiles to structure files), ranked engine gaps, realism exemplars and slices C1 to C6.
+- **Waiting on the user:** decisions D1 to D5 in section 8. Do not start C2 or later before D1 and D2.
