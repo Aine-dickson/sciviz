@@ -2774,3 +2774,15 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Owed, because the user is away: live look at the flower (A4) and beaker (B2) timelines, caption wording and pacing, and whether 150 particles read as diffusion.
 - **Next options (pick with the user):** (1) water up the dicot stem with `Flow` (needs a xylem path in `dicot-stem.ron`); (2) a digestive-system or cell item
   using timelines; (3) opacity in the renderer (to-do); (4) split `b2-5e-heart-tool` into PRs (still blocking any merge). Do not start 4 without the user.
+
+### Update 2026-11-22 (opacity built: O1 to O4)
+
+- Opacity done as planned (Opus plan, sorted alpha blending): renderer draws translucent triangles last, farthest first; `Part.opacity`;
+  `Fade` action; parts faded to nothing leave the scene; beaker has glass and water; flower petals fade. `docs/opacity.md`, design note section 18.
+  Deviation from the plan: opacity is looked up per part (`StructureGeometry::rgba_with`) rather than stored per vertex.
+- Verified: `cargo test --workspace --release` green (core 440, explorer 85, render 15, fixtures 7/2/6/9/6); screenshots in `docs/evidence/opacity/`
+  looked at (beaker 4 s and 28 s, flower 14 s). Sort cost 4.8 ms at 80k translucent triangles.
+- Owed (user away): live look at the flower and beaker timelines, now with translucency; whether washed-out dye through glass and water is acceptable
+  (opacities are 0.22 glass, 0.12 water; dye colour could be more saturated).
+- **Next options:** water up the dicot stem (`Flow`; xylem path; the stem could now have a translucent epidermis), a cell or digestive item, or splitting
+  the branch into PRs (user must be present).

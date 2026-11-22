@@ -1,27 +1,31 @@
 // Diffusion in a beaker, schematic. Proportions and times are invented, NOT measured data.
 // Proof of concept for the item register (docs/item-output-bar.md); not for lessons as it stands.
-// Water is not drawn (the renderer is opaque, so a block of water would hide the particles) and the
-// beaker's front half is left out so that the inside can be seen. The particles are a picture of
-// random motion, made by SVF from a fixed seed; they are not a simulation of any real dye.
+// The glass and the water are translucent (opacity), so the dye can be seen through them. The
+// particles are a picture of random motion, made by SVF from a fixed seed; they are not a
+// simulation of any real dye.
 // Axis is +Y. Units are cm.
 Structure(
     version: 1,
-    name: "Diffusion of a dye in still water (beaker, cut away at the front)",
+    name: "Diffusion of a dye in still water (beaker)",
     units: "cm",
     reference: "To be confirmed by the author: textbook account of diffusion as the net movement of randomly moving particles from where they are more crowded to where they are less crowded. Schematic.",
     circle_segments: 48,
     parts: [
         Part(id: "beaker", name: "Beaker", parent: None,
-             description: "A glass beaker holding still water. Its front half is left out so that the inside can be seen.",
+             description: "A glass beaker holding still water.",
              colour: (0.5, 0.5, 0.5), geometry: None),
         Part(id: "base", name: "Base", parent: Some("beaker"),
              description: "The bottom of the beaker.",
              colour: (0.55, 0.70, 0.78),
              geometry: Some(Extrusion(axis_length: 0.3, profile: Disc(radius: 3.2)))),
-        Part(id: "back-wall", name: "Back wall", parent: Some("beaker"),
-             description: "The glass wall at the back of the beaker. The front half of the wall is not drawn.",
-             colour: (0.65, 0.80, 0.88),
-             geometry: Some(Extrusion(axis_length: 8.0, profile: Sector(inner: 3.0, outer: 3.2, width_deg: 180.0, first_angle_deg: 225.0, count: 1)))),
+        Part(id: "wall", name: "Glass wall", parent: Some("beaker"),
+             description: "The glass wall of the beaker.",
+             colour: (0.65, 0.80, 0.88), opacity: 0.22,
+             geometry: Some(Extrusion(axis_length: 8.0, profile: Annulus(inner: 3.0, outer: 3.2)))),
+        Part(id: "water", name: "Water", parent: Some("beaker"),
+             description: "Still water. Nothing is stirring it.",
+             colour: (0.45, 0.65, 0.95), opacity: 0.12,
+             geometry: Some(Extrusion(axis_length: 7.7, profile: Disc(radius: 2.98)))),
     ],
     layers: [],
     views: [],

@@ -129,9 +129,8 @@ vertex keyframes, opacity, instancing. Each can be reconsidered when an item nee
 ## 11. Decisions (user, 2026-11-22)
 
 1. **Section, peel and isolate are disabled while playing and available when paused.**
-2. **`Hide` and `Show` are instant for now** (they wait for the renderer). Scale-based hiding and fade
-   are **not** built. To do: fade needs opacity in the renderer (`blend: None` today); do it as a
-   renderer decision when an item needs it.
+2. **`Hide` and `Show` are instant for now** (they waited for the renderer). Scale-based hiding is **not** built.
+   **Fade is built** (2026-11-22, `docs/opacity.md`): `Fade(part, to, for_s)` and per-part `opacity`.
 3. **First particle item: diffusion in a beaker** (B2). Water up the stem follows.
 4. **Captions only**, no sound.
 5. **RON** for the file form; no separate text syntax.
@@ -237,3 +236,9 @@ New `crates/svf-core/src/structure_particles.rs`. **Core only: no timeline actio
   (angles run from +x towards -z in `Sector`); the fixture uses `first_angle_deg: 225.0` for the back.
 - **Not done:** water up the dicot stem (needs a longitudinal xylem path in the stem fixture; the `Flow` action exists and is tested only on a plain path),
   atoms combining (`Meet`), fade or opacity (water and glass are both opaque; the front half is simply absent). The user has not seen any of it live.
+
+## 18. Opacity built (2026-11-22)
+
+See `docs/opacity.md`. New action `Fade(part, to, for_s, at_s, ease)`; `PartPose.opacity`; a part faded to nothing is left out of the scene.
+The beaker now has a translucent glass wall and water (no more cut-away); the flower's petals and stamens fade as they fall.
+The to-do "fade and opacity in the renderer" is done. Still not built: scale-based hide, `Meet`, water up the stem.

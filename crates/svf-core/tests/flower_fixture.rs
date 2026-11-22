@@ -117,6 +117,10 @@ fn the_pollination_timeline_swaps_the_flower_for_the_fruit() {
     let mid = t.pose_at(15.0);
     assert!(mid.parts[index("ovary")].scale > 1.0 && mid.parts[index("ovary")].scale < 1.7);
     assert!(mid.parts[index("petals")].offset[1] < 0.0);
+    // They fade as they fall: opaque at the start, part-way at 15 s, gone by 16 s.
+    assert_eq!(start.parts[index("petals")].opacity, 1.0);
+    assert!(mid.parts[index("petals")].opacity < 1.0 && mid.parts[index("petals")].opacity > 0.0);
+    assert_eq!(t.pose_at(16.0).parts[index("anthers")].opacity, 0.0);
     assert!(mid.parts[index("ovary")].shown && !mid.parts[index("fruit")].shown);
 
     // End: the fruit and seeds replace the carpel, petals and stamens; the sepals stay.
