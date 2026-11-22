@@ -1,0 +1,81 @@
+Read and parse: 7.5 s | 2477866 cells
+Islands relabelled: 46 in 1.9 s
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 4 -> tag 8
+  1 cell(s) of tag 4 -> tag 8
+  1 cell(s) of tag 16 -> tag 4
+  1 cell(s) of tag 2 -> tag 1
+  4 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 2 -> tag 1
+  2 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 23 -> tag 4
+  1 cell(s) of tag 1 -> tag 5
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 16 -> tag 4
+  2 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 1 -> tag 7
+  1 cell(s) of tag 3 -> tag 7
+  1 cell(s) of tag 6 -> tag 10
+  1 cell(s) of tag 3 -> tag 7
+  1 cell(s) of tag 6 -> tag 5
+  1 cell(s) of tag 4 -> tag 5
+  2 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 15 -> tag 3
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 2 -> tag 1
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 5 -> tag 1
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 19 -> tag 12
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 4 -> tag 8
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 3 -> tag 7
+  1 cell(s) of tag 20 -> tag 3
+  1 cell(s) of tag 4 -> tag 2
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 8 -> tag 2
+  1 cell(s) of tag 6 -> tag 2
+Labelled surface: 369806 faces in 1.5 s
+Cavities: 4
+  label 1048576 | 61070 faces | 181.7 mL | area 22420 mm2 | bounded by tags [1, 2, 8, 10]
+  label 1048577 | 38810 faces | 120.1 mL | area 14016 mm2 | bounded by tags [1, 7, 9]
+  label 1048578 | 36574 faces | 112.4 mL | area 13798 mm2 | bounded by tags [4, 8, 16, 17]
+  label 1048579 | 29794 faces | 68.5 mL | area 11007 mm2 | bounded by tags [3, 7, 11, 12, 13, 14, 15]
+Patches: 197
+
+part | triangles | repaired triangles | nm edges | irregular | alternate | split vertices | volume mm3 | source mm3 | rel diff | closed
+tag 1 | 100316 | 100316 | 0 | 0 | 0 | 0 | 163306.2 | 163306.2 | -3.6e-14 | true
+tag 2 | 99884 | 99884 | 3 | 0 | 1 | 4 | 61162.0 | 61162.0 | -5.9e-16 | true
+tag 3 | 61184 | 61184 | 2 | 0 | 0 | 2 | 23588.4 | 23588.4 | -3.4e-15 | true
+tag 4 | 72050 | 72050 | 4 | 0 | 0 | 4 | 26303.8 | 26303.8 | +7.6e-15 | true
+tag 5 | 28876 | 28876 | 1 | 0 | 0 | 2 | 10182.2 | 10182.2 | -5.7e-15 | true
+tag 6 | 7522 | 7522 | 1 | 0 | 0 | 1 | 3556.7 | 3556.7 | -5.0e-15 | true
+tag 7 | 5164 | 5164 | 0 | 0 | 0 | 0 | 1973.4 | 1973.4 | -8.9e-15 | true
+tag 8 | 9828 | 9828 | 0 | 0 | 0 | 0 | 5587.0 | 5587.0 | +8.1e-16 | true
+tag 9 | 3648 | 3648 | 0 | 0 | 0 | 0 | 1638.5 | 1638.5 | +2.6e-15 | true
+tag 10 | 3370 | 3370 | 1 | 0 | 0 | 1 | 1038.6 | 1038.6 | +8.8e-16 | true
+tags 11+18 | 2318 | 2318 | 1 | 0 | 0 | 1 | 691.5 | 691.5 | +6.7e-15 | true
+tags 12+19 | 2124 | 2124 | 0 | 0 | 0 | 0 | 657.3 | 657.3 | +0.0e0 | true
+tags 13+20 | 1890 | 1890 | 2 | 0 | 0 | 4 | 419.8 | 419.8 | +1.2e-14 | true
+tags 14+21 | 1566 | 1566 | 1 | 0 | 0 | 1 | 432.8 | 432.8 | +4.5e-15 | true
+tags 15+22 | 2236 | 2236 | 1 | 0 | 0 | 1 | 661.1 | 661.1 | +3.3e-15 | true
+tags 16+23 | 2274 | 2274 | 4 | 0 | 0 | 4 | 692.2 | 692.2 | -6.7e-15 | true
+tags 17+24 | 1864 | 1864 | 0 | 0 | 0 | 0 | 600.1 | 600.1 | +5.3e-15 | true
+cavity 1048576 | 61070 | 61070 | 4 | 0 | 0 | 6 | 181690.5 | 181690.5 | +0.0e0 | true
+cavity 1048577 | 38810 | 38810 | 0 | 0 | 0 | 0 | 120057.1 | 120057.1 | +0.0e0 | true
+cavity 1048578 | 36574 | 36574 | 0 | 0 | 0 | 0 | 112376.7 | 112376.7 | +0.0e0 | true
+cavity 1048579 | 29794 | 29794 | 0 | 0 | 0 | 0 | 68536.9 | 68536.9 | +0.0e0 | true
+
+Parts: 21 | part triangles in all (before simplification): 572362 | repair time 1.3 s
+All parts closed manifolds with the exact source volume: PASS

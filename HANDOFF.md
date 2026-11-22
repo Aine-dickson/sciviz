@@ -2421,3 +2421,35 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   cavity components, pinch repair and island relabelling, in `svf-core` with
   synthetic tetrahedral tests (include a pinched edge, a pinched vertex, a
   single-tet island and an enclosed cavity).
+
+
+## B2 step 5b — region surfaces in core (branch `b2-5b-region-surfaces`, PR open)
+
+- #72 (5a audit) merged to main `4a1e47d`. 5b adds `svf-core::region_surface`:
+  `relabel_islands`, `LabelledSurface::{build, faces, cavities, patches,
+  region_triangles}`, `repair_pinches`, `signed_volume`, `is_closed_manifold`.
+  Faces are wound front to back (`front < back`, void 0, cavities
+  `CAVITY_BASE + k`); orientation is geometric; output is deterministic (sorted
+  face records). Design: `docs/heart-structure.md` section 16.
+- Real-data check: `crates/svf-core/examples/heart_regions.rs` (report in
+  `docs/evidence/b2-5b-heart-regions/case01-regions.txt`). All **21 parts closed
+  2-manifolds with volume equal to the tet sum to 1e-13**; 4 cavities as in 5a;
+  46 stray components relabelled (limit 8 cells); 197 patches; 572,362 part
+  triangles before simplification; repair about 1 s.
+- Found on the real mesh and fixed: one RV edge is a handle through a pinch (fans
+  round both ends connected), which the solid-wedge pairing cannot separate; the
+  repair now tries crossing pairings (up to 4) and reports `alternate_pairings`.
+  A synthetic test builds the same shape.
+- Data fact for 5e: the touching inlet/border tags are 11+18, 12+19, 13+20, 14+21,
+  15+22, 16+23, 17+24, but the source's border names are not in the inlets' order:
+  name the pulmonary vein parts by position in the heart frame, not by tag.
+- Verified: `cargo test --workspace` passes (svf-core 342, cockroach fixture 7,
+  explorer 79, render 12). 13 new tests (orientation either way, interface and
+  patches, enclosed cavity with exact volume and area, island relabelling, errors,
+  determinism, edge pinch, vertex pinch, no-op on manifold input, pinches inside a
+  larger region, handle, unrepairable input).
+- NOT done: simplification (5c), file format (5d), the fixture (5e).
+- Next action: merge this PR (needs the user's OK), then 5c on `b2-5c-simplify`:
+  `mesh_simplify`, quadric edge collapse of a patch with pinned boundary, no flips,
+  link condition, error bound `epsilon`, tested on synthetic closed shapes and
+  cut patches.
