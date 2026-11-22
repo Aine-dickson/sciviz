@@ -2795,3 +2795,12 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
 - Owed (user away): live look at flower, beaker and stem timelines; caption wording and pacing; legibility of the stem.
 - Items now built with timelines: flower, beaker, stem. **Next options:** a cell or digestive/breathing item (the syllabus lists BOD, CEL, TRN); splitting the branch
   into PRs (user must be present); `Meet` (atoms combining; needs the chemistry module); scale-based hide. Ask the user which when they are back.
+
+### Update 2026-11-22 (breathing item)
+
+- `fixtures/structures/breathing.ron` + `tests/breathing_fixture.rs` + register row + design note section 20. No core code changed. Workspace green (core 440,
+  fixtures 4/7/3/2/6/9/6, explorer 85, render 15). Screenshots at 3, 7 and 12 s looked at; first view was a side view (yaw -40), fixed to +45.
+- Items with timelines: flower, beaker, stem, breathing (plus authored/untimed: cockroach, heart, plant cell). Owed from the user: live look at all four timelines
+  (Space, arrows, `,` `.`), caption wording, pacing, legibility.
+- **Next options:** gas exchange in an alveolus (a zoomed second timeline; particles crossing a membrane need two-way spread, which `Spread` does not do);
+  a digestive item; `Meet`; splitting the branch into PRs (user must be present). Ask the user which.

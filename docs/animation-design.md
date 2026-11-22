@@ -257,3 +257,20 @@ then eight `Flow` actions, one up the middle of each xylem bundle (14 particles 
   drawn frame closed). Three Explorer tests that appended their own timeline to the stem text now use `plain_stem()`, which cuts the file at its
   `// Timelines.` marker; keep that marker when editing the fixture.
 - Screenshots: `docs/evidence/stem-water/at-{1,8,12,20}.png` (8 and 12 retaken after the fix; I looked at 12). Not seen live by the user.
+
+## 20. Breathing item (2026-11-22)
+
+`fixtures/structures/breathing.ron`: rib cage (7 rib rings by a `Linear` repeat, plus a sternum), diaphragm (flattened ellipsoid), two lungs
+(one part, `mirror: X`, translucent), windpipe and bronchi (translucent tubes). Timeline `breathing`, 29 s: at rest (5 s), breathing in (7 s),
+breathing out (7 s), then two quicker breaths (10 s). In: the diaphragm moves down 1.8 cm, the ribs and sternum move up and out and the ribs grow
+8%, the lungs grow 15% and sink 0.5 cm, and air particles flow down both airways. Out: the reverse, with the flow paths reversed so the air goes up.
+- **This item needed no new core code**; it uses `Move`, `Grow`, `Fade`-capable parts, `Flow` and part opacity as built. The only generated part is the rib path
+  (computed once from an ellipse and written into the file; the numbers are not meant to be edited by hand).
+- Camera values: `yaw_deg: 45` is the front (+Z) view from the fitted camera, which starts at the +X/+Z corner; my first guess of -40 gave a side view.
+- **Limits:** a rib cannot hinge (a `Turn` is about the part's own centre), so "ribs up and out" is a lift plus a 8% growth, not a swing; one `Grow`
+  scales the whole part uniformly, so the diaphragm only moves, it does not flatten; the particles wrap from the end of a path to its start, so they
+  show direction, not a count of air; the lungs sink slightly so they stay on the diaphragm's dome, which the real lungs do through the pleura (not drawn).
+- **Not built:** gas exchange in the air sacs (a zoomed second timeline with oxygen and carbon dioxide), the heart and blood (TRN), and the 12 rib pairs.
+- Tests (`tests/breathing_fixture.rs`, run by Claude, release): parts closed; beats start at 0, 5, 12, 19 and everything returns after each breath;
+  air stays within 0.2 cm of the airway paths and goes down on breathing in and up on breathing out; every drawn frame is a closed mesh.
+- Evidence: `docs/evidence/breathing/at-{3,7,12}.png` (looked at). Not seen live by the user.
