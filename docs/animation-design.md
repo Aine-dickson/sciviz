@@ -309,3 +309,19 @@ streams of water leaving sideways); the end (waste leaves).
   churning inside its ball and gone; swallowed food within 0.3 cm of the gullet's line; small-intestine food inside its region; nutrients and water move outwards; leftovers inside the large intestine's region;
   every drawn frame closed.
 - Evidence: `docs/evidence/digestive/at-{12,28,48,60}.png` (48 and 60 looked at, 48 again after the `stay` change). Not seen live by the user.
+
+## 23. Hydrogen and oxygen make water: the first chemistry item (2026-11-22)
+
+`fixtures/structures/water-reaction.ron`: six atom parts (4 H white, 2 O red, as balls of radius 0.28 and 0.45 angstrom, not real atomic sizes), three starting bonds
+(two H-H singles, one O=O double as a two-copy `Linear` repeat) and four O-H bonds for the water molecules. Timeline `reaction`, 39 s, 5 beats: the starting molecules (9 s);
+the old bonds fade out (`Fade`) while the oxygen atoms move apart (5 s); the hydrogen atoms move and join them (6 s); the new bonds appear (`Show`, drawn at the atoms' final positions)
+(9 s); the atom count and the equation (10 s).
+- **No new core code.** The atoms keep one position per instant (parts moved by `Move`). Bonds do not follow atoms: the old bonds fade before the atoms move, and the new bonds, authored at the
+  atoms' final positions, appear after they arrive. A general "bond that follows its two atoms" would need a new action; not built, and not needed for a fixed account.
+- **Chemistry checked by the test:** H-H 0.74, O=O 1.21, O-H 0.96 angstrom and H-O-H 104.5 degrees to 1e-9; each oxygen ends with exactly two bonded hydrogens and is more than 2.5 angstrom from
+  the other water's hydrogens; six atoms are always shown and opaque; no two atoms overlap at any of 391 sampled times (so the choreography is collision-free).
+- **Not the mechanism.** In reality hydrogen burns through several steps with short-lived particles. The file says so. The learning idea is conservation: the same atoms, joined differently.
+- **Two worlds.** The existing molecule model (`chemistry.rs`, `vsepr.rs`, Explorer `--vsepr`) is not used here, because timelines work on structure files. A bridge (build a structure from a
+  `Molecule`) would avoid hand-authoring and keep one source of truth for bond lengths and angles; it is a design decision (Opus), not started.
+- Offsets in the file are written to 9 decimals; with 4 the bond-length check failed at 1e-4. Keep the precision if the file is regenerated.
+- Evidence: `docs/evidence/water-reaction/at-{1,16,30}.png` (looked at). Not seen live by the user.

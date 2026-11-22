@@ -2823,3 +2823,13 @@ with a plane sweep (3 axes x 81 offsets, -4 to 4) plus a closed-edge check.
   a rib cannot hinge (no pivot for `Turn`). Collect before designing; do not start without the user.
 - **Next options:** the heart and blood circulation (the heart fixture exists; a flow of blood through its chambers is the obvious next story, but the heart camera is not to be reopened);
   a plant cell timeline; `Meet`; the PR split (user must be present).
+
+### Update 2026-11-22 (chemistry side: H2 + O2 -> H2O)
+
+- The user moved to the chemistry/physics side. I surveyed the syllabus and the existing assets (see the reply summarised in `docs/animation-design.md` section 23) and the user chose the reaction.
+- `fixtures/structures/water-reaction.ron` + `tests/water_reaction_fixture.rs` (5 tests) + register row + section 23. No core code changed. Workspace green (core 441, fixtures 4/7/3/2/4/6/4/9/6/5, explorer 85, render 15).
+- Candidates not yet built, all fixed accounts that fit SVF: simple circuit with a switch (cell, wires, bulb: `Flow` plus `Colour`; no new code), states of matter (needs a small
+  "vibrate in place" particle verb for solids), convection currents (closed-loop `Flow`), atoms and electron shells (rule-driven, `Turn` about the nucleus), NaCl lattice and dissolving, magnetic field lines.
+  Left to Prismal by the boundary rule: acids/pH, motion and F = ma, waves, Ohm's law with measurements, reaction rates. Not possible yet: Moon phases (the renderer has no directional light).
+- Bridge between `chemistry.rs` molecules and structure files: wanted, undesigned (Opus).
+- Owed from the user: a live look at all seven timelines (flower, beaker, stem, breathing, gas exchange, digestive, water reaction), caption wording, pacing, legibility, citations.
