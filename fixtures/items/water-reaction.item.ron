@@ -1,0 +1,26 @@
+// Hydrogen and oxygen make water, written as an item document (docs/item-document.md). The chemistry kit builds the
+// molecules from its library, checks that the equation balances, and moves the same atoms into the new molecules.
+Item(
+    id: "water-reaction",
+    title: "Hydrogen and oxygen make water (2H₂ + O₂ → 2H₂O)",
+    subject: Chemistry,
+    idea: "In a reaction the atoms are rearranged: none are made or lost.",
+    reference: "To be confirmed by the author: textbook account of a chemical reaction as the rearrangement of atoms (bonds break, new bonds form, atoms are conserved), using the formation of water from hydrogen and oxygen. Bond lengths and the H-O-H angle are standard textbook values.",
+    objects: [
+        Reaction(id: "reaction", equation: "2 H2 + O2 -> 2 H2O"),
+    ],
+    story: [
+        Beat(id: Some("before"),
+             say: "Hydrogen and oxygen are gases. Their atoms are joined in pairs: two molecules of hydrogen, H₂, and one molecule of oxygen, O₂. Count the atoms: 4 hydrogen and 2 oxygen.",
+             point_at: ["reaction.h2-1", "reaction.h2-2", "reaction.o2-1"]),
+        Beat(id: Some("react"),
+             say: "When they react, the old bonds between the atoms break. The atoms move and join up in a new way: each oxygen atom meets two hydrogen atoms.",
+             unlabel: ["reaction.h2-1", "reaction.h2-2", "reaction.o2-1"],
+             do: [React("reaction")]),
+        Beat(id: Some("after"),
+             say: "New bonds form. Each oxygen atom is now bonded to two hydrogen atoms: two molecules of water, H₂O. The water molecule is bent, with an angle of about 104.5 degrees between its two bonds.",
+             label: ["reaction.h2o-1", "reaction.h2o-2"]),
+        Beat(id: Some("count"),
+             say: "Count the atoms again: 4 hydrogen and 2 oxygen, the same as before. No atoms were made or lost: they were only rearranged. We write it as 2H₂ + O₂ → 2H₂O."),
+    ],
+)

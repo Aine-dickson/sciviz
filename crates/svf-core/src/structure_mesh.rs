@@ -10,7 +10,7 @@
 
 use std::{error::Error, fmt};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::region_surface::{is_closed_manifold, signed_volume, P3};
 
@@ -212,7 +212,7 @@ impl MeshContainer {
 
 /// Where a derived structure came from, shown by the Explorer at startup.
 /// Every field is a statement of fact about the data, not a rendering hint.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Provenance")]
 pub struct Provenance {

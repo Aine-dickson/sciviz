@@ -6,13 +6,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::structure::{Part, StructureError};
 use crate::structure_labels::{key_entry, KeyDocument, KeyEntry, PartLabel};
 
 /// How two parts are related. The parts tree already says "is part of".
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum RelationKind {
     /// `from` physically contains `to`.
     Contains,
@@ -35,7 +35,7 @@ impl RelationKind {
 }
 
 /// File representation of one relation.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Relation")]
 pub struct RelationDocument {
@@ -68,7 +68,7 @@ impl Relation {
 }
 
 /// A world axis for a view's section plane.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum SectionAxis {
     X,
     Y,
@@ -88,7 +88,7 @@ impl SectionAxis {
 }
 
 /// A view's camera, relative to the default fitted camera.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ViewCamera {
     pub yaw_deg: f64,
@@ -97,7 +97,7 @@ pub struct ViewCamera {
 }
 
 /// A view's section plane. `offset` is along `axis`; `flip` keeps the other side.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ViewSection {
     pub axis: SectionAxis,
@@ -107,7 +107,7 @@ pub struct ViewSection {
 }
 
 /// File representation of one view.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "View")]
 pub struct ViewDocument {

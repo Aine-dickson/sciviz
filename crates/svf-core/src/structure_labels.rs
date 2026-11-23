@@ -7,14 +7,14 @@
 //! centre of its bounding box, so it lies on the surface. The anchor follows
 //! the part's pose with the same transform as `StructureGeometry::apply_pose`.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::structure::{Structure, StructureGeometry};
 use crate::structure_animation::{pose_centre, pose_point, range_vertices_and_centre, Pose};
 
 /// Which column a label is placed in. Without one, the layout chooses by the
 /// anchor's side of the picture.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum LabelSide {
     Left,
     Right,
@@ -39,7 +39,7 @@ pub struct KeyEntry {
 }
 
 /// File representation of a key entry in a view.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Key")]
 pub struct KeyDocument {

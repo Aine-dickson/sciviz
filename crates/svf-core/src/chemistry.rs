@@ -116,6 +116,27 @@ impl Element {
         name: "Oxygen",
     };
 
+    /// Nitrogen (atomic number 7).
+    pub const NITROGEN: Self = Self {
+        atomic_number: 7,
+        symbol: "N",
+        name: "Nitrogen",
+    };
+
+    /// Sodium (atomic number 11).
+    pub const SODIUM: Self = Self {
+        atomic_number: 11,
+        symbol: "Na",
+        name: "Sodium",
+    };
+
+    /// Chlorine (atomic number 17).
+    pub const CHLORINE: Self = Self {
+        atomic_number: 17,
+        symbol: "Cl",
+        name: "Chlorine",
+    };
+
     /// Creates an immutable element definition.
     ///
     /// The symbol must be one or two ASCII letters. This validates the shape

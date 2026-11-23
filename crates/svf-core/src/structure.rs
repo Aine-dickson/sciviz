@@ -6,7 +6,7 @@
 
 use std::{collections::HashMap, error::Error, f64::consts::TAU, fmt};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     geometry::{GeometryError, TriangleMesh3},
@@ -47,7 +47,7 @@ fn default_zero() -> f64 {
 
 /// File representation of a structure. Unknown fields are rejected so that
 /// features deferred to later steps cannot be silently dropped.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Structure")]
 pub struct StructureDocument {
@@ -75,7 +75,7 @@ pub struct StructureDocument {
 }
 
 /// File representation of one layer: a named group of parts for peeling.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Layer")]
 pub struct LayerDocument {
@@ -89,7 +89,7 @@ fn opaque() -> f64 {
 }
 
 /// File representation of one part.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Part")]
 pub struct PartDocument {
@@ -112,7 +112,7 @@ pub struct PartDocument {
 }
 
 /// Recipe geometry for one part.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Geometry {
     /// A 2D profile swept along +Y from 0 to `axis_length`, about the Y axis.
@@ -158,7 +158,7 @@ pub enum Geometry {
 }
 
 /// The 2D cross-section of an extrusion, in the XZ plane about the Y axis.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Profile {
     /// A solid disc.

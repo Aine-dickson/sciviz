@@ -208,9 +208,13 @@ impl SceneRenderer {
 
     /// Replaces the camera used by rendering and CPU-side picking.
     ///
-    /// The GPU uniform is validated and written before the stored camera is
-    /// replaced, so an unrepresentable matrix cannot leave the two out of sync.
+    /// The camera's aspect ratio is replaced by the surface's, so a camera
+    /// fitted for another window shape (a named view, a timeline camera) draws
+    /// the scene as the overlay projects it. The GPU uniform is validated and
+    /// written before the stored camera is replaced, so an unrepresentable
+    /// matrix cannot leave the two out of sync.
     pub fn set_camera(&mut self, camera: Camera3) -> Result<(), RenderError> {
+        let camera = with_surface_aspect(camera, self.config.width, self.config.height)?;
         let uniform = CameraUniform::from_camera(&camera, self.shaded);
         if !uniform.is_finite() {
             return Err(RenderError::InvalidCameraUniform);
@@ -1372,6 +1376,17 @@ fn convert_axial_glyphs(glyphs: &BoundaryAxialGlyphSet3) -> Result<Vec<LineVerte
     Ok(vertices)
 }
 
+/// `camera` with the aspect ratio of a `width` x `height` surface (unchanged for a zero-sized one).
+fn with_surface_aspect(camera: Camera3, width: u32, height: u32) -> Result<Camera3, RenderError> {
+    if width == 0 || height == 0 {
+        return Ok(camera);
+    }
+    let projection = (*camera.projection())
+        .with_aspect_ratio(f64::from(width) / f64::from(height))
+        .map_err(|error| RenderError::CameraConfiguration(error.to_string()))?;
+    Ok(Camera3::new(*camera.look_at(), projection))
+}
+
 fn reference_camera(aspect_ratio: f64) -> Result<Camera3, RenderError> {
     let pose = LookAtCamera::new(
         WorldPoint3::new(14.0, 12.0, 18.0),
@@ -1465,6 +1480,21 @@ mod tests {
         vector_glyphs::{build_vector_glyphs, VectorScalePolicy3},
         vector_visualization::{analyze_vector_sources, resolve_vector_sources},
     };
+
+    #[test]
+    fn a_set_camera_takes_the_surface_aspect_so_scene_and_labels_agree() {
+        // A camera fitted at 1280:800, shown in a square window. The overlay
+        // projects label anchors with the window's aspect; the scene must too.
+        let fitted = reference_camera(1280.0 / 800.0).unwrap();
+        let shown = with_surface_aspect(fitted, 900, 900).unwrap();
+        let overlay = Camera3::new(*fitted.look_at(), fitted.projection().with_aspect_ratio(1.0).unwrap());
+        let anchor = [3.0, 2.0, -1.0];
+        assert_eq!(shown.project_to_viewport(anchor, 900, 900), overlay.project_to_viewport(anchor, 900, 900));
+        let stretched = fitted.project_to_viewport(anchor, 900, 900).unwrap();
+        let right = shown.project_to_viewport(anchor, 900, 900).unwrap();
+        assert!((stretched[0] - right[0]).abs() > 5.0, "the bug this guards against moves the anchor: {stretched:?} vs {right:?}");
+        assert_eq!(with_surface_aspect(fitted, 0, 0).unwrap().project_to_viewport([1.0, 1.0, 1.0], 10, 10), fitted.project_to_viewport([1.0, 1.0, 1.0], 10, 10));
+    }
 
     #[test]
     fn coloured_mesh_conversion_applies_linear_colour_and_validates() {
