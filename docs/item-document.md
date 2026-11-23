@@ -187,3 +187,68 @@ Known limits:
 - the layout is fixed (a 16 × 10 cm rectangle);
 - a flow is drawn at its end instant (an engine convention), so for one instant electrons show while the glow has just gone;
 - the AA and MES sizes still need the user's citation check.
+
+## 8. Two kits: the `Kit` trait (C4)
+
+With a second kit, the three steps of section 2 became a trait, `svf_core::item::Kit`, with three methods: `verb_seconds`,
+`apply` and `consequences`. The compiler picks the kit from the item's objects. An item uses one kit, because kits differ in
+units (cm or ångström) and layout. Mixing kits is an error with a reason.
+
+## 9. The chemistry kit (C4)
+
+**Single source of chemistry data.** `svf_core::chemistry_library` holds every number the kit uses:
+
+- bond lengths: H–H 0.74, O=O 1.21, N≡N 1.10, O–H 0.96, C=O 1.16, C–H 1.09 and N–H 1.01 Å;
+- angles: H–O–H 104.5°, H–N–H 107.8°, and tetrahedral for methane;
+- the NaCl lattice constant, 5.64 Å;
+- Shannon ionic radii: Na⁺ 1.02 and Cl⁻ 1.81 Å;
+- Bondi van der Waals radii and CPK colours;
+- hydration distances: Na–O 2.4 and Cl–O 3.2 Å.
+
+From these it builds `chemistry::Molecule` values for H₂, O₂, N₂, H₂O, CO₂, CH₄ and NH₃. This is the molecule bridge: the
+`chemistry` module's types, turned into parts by the kit. **The user still has to check these values against the CRC
+Handbook and the published hydration studies** (owed citation).
+
+**Objects and verbs.**
+
+| Object | Verbs | What the kit does |
+|---|---|---|
+| `Reaction(id, equation: "2 H2 + O2 -> 2 H2O")` | `React(id)` | Parses the equation and refuses it unless every element balances. It lays the reactants out in a column on the left and the products on the right, and pairs the atoms of each element top to bottom. `React`: the old bonds fade over 1 s, every atom moves to its place in a product over 3 s, and the new bonds appear when the atoms arrive. Atoms are never shown, hidden or faded. |
+| `Crystal(id, kind: NaCl, edge: 4)` | `OpenUp(id)`, `Dissolve(crystal, ions)` | Builds the lattice at the Shannon radii. `OpenUp` shrinks every ion to 0.4 in place and shows the grid lines. `Dissolve` takes corner ions in a fixed order (Na⁺, Cl⁻, Na⁺, Cl⁻ on top, then the bottom four). Three waters arrive at the outer faces, the ion leaves along its corner diagonal with them, and three more arrive at the faces it uncovered. Each water is turned by the kit: oxygen towards Na⁺ at 2.4 Å; for Cl⁻, one O–H bond points straight at the ion, with O at 3.2 Å. |
+
+**Names.**
+
+- A reaction: `<id>.h2-1`, `<id>.o2-1`, …, for the reactant molecules, and `<id>.h2o-1`, … for the new molecules' bonds,
+  plus `<id>.reactants` and `<id>.products`.
+- A crystal: `<id>`, `<id>.sodium`, `<id>.chloride`, `<id>.lines` and `<id>.water`; `<id>.a-sodium-ion` and
+  `<id>.a-chloride-ion` (the ions nearest the middle, with six neighbours); and `<id>.corner-1` to `<id>.corner-8` in
+  dissolving order.
+
+**Keys.** The kit emits the key for every element shown, so captions never name colours (convention rule 5). Water's oxygen
+and hydrogen join the key when the first water arrives.
+
+**Tests** (`crates/svf-core/tests/chemistry_items.rs`, 6 tests; and a library unit test):
+
+- atoms are conserved, and never hidden or faded;
+- after `React`, every oxygen has two hydrogens at 0.96 Å and 104.5°;
+- a second reaction from the same kit (methane burning) ends with a straight CO₂;
+- unbalanced equations, unknown formulas and a second `React` are refused;
+- the lattice has 32 + 32 ions at their radii, with nearest neighbours of the other kind at 2.82 Å;
+- every dissolved ion has six waters at the hydration distance, turned the right way;
+- no two drawn balls overlap at the end;
+- every frame is closed, and the key is right.
+
+**Result.**
+
+- `fixtures/items/water-reaction.item.ron`: 27 lines, against a hand-computed structure file.
+- `fixtures/items/salt-dissolving.item.ron`: 48 lines, against the 218-line `salt_dissolving.py` and about 200
+  hand-placed actions.
+- Evidence is in `docs/evidence/c4-chemistry-kits/`.
+
+**Known limits.**
+
+- One reaction or one crystal per item.
+- Only corner ions dissolve.
+- Inner waters arrive along the leaving diagonal, so they pass close to the ion.
+- The dissolved sodium's label is hidden inside its water shell (the anchor is on the ion).
+- In the reaction the products sit to the right of the reactants, so the left of the picture is empty afterwards.

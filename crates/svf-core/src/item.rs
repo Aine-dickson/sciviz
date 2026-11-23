@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, error::Error, fmt};
 
 use serde::Deserialize;
 
+use crate::kits::chemistry::{ChemistryKit, ChemistryObject, CrystalKind};
 use crate::kits::circuit::{CellKind, CircuitKit, CircuitObject, CircuitVerb, LampKind, SwitchState};
 use crate::structure::{PartDocument, Structure, StructureDocument, StructureError};
 use crate::structure_animation::{ActionDocument, BeatDocument, Ease, SceneDocument, TimelineDocument};
@@ -75,6 +76,20 @@ pub enum Object {
     },
     /// Circuit kit: a series loop, starting at its cell, in the electrons' order.
     Loop(Vec<String>),
+    /// Chemistry kit: a reaction such as `"2 H2 + O2 -> 2 H2O"`, built from the molecule library.
+    Reaction { id: String, equation: String },
+    /// Chemistry kit: a rock-salt crystal, `edge` ions along each edge (default 4).
+    Crystal {
+        id: String,
+        #[serde(default)]
+        kind: CrystalKind,
+        #[serde(default = "default_edge")]
+        edge: usize,
+    },
+}
+
+fn default_edge() -> usize {
+    4
 }
 
 /// One beat of the story.
@@ -113,6 +128,49 @@ pub enum Verb {
     Close(String),
     /// Circuit kit: open a switch.
     Open(String),
+    /// Chemistry kit: the reaction happens: old bonds break, atoms move, new bonds form.
+    React(String),
+    /// Chemistry kit: draw a crystal's ions smaller and show its grid.
+    OpenUp(String),
+    /// Chemistry kit: water pulls `ions` corner ions off a crystal.
+    Dissolve { crystal: String, ions: usize },
+}
+
+/// What the compiler needs from a kit (`docs/item-document.md` section 2).
+pub trait Kit {
+    /// How long a verb takes.
+    fn verb_seconds(&self, verb: &Verb) -> f64;
+    /// The motion of a verb that starts at `at`; the kit records what it changes.
+    fn apply(&mut self, verb: &Verb, at: f64) -> Result<Vec<Timed>, ItemError>;
+    /// Everything that follows from the kit's rules over a story that ends at `end`.
+    fn consequences(&self, end: f64) -> Result<Vec<Timed>, ItemError>;
+}
+
+impl Kit for CircuitKit {
+    fn verb_seconds(&self, verb: &Verb) -> f64 {
+        CircuitKit::verb_seconds(self, verb)
+    }
+    fn apply(&mut self, verb: &Verb, at: f64) -> Result<Vec<Timed>, ItemError> {
+        match verb {
+            Verb::Close(_) | Verb::Open(_) => CircuitKit::apply(self, verb, at),
+            other => Err(ItemError::Invalid(format!("{other:?} is not a circuit verb"))),
+        }
+    }
+    fn consequences(&self, end: f64) -> Result<Vec<Timed>, ItemError> {
+        CircuitKit::consequences(self, end)
+    }
+}
+
+impl Kit for ChemistryKit {
+    fn verb_seconds(&self, verb: &Verb) -> f64 {
+        ChemistryKit::verb_seconds(self, verb)
+    }
+    fn apply(&mut self, verb: &Verb, at: f64) -> Result<Vec<Timed>, ItemError> {
+        ChemistryKit::apply(self, verb, at)
+    }
+    fn consequences(&self, end: f64) -> Result<Vec<Timed>, ItemError> {
+        ChemistryKit::consequences(self, end)
+    }
 }
 
 /// A fidelity level (`docs/authoring-convention.md` section 4).
@@ -349,20 +407,43 @@ pub fn compile(item: &ItemDocument) -> Result<CompiledItem, ItemError> {
         return Err(invalid("an item needs a story of at least one beat".to_owned()));
     }
 
-    // Objects go to their kits.
+    // Objects go to their kit. An item uses one kit: kits differ in units and layout.
     let mut circuit_objects = Vec::new();
+    let mut chemistry_objects = Vec::new();
     for object in &item.objects {
-        circuit_objects.push(match object {
-            Object::Cell { id, kind } => CircuitObject::Cell { id: id.clone(), kind: *kind },
-            Object::Switch { id, starts } => CircuitObject::Switch { id: id.clone(), starts: *starts },
-            Object::Lamp { id, kind } => CircuitObject::Lamp { id: id.clone(), kind: *kind },
-            Object::Loop(members) => CircuitObject::Loop(members.clone()),
-        });
+        match object {
+            Object::Cell { id, kind } => circuit_objects.push(CircuitObject::Cell { id: id.clone(), kind: *kind }),
+            Object::Switch { id, starts } => circuit_objects.push(CircuitObject::Switch { id: id.clone(), starts: *starts }),
+            Object::Lamp { id, kind } => circuit_objects.push(CircuitObject::Lamp { id: id.clone(), kind: *kind }),
+            Object::Loop(members) => circuit_objects.push(CircuitObject::Loop(members.clone())),
+            Object::Reaction { id, equation } => {
+                chemistry_objects.push(ChemistryObject::Reaction { id: id.clone(), equation: equation.clone() });
+            }
+            Object::Crystal { id, kind, edge } => {
+                chemistry_objects.push(ChemistryObject::Crystal { id: id.clone(), kind: *kind, edge: *edge });
+            }
+        }
     }
-    if circuit_objects.is_empty() {
-        return Err(invalid("an item needs at least one object".to_owned()));
+    for id in item.objects.iter().filter_map(|o| match o {
+        Object::Reaction { id, .. } | Object::Crystal { id, .. } => Some(id),
+        _ => None,
+    }) {
+        if !is_valid_id(id) || *id == item.id {
+            return Err(invalid(format!("the object id '{id}' must be lowercase letters, digits and hyphens, and not the item's id")));
+        }
     }
-    let (mut circuit, build) = CircuitKit::build(&circuit_objects, &item.id)?;
+    let (mut kit, build): (Box<dyn Kit>, KitBuild) = match (circuit_objects.is_empty(), chemistry_objects.is_empty()) {
+        (false, true) => {
+            let (k, b) = CircuitKit::build(&circuit_objects, &item.id)?;
+            (Box::new(k), b)
+        }
+        (true, false) => {
+            let (k, b) = ChemistryKit::build(&chemistry_objects, &item.id)?;
+            (Box::new(k), b)
+        }
+        (true, true) => return Err(invalid("an item needs at least one object".to_owned())),
+        (false, false) => return Err(invalid("an item uses one kit: circuit and chemistry objects cannot be mixed".to_owned())),
+    };
 
     let mut parts = vec![PartDocument {
         id: item.id.clone(),
@@ -400,7 +481,7 @@ pub fn compile(item: &ItemDocument) -> Result<CompiledItem, ItemError> {
         if beat.say.trim().is_empty() {
             return Err(invalid(format!("beat {} has nothing to say", n + 1)));
         }
-        let longest_verb = beat.verbs.iter().map(|v| circuit.verb_seconds(v)).fold(0.0, f64::max);
+        let longest_verb = beat.verbs.iter().map(|v| kit.verb_seconds(v)).fold(0.0, f64::max);
         let mut length = caption_seconds(&beat.say);
         if longest_verb > 0.0 {
             length = length.max(round_up_half(longest_verb + 1.0));
@@ -447,14 +528,14 @@ pub fn compile(item: &ItemDocument) -> Result<CompiledItem, ItemError> {
             ));
         }
         for verb in &beat.verbs {
-            actions.extend(circuit.apply(verb, start)?);
+            actions.extend(kit.apply(verb, start)?);
         }
         starts.push(start);
         lengths.push(length);
         clock += length;
     }
     // The consequences of the kits' rules, over the whole story.
-    actions.extend(circuit.consequences(clock)?);
+    actions.extend(kit.consequences(clock)?);
 
     // Put every action into the beat it starts in.
     let mut beat_actions: Vec<Vec<ActionDocument>> = vec![Vec::new(); item.story.len()];
@@ -505,14 +586,16 @@ impl Verb {
     #[must_use]
     pub fn object(&self) -> &str {
         match self {
-            Self::Close(id) | Self::Open(id) => id,
+            Self::Close(id) | Self::Open(id) | Self::React(id) | Self::OpenUp(id) => id,
+            Self::Dissolve { crystal, .. } => crystal,
         }
     }
 
-    pub(crate) fn circuit(&self) -> CircuitVerb {
+    pub(crate) fn circuit(&self) -> Option<CircuitVerb> {
         match self {
-            Self::Close(_) => CircuitVerb::Close,
-            Self::Open(_) => CircuitVerb::Open,
+            Self::Close(_) => Some(CircuitVerb::Close),
+            Self::Open(_) => Some(CircuitVerb::Open),
+            _ => None,
         }
     }
 }

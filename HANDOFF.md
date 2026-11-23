@@ -1,6 +1,6 @@
 # SVF handoff
 
-Last updated: 2026-11-23 (night, after C1 and C2). Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
+Last updated: 2026-11-23 (late night, after C3). Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
 (everything up to this date) and `docs/MILESTONES.md`. Design contracts live in `docs/<feature>.md`.
 
 ## Objective
@@ -23,14 +23,15 @@ with about 75% confidence that SVF produces valuable output across several subje
   - twelve proof-of-concept items in biology, chemistry and physics.
 - The proof-of-concept items have done their job: the **authoring convention is agreed** (`docs/authoring-convention.md`,
   decisions in section 9). Items are now polished towards reality through kits, one fidelity level at a time.
-- **C1 and C2 are done** on branch `c1-fidelity-register` (6 commits off #83, local only, no PR yet): fidelity scores
+- **C3 is done** on local branch `c3-circuit-kit` (stacked on `c1-fidelity-register`, which was rebased onto `main` after #73-#83
+  were merged; no PRs, nothing pushed). Item documents compile through kits to structure files; the circuit kit owns the
+  "current iff loop complete" rule. Design note, result and cost: `docs/item-document.md`.
+- **C1 and C2 are done** on branch `c1-fidelity-register` (7 commits on `main`, local only, no PR yet): fidelity scores
   (`docs/item-output-bar.md`), smooth shading, `Turn` hinge (`about`), rounded routes (`corner_radius`), group `Grow`/`Turn`
   (`each`), and `Cone` plus `point_along` for direction markers. Specs: `docs/animation-design.md` sections 27 to 30. What was
   decided on the way, and what the user must look at: `docs/while-you-slept-2026-11-23.md`.
-- Branch `b2-5e-heart-tool` was split on 2026-11-23 into the PR stack #73 to #83 (`docs/archive/branch-split-2026-11-23.md`).
-  The top is `split/11-authoring-convention` (#83). **Start new work on a new branch off that top**, not off `b2-5e-heart-tool`, which is
-  kept unchanged as a reference only. **Nothing is merged without the user's explicit OK.** Merge bottom-up: retarget the next PR's base
-  to `main`, merge `origin/main` into its head, then squash. Never force-push.
+- The PR stack #73 to #83 is merged into `main`. New work stacks on `c3-circuit-kit`. **Nothing is merged without the user's
+  explicit OK.** Never force-push.
 
 ## Decisions not to revisit
 

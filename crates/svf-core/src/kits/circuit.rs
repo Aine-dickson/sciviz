@@ -530,7 +530,7 @@ impl CircuitKit {
         let track = self.switches.get_mut(id).ok_or_else(|| {
             ItemError::Invalid(format!("'{id}' is not a switch, so it cannot be opened or closed"))
         })?;
-        let close = verb.circuit() == CircuitVerb::Close;
+        let close = verb.circuit() == Some(CircuitVerb::Close);
         if track.closed == close {
             return Err(ItemError::Invalid(format!("'{id}' is already {}", if close { "closed" } else { "open" })));
         }
