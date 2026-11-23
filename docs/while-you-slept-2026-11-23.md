@@ -69,3 +69,52 @@ Newest entries last. Nothing here is merged; nothing was pushed. Branch: `c1-fid
 - **Please look at, in this order:** the "Fidelity by part" scores (the magnet's field lines are F2 though the model is crude),
   then the pictures in `docs/evidence/c2-smooth-shading/` and `docs/evidence/c2-markers/`, then the behaviour change in C2.4.
 - Nothing was merged, pushed or deleted. Stashes untouched. No `cargo fmt`.
+
+## Second night session: C3, C4, the C5 audit and C6 preparation
+
+The user asked Claude to carry on until all steps were done. This session ran on Opus, so the C3 design was done here.
+
+**Branches.**
+
+- `main` already had #73 to #83, so `c1-fidelity-register` was moved onto `main` (`git rebase --onto origin/main ae472fc`;
+  the trees were checked to be identical first).
+- New work is on `c3-circuit-kit`, stacked on it. Nothing was merged or pushed, and no PR was opened.
+
+**C3 (commit "C3: item documents …").**
+
+- **Decision:** an item document compiles to an ordinary structure document, so the engine keeps all of its checks. Kits
+  return actions with absolute times, and the compiler puts them into beats. Design note: `docs/item-document.md`.
+- **Engine addition:** `Beat.length_s`. With it a beat has a fixed length, and an action can run on into later beats (the
+  current runs from Close to Open). The structure document types also now derive `Serialize`.
+- **Decision:** the circuit's rule. The current flows from the instant the lever touches the contact. It stops from the
+  instant the lever starts to lift. The lamp and the electron key follow the current. The author cannot write any of these.
+- **Decision:** the circuit kit sets the layout (a 16 × 10 cm loop; cell at the bottom, then left, top, right). The cell and
+  lamp are at AA and MES datasheet sizes, and the wires are drawn about four times thicker than real. The AA and MES
+  values must be checked against their sources (your citation check).
+- **Known, accepted:** a flow is drawn at its end instant (an engine convention from before), so for that one instant the
+  electrons show while the glow is already off. The tests allow exactly that instant.
+- **Cost:** the circuit is now 40 lines of RON with no numbers, against a 154-line generator plus hand timing.
+
+**C4 (commit "C4: chemistry kits …").**
+
+- `chemistry_library` is now the one place for bond lengths, angles, radii, colours and hydration distances.
+- Reactions refuse unbalanced equations, and atoms only rearrange.
+- The salt crystal has `OpenUp` and `Dissolve`. Water turns its oxygen end to Na⁺; for Cl⁻, one O–H bond points straight at
+  the ion.
+- **Decision:** one kit per item (a circuit and a reaction cannot be mixed), because the units differ.
+- **Decision:** cameras are the kits' defaults:
+  - circuit: yaw 40, pitch -20, zoom 1.3;
+  - reaction: 45, -27, 1.2;
+  - crystal: 30, -40, 1.4, chosen so the dissolved ions stay in the frame.
+- Captions were carried over from the PoC items, with colour names removed because the key explains colours.
+- Limits are listed in `docs/item-document.md` section 9. **Please judge the pictures** in `docs/evidence/c4-chemistry-kits/`.
+
+**C5: audit only.**
+
+- BodyParts3D was chosen and downloaded to `datasets/bodyparts3d/`, which is local and git-ignored.
+- **Its licence notices conflict:** the README says CC BY 4.0; the files say CC BY-SA 2.1 JP. Plan: honour both. **Please
+  confirm.**
+- The meshes are open and some come in pieces, so the adaptation needs new capping and centreline tools.
+- Claude stopped there and did not rush them. The plan is in `docs/biology-dataset-audit.md` section 4.
+
+**C6:** this needs you. `docs/authoring-guide.md` is the page to write an item from, and it lists what to note.

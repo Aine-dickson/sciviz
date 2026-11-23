@@ -1,6 +1,6 @@
 # SVF handoff
 
-Last updated: 2026-11-23 (late night, after C3). Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
+Last updated: 2026-11-23 (late night, after C3, C4 and the C5 audit). Keep this file short. History lives in `docs/archive/HANDOFF-history-to-2026-11-23.md`
 (everything up to this date) and `docs/MILESTONES.md`. Design contracts live in `docs/<feature>.md`.
 
 ## Objective
@@ -23,9 +23,15 @@ with about 75% confidence that SVF produces valuable output across several subje
   - twelve proof-of-concept items in biology, chemistry and physics.
 - The proof-of-concept items have done their job: the **authoring convention is agreed** (`docs/authoring-convention.md`,
   decisions in section 9). Items are now polished towards reality through kits, one fidelity level at a time.
-- **C3 is done** on local branch `c3-circuit-kit` (stacked on `c1-fidelity-register`, which was rebased onto `main` after #73-#83
-  were merged; no PRs, nothing pushed). Item documents compile through kits to structure files; the circuit kit owns the
-  "current iff loop complete" rule. Design note, result and cost: `docs/item-document.md`.
+- **C3 and C4 are done** on local branch `c3-circuit-kit` (2 commits stacked on `c1-fidelity-register`, which was rebased
+  onto `main` after #73-#83 were merged; no PRs, nothing pushed). Item documents (`fixtures/items/*.item.ron`) compile
+  through kits (`svf_core::item`, the `Kit` trait, `svf_core::kits::{circuit, chemistry}`) to structure files. The Explorer
+  opens them directly. Three items have been re-authored: the circuit, the water reaction and salt dissolving. Design,
+  results, costs and limits: `docs/item-document.md`. Chemistry data has one source: `svf_core::chemistry_library`.
+- **C5 step 1 (dataset audit) is done:** `docs/biology-dataset-audit.md`. BodyParts3D was chosen and downloaded to
+  `datasets/bodyparts3d/`. Its meshes are open and come in pieces, and its licence notices conflict; both are recorded. The
+  adaptation plan is in section 4 of that file.
+- **C6 is prepared:** `docs/authoring-guide.md` is the page the user writes an item from.
 - **C1 and C2 are done** on branch `c1-fidelity-register` (7 commits on `main`, local only, no PR yet): fidelity scores
   (`docs/item-output-bar.md`), smooth shading, `Turn` hinge (`about`), rounded routes (`corner_radius`), group `Grow`/`Turn`
   (`each`), and `Cone` plus `point_along` for direction markers. Specs: `docs/animation-design.md` sections 27 to 30. What was
@@ -65,20 +71,21 @@ with about 75% confidence that SVF produces valuable output across several subje
 
 ## Exact next action
 
-1. **The user:** look at the scores in `docs/item-output-bar.md` ("Fidelity by part"), the evidence pictures in
-   `docs/evidence/c2-smooth-shading/` and `docs/evidence/c2-markers/`, and the decisions in
-   `docs/while-you-slept-2026-11-23.md`. Say whether to open a PR for the C1+C2 branch.
-2. **C3 (needs Opus, `/model opus`):** the circuit kit and the item-document compiler. Start with a short design note (what
-   a kit is in Rust; the item-document grammar in RON; how names such as `cell.negative` resolve to coordinates for
-   `rounded_route` and `point_along`; how a kit declares and tests its rules). Then re-author the circuit with it and compare
-   the cost with `tools/structure-items/simple_circuit.py`. The engine pieces it needs now exist (hinge, rounded routes,
-   markers, group transforms, smooth shading).
-3. C4 chemistry kits, C5 biology realism, C6 author-surface review (`docs/authoring-convention.md` section 8).
+1. **The user:**
+   - Read `docs/while-you-slept-2026-11-23.md` (C1 to C4) and look at the evidence in `docs/evidence/c3-circuit-kit/` and
+     `docs/evidence/c4-chemistry-kits/`.
+   - Say whether to open PRs: C1+C2 (`c1-fidelity-register`), then C3+C4 (`c3-circuit-kit`, stacked on it).
+   - Confirm share-alike output for BodyParts3D geometry (`docs/biology-dataset-audit.md` section 2).
+   - Say whether the small intestine is in scope for C5.
+2. **C6, the user:** write one item from `docs/authoring-guide.md` with no help, and note the cost (section 7 of the guide).
+   It can run before C5: the circuit and chemistry kits are enough.
+3. **C5 step 2 (Opus design first):** the BodyParts3D adaptation and centrelines, following
+   `docs/biology-dataset-audit.md` section 4. Start with the capping design question there.
 
-Model: C3 design is Opus; building a kit once its note is agreed is Sonnet.
+Model: C5's capping and centreline design is Opus; the OBJ reader and the kit wiring after that are Sonnet.
 
 ## Verified
 
-- `cargo test --workspace --release --no-fail-fast`: 0 failures at `9ac18ef` on `c1-fidelity-register` (core 474, render 23,
-  explorer 87, and every fixture suite). The result for each split PR head is in `docs/archive/branch-split-2026-11-23.md`.
+- `cargo test --workspace --release --no-fail-fast`: 0 failures at `cad08f5` on `c3-circuit-kit` (core 476, render 23,
+  explorer 87, every fixture suite, plus `simple_circuit_item` 9 and `chemistry_items` 6).
 - Screenshots of each item, looked at by Claude, are in `docs/evidence/`. None have been judged live by the user.
