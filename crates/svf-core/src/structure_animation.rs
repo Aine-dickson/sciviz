@@ -12,7 +12,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::geometry::TriangleMesh3;
 use crate::spatial::WorldPoint3;
@@ -24,7 +24,7 @@ use crate::structure_particles::{Flow, FlowSpec, ParticleGroup, ShapeDocument, S
 const EPS: f64 = 1e-9;
 
 /// How a timed action moves from its start to its end.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Ease {
     /// Constant speed.
     #[default]
@@ -48,7 +48,7 @@ fn stay_by_default() -> bool {
 
 /// One action in a beat. Every action starts `at_s` seconds after its beat
 /// starts (default 0). A beat lasts as long as its longest action.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum ActionDocument {
     /// Show a caption for `for_s` seconds.
@@ -249,16 +249,22 @@ pub enum ActionDocument {
 }
 
 /// File representation of a beat.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Beat")]
 pub struct BeatDocument {
     pub id: String,
     pub actions: Vec<ActionDocument>,
+    /// The beat's length in seconds. By default a beat lasts as long as its
+    /// longest action. When set, the next beat starts after exactly this long,
+    /// and an action may run on past the end of its beat into later beats
+    /// (a current that keeps flowing until a later beat opens the switch).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub length_s: Option<f64>,
 }
 
 /// File representation of a scene: beats that play one after another.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Scene")]
 pub struct SceneDocument {
@@ -267,7 +273,7 @@ pub struct SceneDocument {
 }
 
 /// File representation of a timeline.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename = "Timeline")]
 pub struct TimelineDocument {
@@ -807,6 +813,8 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
     let mut beats: Vec<BeatSpan> = Vec::new();
     let mut scene_ids: HashSet<&str> = HashSet::new();
     let mut clock = 0.0_f64;
+    // The latest end of any action: with `length_s` an action may outlast its beat.
+    let mut reach = 0.0_f64;
 
     for scene in &d.scenes {
         if scene.id.is_empty() {
@@ -1068,7 +1076,12 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
                     }
                 }
             }
-            let end = clock + length;
+            reach = reach.max(clock + length);
+            let end = match beat.length_s {
+                None => clock + length,
+                Some(l) if positive_finite(l) => clock + l,
+                Some(_) => return Err(bad(format!("beat '{}': length_s must be positive", beat.id))),
+            };
             for (from, i) in marked {
                 tracks[i].highlights.push((from, end));
             }
@@ -1145,7 +1158,7 @@ fn compile(d: &TimelineDocument, parts: &[Part], by_id: &HashMap<&str, usize>) -
     Ok(Timeline {
         id: d.id.clone(),
         name: d.name.clone(),
-        duration: clock,
+        duration: clock.max(reach),
         beats,
         tracks,
         start_camera: d.camera,
@@ -1551,6 +1564,33 @@ mod tests {
         assert_eq!(t.pose_at(2.0).particles[0].positions.len(), 10);
         assert!(t.pose_at(4.5).particles.is_empty());
         assert_eq!(t.pose_at(2.0).particles, t.pose_at(2.0).particles);
+    }
+
+    #[test]
+    fn a_beat_with_a_length_lets_an_action_run_on_into_later_beats() {
+        let flow = "Flow(id: \"e\", count: 10, path: [(0.0, 0.0, 0.0), (0.0, 4.0, 0.0)], speed: 1.0, lateral: 0.1, \
+                    seed: 1, particle_radius: 0.05, colour: (0.2, 0.4, 1.0), for_s: 7.0)";
+        let s = structure(&format!(
+            ", timelines: [Timeline(id: \"t\", name: \"T\", scenes: [Scene(id: \"s\", beats: [\
+             Beat(id: \"close\", length_s: Some(2.0), actions: [Narrate(text: \"x\", for_s: 2.0), {flow}]), \
+             Beat(id: \"more\", actions: [Narrate(text: \"y\", for_s: 3.0)]), \
+             Beat(id: \"open\", actions: [Narrate(text: \"z\", for_s: 4.0)])])])]"
+        ))
+        .unwrap();
+        let t = &s.timelines()[0];
+        let starts: Vec<f64> = t.beats().iter().map(|b| b.start).collect();
+        assert_eq!(starts, [0.0, 2.0, 5.0], "the first beat ends at its length, not at the flow's end");
+        assert_eq!(t.duration(), 9.0);
+        assert_eq!(t.pose_at(4.0).particles[0].positions.len(), 10, "the flow runs on through the next beat");
+        assert!(t.pose_at(7.5).particles.is_empty(), "and stops at its own end");
+        // Without a length the first beat lasts as long as its flow.
+        let plain = structure(&one(flow)).unwrap();
+        assert_eq!(plain.timelines()[0].beats()[0].end, 7.0);
+        let bad = structure(
+            ", timelines: [Timeline(id: \"t\", name: \"T\", scenes: [Scene(id: \"s\", beats: [\
+             Beat(id: \"b\", length_s: Some(0.0), actions: [Narrate(text: \"x\", for_s: 2.0)])])])]",
+        );
+        assert!(matches!(bad, Err(StructureError::InvalidTimeline { .. })));
     }
 
     #[test]

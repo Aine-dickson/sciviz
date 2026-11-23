@@ -6,7 +6,7 @@
 
 use std::f64::consts::{PI, TAU};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     spatial::{DMat3, DQuat, DVec3},
@@ -25,7 +25,7 @@ pub(crate) enum BlockError {
 }
 
 /// Repetition of a part's body.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Repeat {
     /// `count` copies, each `step` further along than the last.
@@ -35,7 +35,7 @@ pub enum Repeat {
 }
 
 /// The plane through the origin, normal to this axis, that a body is mirrored in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub enum MirrorAxis {
     X,
     Y,

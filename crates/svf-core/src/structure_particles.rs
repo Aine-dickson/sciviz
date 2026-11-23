@@ -15,7 +15,7 @@
 
 use std::{error::Error, fmt};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::geometry::TriangleMesh3;
 use crate::spatial::WorldPoint3;
@@ -180,7 +180,7 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 }
 
 /// A container shape as written in a structure file.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum ShapeDocument {
     /// Stands on its base centre and rises along +Y.

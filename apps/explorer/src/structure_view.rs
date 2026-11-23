@@ -290,8 +290,16 @@ impl StructureScene {
             }
             fs::read(folder.join(relative)).map_err(|e| e.to_string())
         };
-        let structure = Structure::from_ron_with(&text, &resolver)
-            .map_err(|e| format!("invalid structure '{}': {e}", config.path.display()))?;
+        // An item document (`*.item.ron`) is compiled by its kits first (docs/item-document.md).
+        let is_item = config.path.to_string_lossy().ends_with(".item.ron");
+        let structure = if is_item {
+            svf_core::item::compile_str(&text)
+                .map_err(|e| format!("invalid item '{}': {e}", config.path.display()))?
+                .structure
+        } else {
+            Structure::from_ron_with(&text, &resolver)
+                .map_err(|e| format!("invalid structure '{}': {e}", config.path.display()))?
+        };
         if let Some(provenance) = structure.provenance() {
             for line in provenance.summary() {
                 eprintln!("{line}");
