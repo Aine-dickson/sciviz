@@ -87,7 +87,7 @@ Model: C5's capping and centreline design is Opus; the OBJ reader and the kit wi
 
 - `cargo test --workspace --release --no-fail-fast`: 0 failures at `cad08f5` on `c3-circuit-kit` (core 476, render 23,
   explorer 87, every fixture suite, plus `simple_circuit_item` 9 and `chemistry_items` 6).
-- 2026-11-23: the user hand-tested the three items live ("works"); only labels glitched. Fixed (uncommitted):
+- 2026-11-23: the user hand-tested the three items live ("works"); only labels glitched. Fixed in `2594e48`, user confirmed labels track:
   `SceneRenderer::set_camera` now takes the surface aspect, so views and timeline cameras (fitted at 1280:800) no longer
   draw the scene at a different aspect from the label overlay after a resize. Workspace tests: 670 passed, 0 failed.
 - Screenshots of each item, looked at by Claude, are in `docs/evidence/`. None have been judged live by the user.
