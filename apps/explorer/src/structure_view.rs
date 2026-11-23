@@ -601,6 +601,7 @@ impl StructureScene {
             parts: Vec::new(),
             camera: None,
             caption: None,
+            bodies: Vec::new(),
             particles: Vec::new(),
             labels: Vec::new(),
             key: Vec::new(),

@@ -57,7 +57,7 @@ timelines: [
 | `Show`, `Hide` | a part appears or disappears (instant, or scale-based over `for_s`; see 6) |
 | `Move(part, by, for_s)` | translate |
 | `Grow(part, to, for_s, about)` | uniform scale about the part's centre or a named anchor |
-| `Turn(part, about, deg, for_s)` | rotate about an axis |
+| `Turn(part, axis, deg, about, for_s)` | rotate about an axis; about the part's own centre, or about a hinge point `about` (see section 27) |
 | `Colour(part, to, for_s)` | change colour |
 | `Camera(yaw, pitch, zoom, for_s)` | move the camera, like a view's setting |
 | `Narrate(text, for_s)` | caption text |
@@ -387,3 +387,81 @@ the lamp goes out; summary with conventional current.
   and the filament is fully bright or fully dark outside its 0.3 s ramps; electrons lie in the circuit and pass the switch and the filament within a lap; the open lever is more than 1 cm from the contact, the closed lever lies along
   the gap and touches it, and the pivot end stays put while turning; every drawn frame (every 0.5 s) is closed.
 - Evidence: `docs/evidence/simple-circuit/at-{5,21.8,30,50}.png` (all looked at). Not seen live by the user.
+
+## 27. Hinged turns (C2.2, 2026-11-23)
+
+`Turn` takes an optional `about: Some((x, y, z))`: a point of the structure's authored space. The part then swings about
+the line through that point along `axis` (a rib about its joint with the spine, a switch lever about its pivot, a petal
+about its base). Without `about` the turn is about the part's own centre as before, so every existing file is unchanged.
+
+- **Order and scale.** Turns apply in the order they began, after `Grow`. The hinge point is a fixed point of authored
+  space, so `Grow` (about the part's centre) does not move it.
+- **A hinge travels with its part.** `offset` (from `Move`) is added last, so a moved part carries its hinge with it.
+- **Pose type.** `PartPose.turn_pivots` runs parallel to `turns`: `None` for a centre turn, the point for a hinge. Label
+  anchors use the same `pose_point`, so a label on a hinged part swings with it.
+- **Tests:** a quarter turn about a vertex puts every vertex exactly where the rotation says (1e-9), keeps volume, leaves
+  the hinge vertex in place at half way, and a hinge moves with a `Move`.
+- **Not retrofitted yet:** the circuit switch still fakes the hinge with a turn plus a move; it is re-authored in C3.
+
+## 28. Rounded routes (C2.3, 2026-11-23)
+
+Wires, guts and airways are straight runs joined by bends. Authors list the **corner points** and one radius; SVF makes the
+arcs. Module `structure_route` (`rounded_route(points, radius, spacing)`) does the work, and two RON fields expose it:
+
+- `Tube(path: [corners...], half_widths: [(a, b)], corner_radius: Some(r), point_spacing: Some(s))`. Then `half_widths`
+  has exactly one entry, used along the whole route.
+- `Flow(path: [corners...], corner_radius: Some(r), point_spacing: Some(s), ...)`.
+- `point_spacing` defaults to `radius / 3`. Straight runs and arcs are both sampled so that no two neighbouring points are
+  further apart than it (even spacing is what the tube bend check needs; see section 15 on the digestive system).
+- Each interior corner `B` becomes the circular arc of radius `r` that touches both segments, starting `r / tan(theta / 2)`
+  from `B`. It works in 3D (in the plane of the corner). Points on a straight line are not bent; repeated points are
+  ignored; the first and last points are exact.
+- Refused with a reason: a route that doubles back, and a radius too large for the straight run between two bends.
+  Nothing shrinks silently.
+- **Routing between named points** is not an engine feature. The item-document compiler (C3) resolves names such as
+  `cell.negative` to coordinates and then calls this; the engine only needs the rounding.
+- **Tests:** arcs at the exact radius, even spacing, 3D bends in one plane, a rounded rectangle's length (1e-2), bad input, a
+  closed rounded pipe, and a flow that avoids the cut corner.
+- Not retrofitted: the generated items keep their sampled paths; the circuit is re-authored in C3.
+
+## 29. Group transforms (C2.4, 2026-11-23)
+
+`Grow` and `Turn` now act on groups. Before, they needed a part with geometry and a salt crystal took 64 `Grow` actions.
+
+- **As one body (default).** On a part that has parts below it (or a group), every part with geometry in the subtree is
+  scaled or turned together about the centre of their combined bounding box. The parts keep their places relative to one
+  another: a molecule turns as a molecule, a crystal grows as a crystal.
+- **Each in place (`each: true`).** Every part with geometry in the subtree is scaled or turned about its own centre
+  (one action instead of one per part).
+- **A single part** (no geometry below it) is unchanged: about its own centre, or about `about` for a `Turn`.
+- **`about` on a group** is one hinge point for the whole body.
+- **The body centre** is taken from the authored (unposed) geometry, so it does not move while the parts move; a `Move`
+  on the group carries the body along as before.
+- **One way per part.** All `Grow` and `Turn` actions that touch one part must agree on the body (own centre, or the same
+  group). Mixed use is refused with a message; use `each: true` on the group to make them agree.
+- **Pose type.** `PartPose.body` names the group a part scales and turns with; `Pose.bodies` lists each group's members.
+  `pose_centre` (used by `apply_pose` and by label anchors) turns that into a centre, so a label on a member follows the body.
+- **Behaviour change and a limit:** a `Grow` or `Turn` on a part that has children used to affect only that part; it now
+  takes the children with it (as a body, or each in place with `each: true`). No existing fixture did this (all fixture
+  suites pass). There is no way to scale only a parent that owns geometry and has children; if that is ever needed, split
+  the parent's own geometry into a child part.
+- **Tests:** group grow about an off-origin centre, rigid group turn (distance preserved), `each`, a group hinge, the
+  conflict error, a label anchor following a body turn.
+
+## 30. Direction markers (C2.5, 2026-11-23)
+
+Arrows show which way something runs: conventional current, a field line, a flow, a force. Two small pieces:
+
+- **`Cone(base: (x, y, z), tip: (x, y, z), radius: r)`**, a new structure geometry block: a closed solid cone from a flat
+  circular base to a point, wound outward (positive volume). It is the arrowhead. Refused with a reason: a base equal to the
+  tip, a radius that is not positive and finite, non-finite points.
+- **`structure_route::point_along(route, fraction)`** returns the point a fraction of the way along a route by length and the
+  unit direction of travel there. A kit or compiler uses it to place a marker on a wire or flow path:
+  `Cone(base: p - dir * L / 2, tip: p + dir * L / 2, radius: r)` points the way the route runs. It works on any point list,
+  including the output of `rounded_route`.
+- Authors never place these by hand. The circuit kit (C3) puts arrowheads on the loop; the field kit puts them on lines.
+- **Tests:** a cone is closed, has the exact inscribed-polygon volume, points from base to tip in any direction;
+  `point_along` gives the start and end, the middle of a rounded bend and the start of a bend, and refuses bad input.
+- **Evidence:** `docs/evidence/c2-markers/demo.png` (a pipe with two rounded bends and three arrowheads, from
+  `demo.ron`; not a lesson item).
+- **Not done:** a one-piece arrow (shaft plus head as one part) and arrowheads that animate along with a `Flow`.

@@ -255,6 +255,54 @@ fn ellipsoid_surface(
     }
 }
 
+// --------------------------------------------------------------------- Cone
+
+/// Parameters of a cone block: a closed solid cone from a flat circular base to a point.
+/// It is the arrowhead of the direction markers (`docs/animation-design.md` section 30).
+pub(crate) struct ConeParams {
+    pub base: [f64; 3],
+    pub tip: [f64; 3],
+    pub radius: f64,
+}
+
+pub(crate) fn check_cone(p: &ConeParams) -> Result<(), BlockError> {
+    if !finite3(p.base) || !finite3(p.tip) {
+        return Err(BlockError::Invalid("base and tip must be finite"));
+    }
+    if !(p.radius.is_finite() && p.radius > 0.0) {
+        return Err(BlockError::Invalid("radius must be finite and positive"));
+    }
+    if (vec3(p.tip) - vec3(p.base)).length() <= EPS {
+        return Err(BlockError::Invalid("base and tip must be different points"));
+    }
+    Ok(())
+}
+
+/// A closed cone: `segments` triangles round the side, a fan for the base, wound outward.
+pub(crate) fn build_cone(builder: &mut MeshBuilder, p: &ConeParams, segments: usize) -> Result<(), BlockError> {
+    check_cone(p)?;
+    let base = vec3(p.base);
+    let axis = (vec3(p.tip) - base).normalize();
+    // Any direction not parallel to the axis gives a perpendicular frame (e1, e2) with e1 x e2 = axis.
+    let helper = if axis.x.abs() < 0.9 { DVec3::X } else { DVec3::Y };
+    let e1 = (helper - axis * helper.dot(axis)).normalize();
+    let e2 = axis.cross(e1);
+    let centre = builder.vertex(p.base);
+    let tip = builder.vertex(p.tip);
+    let ring: Vec<u32> = (0..segments)
+        .map(|j| {
+            let phi = TAU * j as f64 / segments as f64;
+            builder.vertex((base + (e1 * phi.cos() + e2 * phi.sin()) * p.radius).to_array())
+        })
+        .collect();
+    for j in 0..segments {
+        let k = (j + 1) % segments;
+        builder.tri(ring[j], ring[k], tip);
+        builder.tri(centre, ring[k], ring[j]);
+    }
+    Ok(())
+}
+
 // --------------------------------------------------------------------- Tube
 
 /// Parameters of a tube block.
@@ -533,6 +581,84 @@ mod tests {
     /// Area of a regular `n`-gon with semi-axes `a` and `b`.
     fn polygon_area(n: usize, a: f64, b: f64) -> f64 {
         0.5 * n as f64 * a * b * (TAU / n as f64).sin()
+    }
+
+    #[test]
+    fn a_tube_with_a_corner_radius_is_a_closed_rounded_pipe() {
+        let g = geometry(
+            "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)], half_widths: [(0.4, 0.4)],              corner_radius: Some(2.0), up: (0.0, 0.0, 1.0))",
+            "",
+        );
+        assert_closed(g.mesh());
+        assert!(signed_volume(g.mesh()) > 0.0);
+        // Every vertex stays within the pipe's half-width of the rounded centre line: none lies near the
+        // sharp corner point's outer side (10, 0), which the arc cuts off.
+        let nearest = g
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| v.to_array())
+            .map(|p| ((p[0] - 10.0).powi(2) + p[1].powi(2)).sqrt())
+            .fold(f64::INFINITY, f64::min);
+        assert!(nearest > 0.828 - 0.4 - 1e-6, "nearest {nearest}");
+        // The sharp version, with the same points, reaches the corner.
+        let sharp = geometry(
+            "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)],              half_widths: [(0.4, 0.4), (0.4, 0.4), (0.4, 0.4)], up: (0.0, 0.0, 1.0))",
+            "",
+        );
+        let sharp_nearest = sharp
+            .mesh()
+            .vertices()
+            .iter()
+            .map(|v| v.to_array())
+            .map(|p| ((p[0] - 10.0).powi(2) + p[1].powi(2)).sqrt())
+            .fold(f64::INFINITY, f64::min);
+        assert!(sharp_nearest < nearest);
+    }
+
+    #[test]
+    fn a_tube_route_needs_one_half_width_and_a_workable_radius() {
+        let attempt = |widths: &str, extra: &str| {
+            structure(&[(
+                "p",
+                &format!(
+                    "Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0)], half_widths: [{widths}]{extra})"
+                ),
+                "",
+            )])
+            .map(|_| ())
+        };
+        assert!(attempt("(0.4, 0.4)", ", corner_radius: Some(2.0)").is_ok());
+        let two = attempt("(0.4, 0.4), (0.4, 0.4)", ", corner_radius: Some(2.0)").unwrap_err().to_string();
+        assert!(two.contains("exactly one half_widths"), "{two}");
+        let big = attempt("(0.4, 0.4)", ", corner_radius: Some(20.0)").unwrap_err().to_string();
+        assert!(big.contains("straight run"), "{big}");
+        let spacing = attempt("(0.4, 0.4), (0.4, 0.4), (0.4, 0.4)", ", point_spacing: Some(0.5)").unwrap_err().to_string();
+        assert!(spacing.contains("needs a corner_radius"), "{spacing}");
+        // A route narrower than its radius is caught by the existing bend check.
+        let tight = attempt("(3.0, 3.0)", ", corner_radius: Some(1.0)").unwrap_err().to_string();
+        assert!(tight.contains("bends more tightly"), "{tight}");
+    }
+
+    #[test]
+    fn a_cone_is_a_closed_solid_that_points_from_base_to_tip() {
+        let g = geometry("Cone(base: (0.0, 0.0, 0.0), tip: (0.0, 3.0, 0.0), radius: 1.0)", "");
+        assert_closed(g.mesh());
+        // Volume of the cone inscribed in a SEGMENTS-sided base: (1/3) * polygon area * height.
+        let expected = polygon_area(SEGMENTS, 1.0, 1.0) * 3.0 / 3.0;
+        assert!((signed_volume(g.mesh()) - expected).abs() < 1e-9, "{} vs {expected}", signed_volume(g.mesh()));
+        // The tip is the highest point and the base is flat at y = 0.
+        let ys: Vec<f64> = g.mesh().vertices().iter().map(|v| v.to_array()[1]).collect();
+        assert_eq!(ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max), 3.0);
+        assert_eq!(ys.iter().filter(|y| **y == 0.0).count(), SEGMENTS + 1);
+        // Any direction works, and a slanted cone has the same volume.
+        let slanted = geometry("Cone(base: (1.0, 2.0, 3.0), tip: (2.0, 4.0, 5.0), radius: 1.0)", "");
+        assert_closed(slanted.mesh());
+        assert!((signed_volume(slanted.mesh()) - expected).abs() < 1e-9);
+        // Bad input is refused.
+        assert!(block_reason("Cone(base: (0.0, 0.0, 0.0), tip: (0.0, 0.0, 0.0), radius: 1.0)").contains("different"));
+        assert!(block_reason("Cone(base: (0.0, 0.0, 0.0), tip: (0.0, 1.0, 0.0), radius: 0.0)").contains("radius"));
+        assert!(block_reason("Cone(base: (inf, 0.0, 0.0), tip: (0.0, 1.0, 0.0), radius: 1.0)").contains("finite"));
     }
 
     fn straight(wall: &str, half: &str, extra: &str) -> String {

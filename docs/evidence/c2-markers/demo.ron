@@ -1,0 +1,18 @@
+// Demo for C2.3 (rounded route) and C2.5 (Cone arrowheads): a bent pipe with direction markers.
+// Run: svf-explorer --structure docs/evidence/c2-markers/demo.ron --screenshot out.png
+Structure(
+    version: 1, name: "Direction markers demo", units: "cm", reference: "Demo only, not a lesson item.",
+    circle_segments: 24,
+    parts: [
+        Part(id: "pipe", name: "Pipe", parent: None, description: "A pipe with two bends, drawn from its corner points.",
+             colour: (0.85, 0.45, 0.2),
+             geometry: Some(Tube(path: [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (10.0, 10.0, 0.0), (20.0, 10.0, 0.0)],
+                                 half_widths: [(0.35, 0.35)], corner_radius: Some(2.5), up: (0.0, 0.0, 1.0)))),
+        Part(id: "arrow-1", name: "Arrow on the first run", parent: None, description: "Points along the flow.",
+             colour: (0.2, 0.5, 0.9), geometry: Some(Cone(base: (4.4, 0.0, 0.0), tip: (5.8, 0.0, 0.0), radius: 0.8))),
+        Part(id: "arrow-2", name: "Arrow on the rise", parent: None, description: "Points up.",
+             colour: (0.2, 0.5, 0.9), geometry: Some(Cone(base: (10.0, 4.6, 0.0), tip: (10.0, 6.0, 0.0), radius: 0.8))),
+        Part(id: "arrow-3", name: "Arrow at the end", parent: None, description: "Points out of the pipe.",
+             colour: (0.2, 0.5, 0.9), geometry: Some(Cone(base: (20.0, 10.0, 0.0), tip: (21.8, 10.0, 0.0), radius: 0.8))),
+    ],
+)
