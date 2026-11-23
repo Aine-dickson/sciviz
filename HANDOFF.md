@@ -75,8 +75,7 @@ with about 75% confidence that SVF produces valuable output across several subje
    - Read `docs/while-you-slept-2026-11-23.md` (C1 to C4) and look at the evidence in `docs/evidence/c3-circuit-kit/` and
      `docs/evidence/c4-chemistry-kits/`.
    - Say whether to open PRs: C1+C2 (`c1-fidelity-register`), then C3+C4 (`c3-circuit-kit`, stacked on it).
-   - Confirm share-alike output for BodyParts3D geometry (`docs/biology-dataset-audit.md` section 2).
-   - Say whether the small intestine is in scope for C5.
+   - Decided 2026-11-23: share-alike output for BodyParts3D geometry is accepted; the small intestine is in scope for C5.
 2. **C6, the user:** write one item from `docs/authoring-guide.md` with no help, and note the cost (section 7 of the guide).
    It can run before C5: the circuit and chemistry kits are enough.
 3. **C5 step 2 (Opus design first):** the BodyParts3D adaptation and centrelines, following
@@ -88,4 +87,7 @@ Model: C5's capping and centreline design is Opus; the OBJ reader and the kit wi
 
 - `cargo test --workspace --release --no-fail-fast`: 0 failures at `cad08f5` on `c3-circuit-kit` (core 476, render 23,
   explorer 87, every fixture suite, plus `simple_circuit_item` 9 and `chemistry_items` 6).
+- 2026-11-23: the user hand-tested the three items live ("works"); only labels glitched. Fixed (uncommitted):
+  `SceneRenderer::set_camera` now takes the surface aspect, so views and timeline cameras (fitted at 1280:800) no longer
+  draw the scene at a different aspect from the label overlay after a resize. Workspace tests: 670 passed, 0 failed.
 - Screenshots of each item, looked at by Claude, are in `docs/evidence/`. None have been judged live by the user.
